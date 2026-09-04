@@ -1,13 +1,63 @@
 # herdr-team
 
-One-click setup for a 3-agent Herdr team (PM + planner / worker / reviewer) in any project.
+**One command turns your terminal into a 4-pane AI crew that plans, builds, and gate-checks every change — pick a preset, double-click or type `hts`, done.**
+
+```
++----------------+----------------+----------------+----------------+
+| ① PM           | ② Planner      | ③ Worker       | ④ Reviewer     |
+| orchestrates   | plans & splits | builds (TDD)   | verifies       |
++----------------+----------------+----------------+----------------+
+      \                  |                    |                   /
+       └──── tasks ──────┴────── code + tests ─────┴── APPROVE ──┘
+```
 
 > Formerly `herdr-team-setup` — that name still works as a fully compatible legacy alias.
 > 한국어 가이드는 [README.ko.md](README.ko.md) 참조.
 
-## Overview
+## Why herdr-team?
 
-`herdr-team` scaffolds team orchestration docs (`AGENTS.md`, `agents/<prefix>-*.md`) and splits your current Herdr pane into a labeled PM + 3-agent layout, then starts the agents (idempotent — existing agents are skipped).
+- **app — Solo App & Idea Discovery (1인 앱/아이템).**
+  Weekend side project? The planner turns your one-line idea into buildable tasks,
+  the worker ships code with tests, and the reviewer runs deploy/E2E checks —
+  you just answer the preset menu and watch three panes work.
+- **biz — Small Business Operations (스몰 비즈니스).**
+  No code required. The researcher compares vendors, prices, and options with
+  sources attached, the planner structures the decision, and the reviewer
+  validates it. Research-first teamwork without hiring anyone.
+- **dev — Software Development, TDD (개발 3인 팀).**
+  Every feature goes planner → worker (Red→Green→Refactor) → reviewer
+  (build/unit/E2E executed, log attached). `[APPROVE]` only counts with
+  execution logs — quality gate built into the workflow.
+
+## Quick Start
+
+**Windows — zero terminal.** Download `herdr-team.zip` from GitHub Releases,
+unzip, and double-click **`start-team.bat`**. Pick a preset from the menu.
+That's it — no terminal opened, ever.
+
+**Linux / macOS — one line, then `hts` works everywhere:**
+
+```bash
+curl -fsSL <this-repo>/install.sh | HERDR_TEAM_REPO_URL=<this-repo>.git bash
+hts --help
+```
+
+(Prefer git? `git clone <this-repo> ~/work/projects/herdr-team && cd ~/work/projects/herdr-team && ./install.sh` — same result.)
+
+Then, inside an empty shell pane of a Herdr session:
+
+```bash
+cd <target-project>
+hts                    # auto-detect prefix, TUI preset menu, split + start
+hts myproj --preset app
+hts sd --dry-run       # print plan only, no changes
+```
+
+## Advanced
+
+Everything below is reference material. You never need it for the 30-second start above.
+
+### Repository layout
 
 ```
 herdr-team/
@@ -40,47 +90,7 @@ herdr-team/
 └── README.ko.md                # 한국어 상세 가이드
 ```
 
-## Quick Start
-
-```bash
-git clone <this-repo> ~/work/projects/herdr-team
-cd ~/work/projects/herdr-team
-./install.sh
-```
-
-`install.sh` creates these symlinks:
-
-```bash
-~/bin/herdr-team       -> <repo>/bin/herdr-team
-~/bin/ht               -> <repo>/bin/herdr-team
-~/bin/hts              -> <repo>/bin/herdr-team
-~/bin/herdr-team-setup -> <repo>/bin/herdr-team   # legacy alias
-~/templates/agent-team -> <repo>/templates
-```
-
-Manual install:
-
-```bash
-ln -s "$PWD/bin/herdr-team" ~/bin/herdr-team
-ln -s "$PWD/bin/herdr-team" ~/bin/ht
-ln -s "$PWD/bin/herdr-team" ~/bin/hts
-ln -s "$PWD/bin/herdr-team" ~/bin/herdr-team-setup
-ln -s "$PWD/templates" ~/templates/agent-team
-```
-
-> `~/bin` must be on your `PATH` to run `herdr-team` from anywhere.
-
-Run it inside an empty shell pane of a Herdr session:
-
-```bash
-cd <target-project>
-
-herdr-team               # auto-detect prefix from folder name
-herdr-team myproj        # force prefix
-herdr-team sd --dry-run  # print plan only, no changes
-```
-
-How it works:
+### How it works
 
 1. **Prefix** — `$1` wins; otherwise derived from the git root (or folder) name.
    `try2`→`try2`, `my-project`→`mp`, `scandimension`→`sc` (2–4 letter abbreviation or full name).
@@ -92,7 +102,20 @@ How it works:
 6. **Label + start** — renames to ① PM / ② / ③ / ④ and runs
    `herdr agent start <prefix>-<role> --kind opencode` (skips existing agents).
 
-## Interactive TUI
+`install.sh` creates these symlinks (plus `~/bin` PATH registration in
+`~/.bashrc`/`~/.zshrc`, marker comment, idempotent):
+
+```bash
+~/bin/herdr-team       -> <repo>/bin/herdr-team
+~/bin/ht               -> <repo>/bin/herdr-team
+~/bin/hts              -> <repo>/bin/herdr-team
+~/bin/herdr-team-setup -> <repo>/bin/herdr-team   # legacy alias
+~/templates/agent-team -> <repo>/templates
+```
+
+> `~/bin` must be on your `PATH` to run `herdr-team` from anywhere.
+
+### Interactive TUI
 
 With no `--preset` (and no `HERDR_TEAM_PRESET` / `--no-interactive`), a preset menu is shown:
 
@@ -110,7 +133,7 @@ Notes:
 - `--no-interactive` never prompts and defaults to `dev`.
 - `--list-presets` prints available presets and exits.
 
-## Presets (dev, app, biz)
+### Presets (dev, app, biz)
 
 | Preset | Roles | Focus |
 |--------|-------|-------|
@@ -122,11 +145,11 @@ Each preset lives in `templates/<preset>/` (`preset.conf` + `AGENTS.md`).
 Roles are generalized: the script derives agent names (`<prefix>-<role>`) from the preset's `ROLES`,
 so adding a preset is just adding a directory (+ `ROLE-<role>.md` if it uses a new role).
 
-## Windows One-Click
+### Windows one-click details
 
 For non-technical users on Windows — double-click, no terminal knowledge required:
 
-1. Double-click **`start-team.bat`** (repo root).
+1. Double-click **`start-team.bat`** (repo root, or from the release zip).
 2. Pick a preset from the menu (English primary + Korean, 10s default: dev).
 3. A desktop shortcut ("Start AI Team") can be created with `windows\create-shortcut.bat`.
 
@@ -134,35 +157,34 @@ The launcher runs the repo script via WSL (fallback: Git-Bash), converting paths
 `wsl wslpath`, forwarding all args (`--preset`, `--dry-run`, ...).
 Simulation without side effects: `HERDR_TEAM_DRYRUN=1`.
 Skip the final pause (automation): `HERDR_TEAM_NOPAUSE=1`.
+Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
+`wsl --install` (`HERDR_TEAM_SKIP_CHECK=1` bypasses the check).
 
-## Command Options
+### CLI options reference
 
-```
-herdr-team [prefix] [options]
+| Option | Description |
+|--------|-------------|
+| `prefix` | Agent prefix (e.g. `sd`, `myproj`); auto-detected when omitted |
+| `--kind KIND` | Agent kind (default: `opencode`) |
+| `--cwd PATH` | Working directory (default: `$PWD`) |
+| `--template-dir D` | Template directory (default: `~/templates/agent-team`, or `HERDR_TEAM_TEMPLATE_DIR`) |
+| `--preset NAME` | Team preset: `dev` \| `app` \| `biz` (or `HERDR_TEAM_PRESET`; default: `dev` / TUI) |
+| `--list-presets` | Print available presets and exit |
+| `--no-interactive` | Never prompt; default `preset=dev` |
+| `--no-template` | Skip template copy/generate step |
+| `--no-resize` | Skip pane resize step |
+| `--no-start` | Skip agent start (split + label only) |
+| `--force` | Overwrite existing `AGENTS.md`/agents docs |
+| `--dry-run` | Print planned commands without executing |
+| `-h, --help` | Print help |
 
-  --kind KIND       agent kind (default: opencode)
-  --cwd PATH        working directory (default: $PWD)
-  --template-dir D  template directory (default: ~/templates/agent-team,
-                    or HERDR_TEAM_TEMPLATE_DIR)
-  --preset NAME     team preset: dev | app | biz
-                    (or HERDR_TEAM_PRESET; default: dev / TUI)
-  --list-presets    print available presets and exit
-  --no-interactive  never prompt; default preset=dev
-  --no-template     skip template copy/generate step
-  --no-resize       skip pane resize step
-  --no-start        skip agent start (split + label only)
-  --force           overwrite existing AGENTS.md/agents docs
-  --dry-run         print planned commands without executing
-  -h, --help        print help
-```
-
-## Requirements
+### Requirements
 
 - `herdr` CLI (run inside a Herdr session)
 - `jq` (parses `herdr pane current/split` JSON responses)
 - Windows launcher: WSL (preferred) or Git-Bash
 
-## Team Model (3 roles)
+### Team model (3 roles)
 
 ```
 User → PM(agy) → planner → worker → reviewer ─[APPROVE + run log]→ report
@@ -173,15 +195,16 @@ User → PM(agy) → planner → worker → reviewer ─[APPROVE + run log]→ r
 - On-demand: researcher (research), ops (deploy/infra) — started by PM when needed.
 - See template `AGENTS.md` + role docs for the full protocol.
 
-## Tests
+### Tests
 
 ```bash
-bash tests/test_preset.sh           # preset + TUI (English-primary assertions incl.)
-bash tests/test_windows_launcher.sh # launcher structure + forwarded-command simulation
+bash tests/test_preset.sh            # preset + TUI (canonical + legacy wrapper)
+bash tests/test_install.sh           # installer + release zip
+bash tests/test_windows_launcher.sh  # launcher structure + forwarded-command simulation
 ```
 
-## License
+### License
 
 MIT License — see [LICENSE](LICENSE).
-Copyright (c) 2026 Herdr Team Setup Contributors.
+Copyright (c) 2026 Herdr Team Contributors.
 Free for everyone to use, modify, and distribute.

@@ -118,6 +118,14 @@ assert_exit "$WRAP_RC" 0 "wrapper dry-run exit 0"
 CANON_OUT="$(printf '' | timeout 15 "$BIN" test --preset dev --dry-run --no-template --no-interactive 2>&1)"
 assert_equal "$WRAP_OUT" "$CANON_OUT" "wrapper 출력 == 정본 출력"
 
+echo "== 13) README 랜딩 가드레일 (Hero/QuickStart/Advanced) =="
+if [[ "$(head -1 "$REPO/README.md")" == "# herdr-team" ]]; then ok "README L1: # herdr-team"; else bad "README L1: # herdr-team"; fi
+assert_contains "$(cat "$REPO/README.md")" "## Quick Start" "README: ## Quick Start"
+assert_contains "$(cat "$REPO/README.md")" "## Advanced" "README: ## Advanced"
+assert_contains "$(cat "$REPO/README.md")" "start-team.bat" "README: start-team.bat 토큰"
+assert_contains "$(cat "$REPO/README.md")" "curl" "README: curl 토큰"
+assert_contains "$(cat "$REPO/README.md")" "hts" "README: hts 토큰"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
