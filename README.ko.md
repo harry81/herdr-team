@@ -1,19 +1,23 @@
-# herdr-team-setup (한국어 가이드)
+# herdr-team (한국어 가이드)
 
 어떤 프로젝트에서든 Herdr 기반 3인 에이전트 팀(PM + planner / worker / reviewer)을 **원클릭으로 구성**하는 셋업 스크립트 저장소입니다.
 
+> 기존 `herdr-team-setup` 이름은 100% 호환 레거시 별칭으로 계속 동작합니다.
 > 영문 기본 문서는 [README.md](README.md) 참조. 본 문서는 한국어 사용자를 위한 상세 가이드입니다.
 
 ## 구성
 
 ```
-herdr-team-setup/
+herdr-team/
 ├── bin/
-│   └── herdr-team-setup        # 본 스크립트 (실행 파일)
+│   ├── herdr-team        # 본 스크립트 (실행 파일, 정본)
+│   └── herdr-team-setup  # 레거시 래퍼 (100% 호환, herdr-team으로 전달)
 ├── windows/
 │   ├── start-team.bat          # Windows 원클릭 런처 (더블클릭 실행)
 │   └── create-shortcut.bat     # 바탕화면 바로가기 생성기 ("Start AI Team")
 ├── start-team.bat              # 루트 래퍼 → windows\start-team.bat
+├── scripts/
+│   └── build-zip.sh            # 배포 아카이브 생성 (기본: herdr-team-<날짜>.zip)
 ├── templates/
 │   ├── AGENTS.md               # {{PREFIX}} 템플릿화된 팀 오케스트레이션 정본
 │   ├── agents/
@@ -25,7 +29,8 @@ herdr-team-setup/
 │   ├── app/                    # 프리셋: 1인 앱/아이템 발굴
 │   └── biz/                    # 프리셋: 스몰 비즈니스 운영
 ├── tests/
-│   ├── test_preset.sh          # 프리셋 + TUI 테스트
+│   ├── test_preset.sh          # 프리셋 + TUI 테스트 (정본 + 레거시 래퍼)
+│   ├── test_install.sh         # 설치 + 배포 zip 테스트
 │   └── test_windows_launcher.sh# Windows 런처 테스트
 ├── install.sh                  # ~/bin + ~/templates 심볼릭 링크 설치
 ├── LICENSE                     # MIT 라이선스
@@ -36,26 +41,32 @@ herdr-team-setup/
 ## 설치
 
 ```bash
-git clone <this-repo> ~/work/projects/herdr-team-setup
-cd ~/work/projects/herdr-team-setup
+git clone <this-repo> ~/work/projects/herdr-team
+cd ~/work/projects/herdr-team
 ./install.sh
 ```
 
-`install.sh`는 아래 두 심볼릭 링크를 생성합니다.
+`install.sh`는 아래 심볼릭 링크를 생성합니다.
 
 ```bash
-~/bin/herdr-team-setup     -> <repo>/bin/herdr-team-setup
-~/templates/agent-team     -> <repo>/templates
+~/bin/herdr-team       -> <repo>/bin/herdr-team
+~/bin/ht               -> <repo>/bin/herdr-team
+~/bin/hts              -> <repo>/bin/herdr-team
+~/bin/herdr-team-setup -> <repo>/bin/herdr-team   # 레거시 별칭
+~/templates/agent-team -> <repo>/templates
 ```
 
 수동 설치 시:
 
 ```bash
-ln -s "$PWD/bin/herdr-team-setup" ~/bin/herdr-team-setup
+ln -s "$PWD/bin/herdr-team" ~/bin/herdr-team
+ln -s "$PWD/bin/herdr-team" ~/bin/ht
+ln -s "$PWD/bin/herdr-team" ~/bin/hts
+ln -s "$PWD/bin/herdr-team" ~/bin/herdr-team-setup
 ln -s "$PWD/templates" ~/templates/agent-team
 ```
 
-> `~/bin`이 `PATH`에 있어야 터미널 어디서든 `herdr-team-setup`으로 실행할 수 있습니다.
+> `~/bin`이 `PATH`에 있어야 터미널 어디서든 `herdr-team`으로 실행할 수 있습니다.
 
 ## 사용법
 
@@ -63,9 +74,9 @@ ln -s "$PWD/templates" ~/templates/agent-team
 # Herdr 세션 안의 빈 shell pane에서 실행
 cd <target-project>
 
-herdr-team-setup               # 폴더명 기반 prefix 자동 결정
-herdr-team-setup myproj        # prefix 강제 지정
-herdr-team-setup sd --dry-run  # 실행 없이 계획만 출력
+herdr-team               # 폴더명 기반 prefix 자동 결정
+herdr-team myproj        # prefix 강제 지정
+herdr-team sd --dry-run  # 실행 없이 계획만 출력
 ```
 
 동작 순서:
@@ -126,7 +137,7 @@ Windows 일반 사용자용 — 더블클릭만으로 실행, 터미널 지식 �
 ## 커맨드 옵션
 
 ```
-herdr-team-setup [prefix] [options]
+herdr-team [prefix] [options]
 
   --kind KIND       agent kind (기본값: opencode)
   --cwd PATH        작업 디렉토리 (기본값: $PWD)

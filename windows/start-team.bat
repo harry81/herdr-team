@@ -1,6 +1,6 @@
 @echo off
 rem ============================================================
-rem  herdr-team-setup Windows one-click launcher (for everyone)
+rem  herdr-team Windows one-click launcher (for everyone)
 rem  Windows 원클릭 런처 (일반 사용자용)
 rem  Usage / 사용법: double-click (더블클릭), or start-team.bat [prefix] [--preset dev|app|biz] [options]
 rem  Env vars / 환경변수: HERDR_TEAM_REPO (repo path override / 저장소 경로 재지정),
@@ -76,9 +76,9 @@ if "%BACKEND%"=="wsl" (
     exit /b 1
   )
   if "%HERDR_TEAM_DRYRUN%"=="1" (
-    echo [dry-run] wsl bash "%WSL_REPO%/bin/herdr-team-setup" --cwd "%WSL_REPO%" %PRESET_ARG% %*
+    echo [dry-run] wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %*
   ) else (
-    wsl bash "%WSL_REPO%/bin/herdr-team-setup" --cwd "%WSL_REPO%" %PRESET_ARG% %*
+    wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %*
     if errorlevel 1 (
       echo [FAILED] Team setup exited with an error / [실패] 팀 셋업이 오류로 종료되었습니다.
       pause
@@ -88,9 +88,9 @@ if "%BACKEND%"=="wsl" (
 ) else (
   set "MSYS_REPO=%REPO:\=/%"
   if "%HERDR_TEAM_DRYRUN%"=="1" (
-    echo [dry-run] "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team-setup" --cwd "%MSYS_REPO%" %PRESET_ARG% %*
+    echo [dry-run] "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %*
   ) else (
-    "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team-setup" --cwd "%MSYS_REPO%" %PRESET_ARG% %*
+    "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %*
     if errorlevel 1 (
       echo [FAILED] Team setup exited with an error / [실패] 팀 셋업이 오류로 종료되었습니다.
       pause

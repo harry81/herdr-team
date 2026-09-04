@@ -4,7 +4,8 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="$REPO/bin/herdr-team-setup"
+BIN="$REPO/bin/herdr-team"
+WRAP="$REPO/bin/herdr-team-setup"
 PASS=0; FAIL=0
 
 ok()   { PASS=$((PASS+1)); printf 'PASS: %s\n' "$*"; }
@@ -18,6 +19,9 @@ assert_not_contains() {
 }
 assert_exit() { # $1=actual $2=expected $3=label
   if [[ "$1" -eq "$2" ]]; then ok "$3"; else bad "$3 (exit=$1, want=$2)"; fi
+}
+assert_equal() { # $1=actual $2=expected $3=label
+  if [[ "$1" == "$2" ]]; then ok "$3"; else bad "$3 (outputs differ)"; fi
 }
 
 # --- 0) 전제: 스크립트/템플릿 존재 ---
@@ -101,9 +105,18 @@ assert_contains "$TUI_OUT" "Select [1-3/dev/app/biz]" "TUI: English-primary prom
 assert_contains "$TUI_OUT" "Software Development" "TUI: dev English label"
 if [[ -f "$REPO/LICENSE" ]]; then ok "LICENSE 존재"; else bad "LICENSE 존재"; fi
 assert_contains "$(cat "$REPO/LICENSE" 2>/dev/null)" "MIT License" "LICENSE: MIT"
-assert_contains "$(cat "$REPO/LICENSE" 2>/dev/null)" "Herdr Team Setup Contributors" "LICENSE: copyright holder"
+assert_contains "$(cat "$REPO/LICENSE" 2>/dev/null)" "Herdr Team Contributors" "LICENSE: copyright holder"
 if [[ -f "$REPO/README.ko.md" ]]; then ok "README.ko.md 존재"; else bad "README.ko.md 존재"; fi
-assert_contains "$(head -5 "$REPO/README.md" 2>/dev/null)" "herdr-team-setup" "README.md: English primary doc"
+assert_contains "$(head -5 "$REPO/README.md" 2>/dev/null)" "herdr-team" "README.md: English primary doc"
+
+echo "== 12) 레거시 래퍼 하위호환 (herdr-team-setup → herdr-team) =="
+if [[ -x "$WRAP" ]]; then ok "래퍼 존재·실행가능: bin/herdr-team-setup"; else bad "래퍼 존재·실행가능: bin/herdr-team-setup"; fi
+WRAP_HELP="$("$WRAP" --help 2>&1 || true)"
+assert_contains "$WRAP_HELP" "herdr-team" "wrapper help: 정본 언급"
+WRAP_OUT="$(printf '' | timeout 15 "$WRAP" test --preset dev --dry-run --no-template --no-interactive 2>&1)"; WRAP_RC=$?
+assert_exit "$WRAP_RC" 0 "wrapper dry-run exit 0"
+CANON_OUT="$(printf '' | timeout 15 "$BIN" test --preset dev --dry-run --no-template --no-interactive 2>&1)"
+assert_equal "$WRAP_OUT" "$CANON_OUT" "wrapper 출력 == 정본 출력"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

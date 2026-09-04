@@ -1,7 +1,7 @@
 # Agents Configuration & Team Orchestration (preset: app)
 
 본 프로젝트의 앱/서비스 팀 구성과 Herdr 기반 오케스트레이션 정의서입니다.
-(`herdr-team-setup {{PREFIX}} --preset app` 실행 시 `{{PREFIX}}`에 실제 프로젝트 prefix가 치환됩니다.)
+(`herdr-team {{PREFIX}} --preset app` 실행 시 `{{PREFIX}}`에 실제 프로젝트 prefix가 치환됩니다.)
 
 > 전제: PM(`agy`)은 오케스트레이션만 담당합니다. 아래 가드레일(`§1.1`)을 먼저 읽으세요.
 > app 프리셋은 dev와 동일한 3역할(planner/worker/reviewer)이지만,

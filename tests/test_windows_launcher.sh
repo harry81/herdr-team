@@ -5,7 +5,8 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="$REPO/bin/herdr-team-setup"
+BIN="$REPO/bin/herdr-team"
+WRAP="$REPO/bin/herdr-team-setup"
 PASS=0; FAIL=0
 
 ok()   { PASS=$((PASS+1)); printf 'PASS: %s\n' "$*"; }
@@ -78,6 +79,10 @@ assert_contains "$SIM_OUT" "wintest-researcher" "sim: biz 역할 토큰"
 SIM2_OUT="$(printf '' | "$BIN" wintest --dry-run --no-template --no-interactive 2>&1)"; SIM2_RC=$?
 assert_exit "$SIM2_RC" 0 "sim: 기본 preset dry-run exit 0"
 assert_contains "$SIM2_OUT" "preset=dev" "sim: 기본 preset=dev"
+WRAP_OUT="$(printf '' | "$WRAP" wintest --preset biz --dry-run --no-template --no-interactive 2>&1)"; WRAP_RC=$?
+assert_exit "$WRAP_RC" 0 "sim: 레거시 래퍼 exit 0"
+if [[ "$WRAP_OUT" == "$SIM_OUT" ]]; then ok "sim: 래퍼 출력 == 정본 출력"; else bad "sim: 래퍼 출력 == 정본 출력"; fi
+assert_contains "$CORE_TXT" "bin/herdr-team" "core: 정본 브릿지 (bin/herdr-team)"
 
 echo "== 7) English-primary: bat 메뉴/프롬프트 =="
 assert_contains "$CORE_TXT" "Software Development" "core: dev English label"

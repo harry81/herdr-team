@@ -4,11 +4,11 @@
 # 일반 사용자가 압축만 풀면 바로 쓸 수 있는 패키지를 만든다.
 # 제외: .git (버전 관리), tests (개발용 테스트)
 #
-# 사용법: bash scripts/build-zip.sh [--out dist/herdr-team-setup.zip]
+# 사용법: bash scripts/build-zip.sh [--out dist/herdr-team.zip]
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-OUT="herdr-team-setup-$(date +%Y%m%d).zip"
+OUT="herdr-team-$(date +%Y%m%d).zip"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

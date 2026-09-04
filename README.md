@@ -1,21 +1,25 @@
-# herdr-team-setup
+# herdr-team
 
 One-click setup for a 3-agent Herdr team (PM + planner / worker / reviewer) in any project.
 
+> Formerly `herdr-team-setup` — that name still works as a fully compatible legacy alias.
 > 한국어 가이드는 [README.ko.md](README.ko.md) 참조.
 
 ## Overview
 
-`herdr-team-setup` scaffolds team orchestration docs (`AGENTS.md`, `agents/<prefix>-*.md`) and splits your current Herdr pane into a labeled PM + 3-agent layout, then starts the agents (idempotent — existing agents are skipped).
+`herdr-team` scaffolds team orchestration docs (`AGENTS.md`, `agents/<prefix>-*.md`) and splits your current Herdr pane into a labeled PM + 3-agent layout, then starts the agents (idempotent — existing agents are skipped).
 
 ```
-herdr-team-setup/
+herdr-team/
 ├── bin/
-│   └── herdr-team-setup        # Main script (executable)
+│   ├── herdr-team        # Main script (executable, canonical)
+│   └── herdr-team-setup  # Legacy wrapper (100% compatible, forwards to herdr-team)
 ├── windows/
 │   ├── start-team.bat          # Windows one-click launcher (double-click this)
 │   └── create-shortcut.bat     # Desktop shortcut creator ("Start AI Team")
 ├── start-team.bat              # Root wrapper → windows\start-team.bat
+├── scripts/
+│   └── build-zip.sh            # Release archive builder (default: herdr-team-<date>.zip)
 ├── templates/
 │   ├── AGENTS.md               # {{PREFIX}} team orchestration master template
 │   ├── agents/
@@ -27,7 +31,8 @@ herdr-team-setup/
 │   ├── app/                    # Preset: Solo App & Idea Discovery
 │   └── biz/                    # Preset: Small Business Operations
 ├── tests/
-│   ├── test_preset.sh          # Preset + TUI tests
+│   ├── test_preset.sh          # Preset + TUI tests (canonical + legacy wrapper)
+│   ├── test_install.sh         # Installer + release zip tests
 │   └── test_windows_launcher.sh# Windows launcher tests
 ├── install.sh                  # Symlink installer (~/bin + ~/templates)
 ├── LICENSE                     # MIT License
@@ -38,35 +43,41 @@ herdr-team-setup/
 ## Quick Start
 
 ```bash
-git clone <this-repo> ~/work/projects/herdr-team-setup
-cd ~/work/projects/herdr-team-setup
+git clone <this-repo> ~/work/projects/herdr-team
+cd ~/work/projects/herdr-team
 ./install.sh
 ```
 
-`install.sh` creates two symlinks:
+`install.sh` creates these symlinks:
 
 ```bash
-~/bin/herdr-team-setup     -> <repo>/bin/herdr-team-setup
-~/templates/agent-team     -> <repo>/templates
+~/bin/herdr-team       -> <repo>/bin/herdr-team
+~/bin/ht               -> <repo>/bin/herdr-team
+~/bin/hts              -> <repo>/bin/herdr-team
+~/bin/herdr-team-setup -> <repo>/bin/herdr-team   # legacy alias
+~/templates/agent-team -> <repo>/templates
 ```
 
 Manual install:
 
 ```bash
-ln -s "$PWD/bin/herdr-team-setup" ~/bin/herdr-team-setup
+ln -s "$PWD/bin/herdr-team" ~/bin/herdr-team
+ln -s "$PWD/bin/herdr-team" ~/bin/ht
+ln -s "$PWD/bin/herdr-team" ~/bin/hts
+ln -s "$PWD/bin/herdr-team" ~/bin/herdr-team-setup
 ln -s "$PWD/templates" ~/templates/agent-team
 ```
 
-> `~/bin` must be on your `PATH` to run `herdr-team-setup` from anywhere.
+> `~/bin` must be on your `PATH` to run `herdr-team` from anywhere.
 
 Run it inside an empty shell pane of a Herdr session:
 
 ```bash
 cd <target-project>
 
-herdr-team-setup               # auto-detect prefix from folder name
-herdr-team-setup myproj        # force prefix
-herdr-team-setup sd --dry-run  # print plan only, no changes
+herdr-team               # auto-detect prefix from folder name
+herdr-team myproj        # force prefix
+herdr-team sd --dry-run  # print plan only, no changes
 ```
 
 How it works:
@@ -127,7 +138,7 @@ Skip the final pause (automation): `HERDR_TEAM_NOPAUSE=1`.
 ## Command Options
 
 ```
-herdr-team-setup [prefix] [options]
+herdr-team [prefix] [options]
 
   --kind KIND       agent kind (default: opencode)
   --cwd PATH        working directory (default: $PWD)

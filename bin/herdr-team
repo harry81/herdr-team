@@ -1,0 +1,516 @@
+#!/usr/bin/env bash
+# herdr-team — Herdr 기반 3인 에이전트 팀 원클릭 셋업 (PM + planner/worker/reviewer)
+#
+# 사용법:
+#   herdr-team [prefix] [options]
+#   herdr-team --help
+#
+# 예:
+#   herdr-team               # 현재 폴더(git root 우선) 기반 prefix 자동 결정
+#   herdr-team myproj        # prefix=myproj 강제
+#   herdr-team sd --dry-run  # 실행 없이 계획만 출력
+#
+# 동작 개요:
+#   1) prefix 결정 ($1 또는 자동 추출)
+#   2) AGENTS.md / agents/<prefix>-*.md 없으면 템플릿 복사 또는 기본 문서 생성
+#   3) 현재 Pane(PM) 기준 우측 분할(Planner) → 해당 Pane을 아래로 2번 분할(Worker, Reviewer)
+#   4) 3개 Pane 높이 균등화(herdr pane resize, best-effort)
+#   5) Pane 레이블링 + 에이전트 시작(멱등)
+set -euo pipefail
+
+KIND="opencode"
+DRY_RUN=0
+NO_RESIZE=0
+NO_START=0
+NO_TEMPLATE=0
+NO_INTERACTIVE=0
+LIST_PRESETS=0
+FORCE=0
+PRESET_ARG=""
+PRESET=""
+TEMPLATE_DIR="${HERDR_TEAM_TEMPLATE_DIR:-$HOME/templates/agent-team}"
+CWD="$PWD"
+PREFIX_ARG=""
+
+usage() {
+  cat <<'EOF'
+Usage: herdr-team [prefix] [options]
+
+  prefix            Agent prefix (e.g. sd, myproj). Auto-detected from the
+                    directory name when omitted.
+
+Options:
+  --kind KIND       agent kind for `herdr agent start` (default: opencode)
+  --cwd PATH        working directory (default: $PWD)
+  --template-dir D  template directory (default: ~/templates/agent-team,
+                    or HERDR_TEAM_TEMPLATE_DIR)
+  --preset NAME     team preset: dev | app | biz
+                    (or HERDR_TEAM_PRESET; default: dev / TUI menu)
+  --list-presets    print available presets and exit
+  --no-interactive  never prompt; proceed with preset=dev
+  --no-template     skip template copy/generate step
+  --no-resize       skip pane resize step
+  --no-start        skip agent start (split + label only)
+  --force           overwrite existing AGENTS.md/agents docs
+  --dry-run         print planned commands without executing
+  -h, --help        print this help
+
+  Legacy alias: herdr-team-setup (deprecated, fully compatible —
+                forwards every argument to herdr-team).
+
+Presets (templates/<preset>/preset.conf):
+  dev             Software Development (default, planner/worker/reviewer, TDD)
+  app             Solo App & Idea Discovery (planner/worker/reviewer, deploy/E2E focus)
+  biz             Small Business Operations (planner/researcher/reviewer, research focus)
+
+  With no preset: the TUI menu prompts when stdin allows a choice,
+  otherwise preset=dev (--no-interactive, EOF input, or timeout).
+  Korean guide: README.ko.md
+
+Prefix auto-detect rules:
+  git root directory name first, else current folder name → lowercase alphanumerics.
+  Kept as-is when ≤4 chars, else initials of separators ([-_. ]/camelCase/digit
+  boundaries, up to 4 chars); single char falls back to first 2 chars.
+  (e.g. try2→try2, my-project→mp, scandimension→sc)
+  Well-known abbreviations (e.g. sd) should be passed explicitly: `herdr-team sd`.
+
+Layout:
+  [PM: current pane] | [Role 1 (right, top)]
+                      [Role 2 (middle)]
+                      [Role 3 (bottom)]
+  The 3 right panes are equalized with resize (~1:1:1, best-effort as the
+  meaning of amount differs per version).
+
+Labels:
+  ① PM / ② <role 1> / ③ <role 2> / ④ <role 3> (agents: {prefix}-<role>)
+EOF
+}
+
+# --- 인자 파싱 ---
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --no-resize) NO_RESIZE=1; shift ;;
+    --no-start) NO_START=1; shift ;;
+    --no-template) NO_TEMPLATE=1; shift ;;
+    --force) FORCE=1; shift ;;
+    --kind) KIND="${2:?--kind에 값이 필요합니다}"; shift 2 ;;
+    --cwd) CWD="${2:?--cwd에 값이 필요합니다}"; shift 2 ;;
+    --template-dir) TEMPLATE_DIR="${2:?--template-dir에 값이 필요합니다}"; shift 2 ;;
+    --preset) PRESET_ARG="${2:?--preset에 값이 필요합니다 (dev|app|biz)}"; shift 2 ;;
+    --list-presets) LIST_PRESETS=1; shift ;;
+    --no-interactive) NO_INTERACTIVE=1; shift ;;
+    --*) echo "error: 알 수 없는 옵션: $1 (도움말: --help)" >&2; exit 2 ;;
+    *) if [[ -z "$PREFIX_ARG" ]]; then PREFIX_ARG="$1"; else echo "error: prefix는 1개만 지정 가능합니다: $1" >&2; exit 2; fi; shift ;;
+  esac
+done
+
+# --- prefix 자동 추출 ---
+auto_prefix() {
+  local base=""
+  if git -C "$CWD" rev-parse --show-toplevel >/dev/null 2>&1; then
+    base="$(basename "$(git -C "$CWD" rev-parse --show-toplevel)")"
+  else
+    base="$(basename "$CWD")"
+  fi
+  # 소문자 + 영숫자만
+  local clean
+  clean="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' ' ')"
+  clean="$(printf '%s' "$clean" | tr -s ' ' | sed -e 's/^ *//;s/ *$//')"
+  local nospace
+  nospace="$(printf '%s' "$clean" | tr -d ' ')"
+  if [[ -z "$nospace" ]]; then printf 'tm'; return; fi
+  if [[ ${#nospace} -le 4 ]]; then printf '%s' "$nospace"; return; fi
+  # camelCase/숫자 경계에 공백 삽입 후 토큰 이니셜
+  local spaced="$base"
+  spaced="$(printf '%s' "$spaced" | sed -E -e 's/([a-z0-9])([A-Z])/\1 \2/g' -e 's/([A-Za-z])([0-9])/\1 \2/g' -e 's/([0-9])([A-Za-z])/\1 \2/g' -e 's/[-_.]+/ /g')"
+  local initials=""
+  local w
+  for w in $spaced; do
+    local ch
+    ch="$(printf '%s' "$w" | tr '[:upper:]' '[:lower:]' | cut -c1)"
+    case "$ch" in [a-z0-9]) initials+="$ch" ;; esac
+    if [[ ${#initials} -ge 4 ]]; then break; fi
+  done
+  if [[ ${#initials} -ge 2 ]]; then printf '%s' "$initials"; return; fi
+  printf '%s' "${nospace:0:2}"
+}
+
+PREFIX="${PREFIX_ARG:-$(auto_prefix)}"
+# prefix 위생 처리 (에이전트 이름에 안전 문자만)
+PREFIX="$(printf '%s' "$PREFIX" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-' | sed -e 's/^-*//;s/-*$//')"
+if [[ -z "$PREFIX" ]]; then echo "error: 유효한 prefix를 결정할 수 없습니다." >&2; exit 2; fi
+
+# --- preset 해결 (TUI 인터랙티브 메뉴 + 프리셋 지원) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+KNOWN_PRESETS="dev app biz"
+# preset 디렉토리 탐색: --template-dir/<preset> 우선, 없으면 스크립트 번들 templates/<preset>
+preset_dir() {
+  local name="$1"
+  if [[ -f "$TEMPLATE_DIR/$name/preset.conf" ]]; then printf '%s' "$TEMPLATE_DIR/$name"; return 0; fi
+  if [[ -f "$SCRIPT_DIR/../templates/$name/preset.conf" ]]; then printf '%s' "$SCRIPT_DIR/../templates/$name"; return 0; fi
+  return 1
+}
+preset_desc() {
+  local name="$1" dir=""
+  dir="$(preset_dir "$name" 2>/dev/null || true)"
+  if [[ -n "$dir" ]]; then
+    grep -E '^PRESET_DESC=' "$dir/preset.conf" 2>/dev/null | sed -e 's/^PRESET_DESC=//' -e 's/^"//' -e 's/"$//' | head -n1
+  fi
+}
+list_presets() {
+  local name
+  for name in $KNOWN_PRESETS; do
+    local dir="" desc=""
+    dir="$(preset_dir "$name" 2>/dev/null || true)"
+    desc="$(preset_desc "$name")"
+    if [[ -n "$dir" ]]; then
+      printf '%-8s %s\n' "$name" "${desc:-$dir}"
+    else
+      printf '%-8s (preset.conf 없음)\n' "$name"
+    fi
+  done
+}
+is_known_preset() {
+  local name="$1" p
+  for p in $KNOWN_PRESETS; do if [[ "$p" == "$name" ]]; then return 0; fi; done
+  return 1
+}
+choose_preset_tui() {
+  # Interactive TUI preset menu (English primary + Korean).
+  # Renders to stderr and reads one line from stdin.
+  # Falls back to preset=dev on EOF/timeout/non-TTY so it never hangs.
+  {
+    printf 'Select AI team preset (1-3 or name, default: dev):\n'
+    printf '  1) dev - Software Development (개발 3인 팀, 기본값)\n'
+    printf '  2) app - Solo App & Idea Discovery (1인 앱/아이템)\n'
+    printf '  3) biz - Small Business Operations (스몰 비즈니스)\n'
+    printf 'Select [1-3/dev/app/biz] (default: dev, 10s): '
+  } >&2
+  local ans=""
+  if IFS= read -r -t 10 ans <&0 2>/dev/null; then    ans="$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    case "$ans" in
+      ""|1|dev) printf 'dev' ;;
+      2|app) printf 'app' ;;
+      3|biz) printf 'biz' ;;
+      *) echo "error: 알 수 없는 preset 선택: $ans (dev|app|biz 중 선택)" >&2; exit 2 ;;
+    esac
+  else
+    printf 'dev'
+  fi
+}
+
+if [[ "$LIST_PRESETS" -eq 1 ]]; then list_presets; exit 0; fi
+# 환경변수 폴백 (명시적 --preset이 우선)
+if [[ -z "$PRESET_ARG" && -n "${HERDR_TEAM_PRESET:-}" ]]; then PRESET_ARG="$HERDR_TEAM_PRESET"; fi
+if [[ -n "$PRESET_ARG" ]]; then
+  if ! is_known_preset "$PRESET_ARG"; then
+    echo "error: 알 수 없는 preset: $PRESET_ARG (사용 가능: dev, app, biz. 목록: --list-presets)" >&2; exit 2
+  fi
+  if [[ -z "$(preset_dir "$PRESET_ARG" 2>/dev/null || true)" ]]; then
+    echo "error: preset '$PRESET_ARG'의 preset.conf를 찾을 수 없습니다 ($TEMPLATE_DIR/$PRESET_ARG 또는 번들 templates/$PRESET_ARG)." >&2; exit 2
+  fi
+  PRESET="$PRESET_ARG"
+else
+  if [[ "$NO_INTERACTIVE" -eq 1 ]]; then
+    PRESET="dev"
+  else
+    PRESET="$(choose_preset_tui)"
+  fi
+fi
+
+# --- 역할 일반화: preset.conf의 ROLES에서 에이전트명 도출 ---
+PRESET_ROLES="$(grep -E '^ROLES=' "$(preset_dir "$PRESET")/preset.conf" | sed -e 's/^ROLES=//' -e 's/^"//' -e 's/"$//' | head -n1)"
+if [[ -z "$PRESET_ROLES" ]]; then echo "error: preset '$PRESET'의 ROLES가 비어 있습니다." >&2; exit 2; fi
+# shellcheck disable=SC2206: 의도적 워드 스플릿
+ROLES=($PRESET_ROLES)
+NUMERALS=(② ③ ④ ⑤ ⑥)
+role_agent() { printf '%s-%s' "$PREFIX" "$1"; }
+PLANNER="$(role_agent planner)"
+WORKER="$(role_agent worker)"
+REVIEWER="$(role_agent reviewer)"
+
+run() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+log() { printf '[herdr-team] %s\n' "$*"; }
+# herdr JSON 출력에서 pane_id 추출 (jq 기반, 버전별 필드 차이 흡수).
+# split/current 응답은 {"result":{"pane":{"pane_id":"wD:p1F",...}}} 형태가 표준이며,
+# 구버전/변형 응답(.result.pane_id, .pane_id, bare ID)도 순서대로 시도한다.
+herdr_pane_id() {
+  jq -r '
+    .result.pane.pane_id
+    // .result.pane_id
+    // .result.id
+    // .pane.pane_id
+    // .pane_id
+    // .id
+    // empty
+  ' 2>/dev/null | head -n1
+}
+need_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "error: '$1' 명령을 찾을 수 없습니다." >&2; exit 127
+  fi
+}
+
+# --- 1) 템플릿 복사/생성 (preset 일반화: ROLES 루프) ---
+setup_templates() {
+  if [[ "$NO_TEMPLATE" -eq 1 ]]; then log "템플릿 단계 생략(--no-template)"; return; fi
+  # 이미 팀 문서가 있으면(AGENTS.md + 요청 preset 첫 역할 문서) 생략.
+  # 단, 요청 prefix용 파일이 없고 FORCE도 없으면 다른 prefix 문서가 있다는 안내만 하고 생략.
+  local first_agent
+  first_agent="$(role_agent "${ROLES[0]}")"
+  local existing_team=""
+  existing_team="$(ls "$CWD/agents/" 2>/dev/null | grep -E '\-(planner|worker|reviewer|researcher)\.md$' | head -n1 || true)"
+  if [[ -f "$CWD/AGENTS.md" && -n "$existing_team" && "$FORCE" -eq 0 ]]; then
+    if [[ -f "$CWD/agents/${first_agent}.md" ]]; then
+      log "AGENTS.md + agents 문서 존재 → 템플릿 단계 생략"
+    else
+      log "팀 문서 존재(${existing_team}, prefix/preset 불일치?) → 생성 생략. '${PREFIX}'용 문서가 필요하면 --force 또는 해당 prefix로 재실행"
+    fi
+    return
+  fi
+
+  # 프리셋 템플릿 베이스 해결: --template-dir/<preset> 우선, 없으면 번들 templates/<preset>
+  local preset_base=""
+  preset_base="$(preset_dir "$PRESET" 2>/dev/null || true)"
+  local legacy_base="$TEMPLATE_DIR"
+  local src_base="${preset_base:-$legacy_base}"
+  # 외부/번들 템플릿 디렉토리가 있으면 복사(파일 내 {{PREFIX}} 치환)
+  if [[ -d "$src_base" ]]; then
+    log "프리셋 템플릿 사용: $src_base (preset=${PRESET})"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      printf '+ mkdir -p %s/agents && cp %s/* %s/ ({{PREFIX}}→%s 치환, preset=%s)\n' "$CWD" "$src_base" "$CWD" "$PREFIX" "$PRESET"
+      return
+    fi
+    mkdir -p "$CWD/agents"
+    local agents_src="$src_base/agents"
+    if [[ ! -d "$agents_src" && -d "$TEMPLATE_DIR/agents" ]]; then agents_src="$TEMPLATE_DIR/agents"; fi
+    if [[ ! -d "$agents_src" && -d "$SCRIPT_DIR/../templates/agents" ]]; then agents_src="$SCRIPT_DIR/../templates/agents"; fi
+    if [[ -f "$src_base/AGENTS.md" && ( ! -f "$CWD/AGENTS.md" || "$FORCE" -eq 1 ) ]]; then
+      sed "s/{{PREFIX}}/${PREFIX}/g" "$src_base/AGENTS.md" > "$CWD/AGENTS.md"
+    fi
+    local role
+    for role in "${ROLES[@]}"; do
+      local src="$agents_src/ROLE-${role}.md"
+      local dst="$CWD/agents/${PREFIX}-${role}.md"
+      if [[ ! -f "$src" ]]; then src="$src_base/${PREFIX}-${role}.md"; fi
+      if [[ -f "$src" && ( ! -f "$dst" || "$FORCE" -eq 1 ) ]]; then
+        sed "s/{{PREFIX}}/${PREFIX}/g" "$src" > "$dst"
+      fi
+    done
+    return
+  fi
+
+  # 내장 기본 문서 생성 ({{PREFIX}} 치환 완료 상태, preset ROLES 기준)
+  log "내장 템플릿으로 기본 문서 생성 (prefix=${PREFIX} preset=${PRESET})"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ (내장 템플릿) %s/AGENTS.md + agents/%s-{%s}.md 생성 (preset=%s)\n' "$CWD" "$PREFIX" "$(IFS=,; printf '%s' "${ROLES[*]}")" "$PRESET"
+    return
+  fi
+  mkdir -p "$CWD/agents"
+  if [[ ! -f "$CWD/AGENTS.md" || "$FORCE" -eq 1 ]]; then
+    local agents_list=""
+    local r
+    for r in "${ROLES[@]}"; do agents_list+="$(role_agent "$r") / "; done
+    agents_list="${agents_list% / }"
+    cat > "$CWD/AGENTS.md" <<EOF
+# Agents Configuration & Team Orchestration (preset: ${PRESET})
+
+${#ROLES[@]}인 체제(PM - ${agents_list}) 정의서입니다. (preset=${PRESET})
+
+## 1. 소통 흐름 (Communication Flow) — 순차 DAG
+
+\`\`\`
+[ User ] → [ PM (agy) ] → [ $(role_agent "${ROLES[0]}") ] → [ $(role_agent "${ROLES[1]:-${ROLES[0]}}") ] → [ $(role_agent "${ROLES[2]:-${ROLES[0]}}") ] ─ [APPROVE + 실행 로그] → 보고
+                                                     ↑________ [REQUEST CHANGES] ________|
+\`\`\`
+
+- Team 간 직접 협업 금지. 모든 반송/승인은 PM 경유.
+- 수정 권한: 코드를 직접 수정하는 것은 \`$(role_agent worker)\`뿐(해당 역할이 체제에 있을 때). 리뷰어는 수정 없이 보고서만.
+
+### 1.1 PM 가드레일
+- ❌ 금지: 파일 편집, 테스트/빌드 실행, git commit/push, pane 직접 코딩.
+- ✅ 허용: \`herdr agent list/read\`, \`herdr pane list/read\`, \`git status/diff/log\` 취합 보고.
+- 위임 고정: 기획→\`$(role_agent planner)\`, 실행 검증 겸 리뷰→\`$(role_agent reviewer)\`.
+
+## 2. 에이전트 역할
+| 에이전트 | 문서 |
+|---|---|
+| PM (agy) | 본 문서 |
+EOF
+    for r in "${ROLES[@]}"; do
+      printf '| %s | agents/%s.md |\n' "$(role_agent "$r")" "$(role_agent "$r")" >> "$CWD/AGENTS.md"
+    done
+    {
+      printf '\n## 3. Herdr 운용\n'
+      printf -- '- 고정 Pane ID 금지. `herdr pane/tab/agent list`로 조회.\n'
+      printf -- '- `herdr-team %s --preset %s` 실행 시 현재 Pane(PM) 기준 우측 분할 후 아래로 %d분할, resize 균등화.\n' "$PREFIX" "$PRESET" "$((${#ROLES[@]} - 1))"
+    } >> "$CWD/AGENTS.md"
+  fi
+  local role
+  for role in "${ROLES[@]}"; do
+    local dst="$CWD/agents/${PREFIX}-${role}.md"
+    if [[ -f "$dst" && "$FORCE" -eq 0 ]]; then continue; fi
+    case "$role" in
+      planner) cat > "$dst" <<EOF
+# Role: ${PLANNER} (기획 및 아키텍처 설계)
+
+## 핵심 미션
+요구사항 분석, 아키텍처/데이터 흐름 설계, \`${WORKER}\`가 즉시 구현 가능한 Task Breakdown 작성.
+
+## 산출물
+- 요구사항 요약 & 목표 / 아키텍처 & 데이터 흐름 / 작업 분할(완료 기준·TDD 대상) / 엣지 케이스.
+- 직접 코드 구현 금지 (인터페이스 예시만 가능).
+EOF
+        ;;
+      worker) cat > "$dst" <<EOF
+# Role: ${WORKER} (개발 및 단위 테스트 구현)
+
+## 핵심 미션
+TDD Red→Green→Refactor로 구현하고 단위 테스트를 통과시킴.
+
+## 보고 형식
+- 작업 개요 / 변경·추가 파일 / 단위 테스트 결과 / 특이사항 & 다음 제안.
+- 주요 이론 내용은 \`til/\`에 기록 후 커밋.
+EOF
+        ;;
+      reviewer) cat > "$dst" <<EOF
+# Role: ${REVIEWER} (실행 검증 겸 코드 리뷰, 최종 게이트)
+
+## 핵심 미션
+정적 리뷰 + 빌드/단위/통합·E2E·회귀 직접 실행 후 [APPROVE]/[REQUEST CHANGES] 판정.
+[APPROVE]는 실행 커맨드·로그 첨부 시에만 유효. 코드 수정 금지.
+EOF
+        ;;
+      researcher) cat > "$dst" <<EOF
+# Role: $(role_agent researcher) (기술 조사·외부 리서치)
+
+## 핵심 미션
+외부 리서치, 기술 조사, 라이브러리/SDK 내부 탐사 전담 (읽기·보고만, 코드 수정 금지).
+모든 주장에 출처(URL·버전·발췌)를 첨부하고 재현 절차를 기록.
+
+## 보고 형식
+- 조사 개요 / 근거 자료 / 비교 분석 / 다음 제안.
+EOF
+        ;;
+      *) cat > "$dst" <<EOF
+# Role: $(role_agent "$role") (preset: ${PRESET})
+
+## 핵심 미션
+${PRESET} 프리셋의 '${role}' 역할을 수행. PM 지시에 따라 산출물 형식을 준수.
+EOF
+        ;;
+    esac
+  done
+}
+
+# --- 2) Pane 분할 + 리사이즈 + 레이블 + 에이전트 시작 (preset ROLES 일반화) ---
+setup_panes() {
+  # dry-run은 herdr/jq 없이도 계획 출력 (TUI·인자 검증용)
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log "prefix=${PREFIX} preset=${PRESET} kind=${KIND} cwd=${CWD} (dry-run)"
+    local _prev="BASE" _role _var _agent _i
+    printf '+ BASE=$(herdr pane current | jq -r .result.pane.pane_id)  # PM pane\n'
+    for _role in "${ROLES[@]}"; do
+      _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
+      if [[ "$_prev" == "BASE" ]]; then
+        printf '+ %s=$(herdr pane split "$%s" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+      else
+        printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+      fi
+      _prev="$_var"
+    done
+    if [[ "$NO_RESIZE" -eq 0 && "${#ROLES[@]}" -ge 3 ]]; then
+      local _mid_var="P_$(printf '%s' "${ROLES[1]}" | tr '[:lower:]' '[:upper:]')"
+      local _last_var="P_$(printf '%s' "${ROLES[${#ROLES[@]}-1]}" | tr '[:lower:]' '[:upper:]')"
+      printf '+ herdr pane resize --pane "$%s" --direction up --amount 0.10   # 균등화 best-effort\n' "$_mid_var"
+      printf '+ herdr pane resize --pane "$%s" --direction down --amount 0.10 # 균등화 best-effort\n' "$_last_var"
+    fi
+    printf '+ herdr pane rename "$BASE" "① PM"\n'
+    _i=0
+    for _role in "${ROLES[@]}"; do
+      _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
+      _agent="$(role_agent "$_role")"
+      printf '+ herdr pane rename "$%s" "%s %s (%s)"\n' "$_var" "${NUMERALS[$_i]}" "$_role" "$_agent"
+      _i=$((_i+1))
+    done
+    if [[ "$NO_START" -eq 0 ]]; then
+      for _role in "${ROLES[@]}"; do
+        _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
+        _agent="$(role_agent "$_role")"
+        printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var"
+      done
+    fi
+    return
+  fi
+
+  need_cmd herdr
+  need_cmd jq
+  local base_pane=""
+  base_pane="$(herdr pane current 2>/dev/null | herdr_pane_id || true)"
+  if [[ -z "$base_pane" ]]; then
+    # current 파싱 실패 시 HERDR_PANE_ID env로 fallback
+    base_pane="${HERDR_PANE_ID:-}"
+  fi
+
+  if [[ -z "$base_pane" ]]; then
+    echo "error: 현재 Pane ID를 확인할 수 없습니다. Herdr 세션 안에서 실행하세요." >&2
+    exit 1
+  fi
+  log "BASE(PM) pane: $base_pane (preset=${PRESET})"
+  # 역할 일반화: ROLES 순서대로 체이닝 분할 (첫 역할은 right, 이후는 down).
+  # 연관배열 미사용(bash 3.x 호환): PANE_IDS[i] ↔ ROLES[i].
+  local PANE_IDS=()
+  local prev_pane="$base_pane" split_out pane_id role direction first=1
+  for role in "${ROLES[@]}"; do
+    if [[ "$first" -eq 1 ]]; then direction="right"; first=0; else direction="down"; fi
+    split_out="$(herdr pane split "$prev_pane" --direction "$direction" --cwd "$CWD" --no-focus)"
+    pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
+    if [[ -z "$pane_id" ]]; then echo "error: ${role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+    PANE_IDS+=("$pane_id")
+    prev_pane="$pane_id"
+    log "${role} pane: $pane_id"
+  done
+  local last_idx=$((${#ROLES[@]} - 1))
+
+  if [[ "$NO_RESIZE" -eq 0 && "${#ROLES[@]}" -ge 3 ]]; then
+    # 우측 컬럼 분할 균등화 시도. amount 의미가 버전별로 다를 수 있어 실패 무시(best-effort).
+    herdr pane resize --pane "${PANE_IDS[1]}" --direction up --amount 0.10 || true
+    herdr pane resize --pane "${PANE_IDS[$last_idx]}" --direction down --amount 0.10 || true
+    log "resize 균등화 시도 완료 (best-effort, 육안 확인 권장)"
+  fi
+
+  run herdr pane rename "$base_pane" "① PM"
+  local i=0 agent cap
+  for role in "${ROLES[@]}"; do
+    agent="$(role_agent "$role")"
+    cap="$(printf '%s' "$role" | sed -e 's/^./\U&/')"
+    run herdr pane rename "${PANE_IDS[$i]}" "${NUMERALS[$i]} ${cap} (${agent})"
+    i=$((i+1))
+  done
+
+  if [[ "$NO_START" -eq 0 ]]; then
+    i=0
+    for role in "${ROLES[@]}"; do
+      agent="$(role_agent "$role")"
+      if ! herdr agent list 2>/dev/null | grep -q -- "$agent"; then
+        run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
+      else log "$agent 이미 존재 → 시작 생략"; fi
+      i=$((i+1))
+    done
+  fi
+  local done_list=""
+  for role in "${ROLES[@]}"; do done_list+="$(role_agent "$role") / "; done
+  done_list="${done_list% / }"
+  log "완료: prefix=${PREFIX} preset=${PRESET} (${done_list})"
+}
+
+setup_templates
+setup_panes
