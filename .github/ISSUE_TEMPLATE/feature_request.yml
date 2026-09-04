@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an idea for herdr-team
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem does this solve? Who benefits (app / biz / dev)?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should happen? Include preset, CLI flags, or TUI menu sketches if relevant.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Preset / template
+        - CLI (bin/herdr-team)
+        - Windows launcher
+        - Installer / release
+        - Docs

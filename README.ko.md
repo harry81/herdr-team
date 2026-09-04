@@ -1,5 +1,10 @@
 # herdr-team (한국어 가이드)
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-blue)](README.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Stars](https://img.shields.io/github/stars/harry81/herdr-team?style=social)](https://github.com/harry81/herdr-team/stargazers)
+
 **명령어 하나로 터미널이 4분할 AI 팀으로 변합니다. 기획·구현·검증까지 알아서 분업 — 프리셋을 고르고 더블클릭하거나 `hts` 한 줄이면 끝.**
 
 ```
@@ -38,11 +43,11 @@
 **Linux / macOS — 한 줄이면 어디서든 `hts`:**
 
 ```bash
-curl -fsSL <this-repo>/install.sh | HERDR_TEAM_REPO_URL=<this-repo>.git bash
+curl -fsSL https://raw.githubusercontent.com/harry81/herdr-team/main/install.sh | HERDR_TEAM_REPO_URL=https://github.com/harry81/herdr-team.git bash
 hts --help
 ```
 
-(git 선호 시: `git clone <this-repo> ~/work/projects/herdr-team && cd ~/work/projects/herdr-team && ./install.sh` — 결과 동일.)
+(git 선호 시: `git clone https://github.com/harry81/herdr-team ~/work/projects/herdr-team && cd ~/work/projects/herdr-team && ./install.sh` — 결과 동일.)
 
 이어서 Herdr 세션 안의 빈 shell pane에서:
 

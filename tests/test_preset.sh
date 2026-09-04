@@ -126,6 +126,17 @@ assert_contains "$(cat "$REPO/README.md")" "start-team.bat" "README: start-team.
 assert_contains "$(cat "$REPO/README.md")" "curl" "README: curl 토큰"
 assert_contains "$(cat "$REPO/README.md")" "hts" "README: hts 토큰"
 
+echo "== 14) GitHub SEO 가드레일 (배지·실URL·헬스파일) =="
+README_TXT="$(cat "$REPO/README.md")"
+assert_contains "$README_TXT" "shields.io" "README: shields.io 배지"
+assert_contains "$README_TXT" "license" "README: License 배지"
+assert_contains "$README_TXT" "PRs Welcome" "README: PRs Welcome 배지"
+assert_contains "$README_TXT" "https://raw.githubusercontent.com/harry81/herdr-team/main/install.sh" "README: 실제 install.sh URL"
+assert_contains "$(cat "$REPO/README.ko.md")" "https://raw.githubusercontent.com/harry81/herdr-team/main/install.sh" "README.ko: 실제 install.sh URL"
+for hf in ".github/workflows/ci.yml" ".github/ISSUE_TEMPLATE/bug_report.yml" ".github/ISSUE_TEMPLATE/feature_request.yml" ".github/PULL_REQUEST_TEMPLATE.md" "CONTRIBUTING.md" "SECURITY.md" "scripts/repo-meta.sh"; do
+  if [[ -f "$REPO/$hf" ]]; then ok "존재: $hf"; else bad "존재: $hf"; fi
+done
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

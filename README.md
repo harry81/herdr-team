@@ -1,5 +1,10 @@
 # herdr-team
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-blue)](README.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Stars](https://img.shields.io/github/stars/harry81/herdr-team?style=social)](https://github.com/harry81/herdr-team/stargazers)
+
 **One command turns your terminal into a 4-pane AI crew that plans, builds, and gate-checks every change — pick a preset, double-click or type `hts`, done.**
 
 ```
@@ -38,11 +43,11 @@ That's it — no terminal opened, ever.
 **Linux / macOS — one line, then `hts` works everywhere:**
 
 ```bash
-curl -fsSL <this-repo>/install.sh | HERDR_TEAM_REPO_URL=<this-repo>.git bash
+curl -fsSL https://raw.githubusercontent.com/harry81/herdr-team/main/install.sh | HERDR_TEAM_REPO_URL=https://github.com/harry81/herdr-team.git bash
 hts --help
 ```
 
-(Prefer git? `git clone <this-repo> ~/work/projects/herdr-team && cd ~/work/projects/herdr-team && ./install.sh` — same result.)
+(Prefer git? `git clone https://github.com/harry81/herdr-team ~/work/projects/herdr-team && cd ~/work/projects/herdr-team && ./install.sh` — same result.)
 
 Then, inside an empty shell pane of a Herdr session:
 
