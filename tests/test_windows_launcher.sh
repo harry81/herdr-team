@@ -85,6 +85,11 @@ assert_contains "$CORE_TXT" "Solo App" "core: app English label"
 assert_contains "$CORE_TXT" "Small Business" "core: biz English label"
 assert_contains "$CORE_TXT" "Select [1-3" "core: English-primary prompt"
 
+echo "== 8) 의존성 점검 위저드 (Git/WSL 부재 시) =="
+assert_contains "$CORE_TXT" "winget" "core: winget 설치 유도"
+assert_contains "$CORE_TXT" "HERDR_TEAM_SKIP_CHECK" "core: HERDR_TEAM_SKIP_CHECK 플래그"
+assert_contains "$CORE_TXT" "wsl --install" "core: wsl --install 안내"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

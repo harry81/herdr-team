@@ -19,6 +19,11 @@ if defined HERDR_TEAM_REPO (
 }
 
 rem --- Backend: WSL first, Git-Bash fallback / 백엔드 선택: WSL 우선, 없으면 Git-Bash ---
+rem --- Set HERDR_TEAM_SKIP_CHECK=1 to bypass this check ---
+if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
+  echo [WARN] Skipping dependency check (HERDR_TEAM_SKIP_CHECK=1) / 의존성 점검 생략
+  set "BACKEND=wsl"
+) else (
 where wsl >nul 2>nul
 if not errorlevel 1 (
   set "BACKEND=wsl"
@@ -28,11 +33,20 @@ if not errorlevel 1 (
   ) else (
     echo [ERROR] Neither WSL nor Git-Bash was found.
     echo [오류] WSL 또는 Git-Bash를 찾을 수 없습니다.
-    echo        Please install WSL from the Microsoft Store or install Git for Windows.
-    echo        Microsoft Store에서 WSL을 설치하거나 Git for Windows를 설치하세요.
+    echo.
+    echo To install automatically on Windows 10/11, run these in PowerShell as admin:
+    echo Windows 10/11에서 자동 설치하려면 관리자 PowerShell에서 실행:
+    echo   winget install --id Git.Git -e --source winget
+    echo   wsl --install
+    echo Then restart Windows and double-click start-team.bat again.
+    echo 설치 후 Windows를 다시 시작하고 start-team.bat을 다시 더블클릭하세요.
+    echo.
+    echo To skip this check (advanced): set HERDR_TEAM_SKIP_CHECK=1
+    echo 점검 생략(고급): HERDR_TEAM_SKIP_CHECK=1 설정
     pause
     exit /b 1
   )
+)
 )
 
 rem --- Preset menu only when no args and no env (defaults to dev after 10s) ---
