@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# herdr-team — Herdr 기반 3인 에이전트 팀 원클릭 셋업 (PM + planner/worker/reviewer)
+# herdr-team — Herdr 기반 에이전트 팀 원클릭 셋업 (PM + taskmanager + planner/worker/reviewer)
 #
 # 사용법:
 #   herdr-team [prefix] [options]
@@ -13,8 +13,8 @@
 # 동작 개요:
 #   1) prefix 결정 ($1 또는 자동 추출)
 #   2) AGENTS.md / agents/<prefix>-*.md 없으면 템플릿 복사 또는 기본 문서 생성
-#   3) 현재 Pane(PM) 기준 우측 분할(Planner) → 해당 Pane을 아래로 2번 분할(Worker, Reviewer)
-#   4) 3개 Pane 높이 균등화(herdr pane resize, best-effort)
+#   3) 현재 Pane(PM) 기준 우측 분할(Task Manager) → 해당 Pane을 아래로 순차 분할(Planner, Worker, ...)
+#   4) 각 Pane 높이 균등화(herdr pane resize, best-effort)
 #   5) Pane 레이블링 + 에이전트 시작(멱등)
 set -euo pipefail
 
@@ -59,9 +59,9 @@ Options:
                 forwards every argument to herdr-team).
 
 Presets (templates/<preset>/preset.conf):
-  dev             Software Development (default, planner/worker/reviewer, TDD)
-  app             Solo App & Idea Discovery (planner/worker/reviewer, deploy/E2E focus)
-  biz             Small Business Operations (planner/researcher/reviewer, research focus)
+  dev             Software Development (default, taskmanager/planner/worker/reviewer, TDD)
+  app             Solo App & Idea Discovery (taskmanager/planner/worker/reviewer, deploy/E2E focus)
+  biz             Small Business Operations (taskmanager/planner/researcher/reviewer, research focus)
 
   With no preset: the TUI menu prompts when stdin allows a choice,
   otherwise preset=dev (--no-interactive, EOF input, or timeout).
@@ -75,14 +75,17 @@ Prefix auto-detect rules:
   Well-known abbreviations (e.g. sd) should be passed explicitly: `herdr-team sd`.
 
 Layout:
-  [PM: current pane] | [Role 1 (right, top)]
+  [PM: current pane] | [Task Manager (right, top)]
                       [Role 2 (middle)]
-                      [Role 3 (bottom)]
-  The 3 right panes are equalized with resize (~1:1:1, best-effort as the
-  meaning of amount differs per version).
+                      [Role 3 (middle)]
+                      [Role 4 (bottom)]
+  The right panes are equalized with resize (~1:1:1, best-effort as the
+  meaning of amount differs per version). Task Manager relays the pipeline
+  (PM stays for user communication & top-level goals).
 
 Labels:
-  ① PM / ② <role 1> / ③ <role 2> / ④ <role 3> (agents: {prefix}-<role>)
+  ① PM / ② <role 1 (taskmanager)> / ③ <role 2> / ④ <role 3> / ⑤ <role 4>
+  (agents: {prefix}-<role>)
 EOF
 }
 
@@ -183,7 +186,7 @@ choose_preset_tui() {
   # Falls back to preset=dev on EOF/timeout/non-TTY so it never hangs.
   {
     printf 'Select AI team preset (1-3 or name, default: dev):\n'
-    printf '  1) dev - Software Development (개발 3인 팀, 기본값)\n'
+    printf '  1) dev - Software Development (개발 4인 팀, 기본값)\n'
     printf '  2) app - Solo App & Idea Discovery (1인 앱/아이템)\n'
     printf '  3) biz - Small Business Operations (스몰 비즈니스)\n'
     printf 'Select [1-3/dev/app/biz] (default: dev, 10s): '
@@ -267,7 +270,7 @@ setup_templates() {
   local first_agent
   first_agent="$(role_agent "${ROLES[0]}")"
   local existing_team=""
-  existing_team="$(ls "$CWD/agents/" 2>/dev/null | grep -E '\-(planner|worker|reviewer|researcher)\.md$' | head -n1 || true)"
+  existing_team="$(ls "$CWD/agents/" 2>/dev/null | grep -E '\-(planner|worker|reviewer|researcher|taskmanager)\.md$' | head -n1 || true)"
   if [[ -f "$CWD/AGENTS.md" && -n "$existing_team" && "$FORCE" -eq 0 ]]; then
     if [[ -f "$CWD/agents/${first_agent}.md" ]]; then
       log "AGENTS.md + agents 문서 존재 → 템플릿 단계 생략"
@@ -325,14 +328,15 @@ setup_templates() {
 
 ${#ROLES[@]}인 체제(PM - ${agents_list}) 정의서입니다. (preset=${PRESET})
 
-## 1. 소통 흐름 (Communication Flow) — 순차 DAG
+## 1. 소통 흐름 (Communication Flow) — 순차 파이프라인
 
 \`\`\`
 [ User ] → [ PM (agy) ] → [ $(role_agent "${ROLES[0]}") ] → [ $(role_agent "${ROLES[1]:-${ROLES[0]}}") ] → [ $(role_agent "${ROLES[2]:-${ROLES[0]}}") ] ─ [APPROVE + 실행 로그] → 보고
                                                      ↑________ [REQUEST CHANGES] ________|
 \`\`\`
 
-- Team 간 직접 협업 금지. 모든 반송/승인은 PM 경유.
+- \`$(role_agent "${ROLES[0]}")\`(Task Manager)가 파이프라인 중계·드라이브 전담 (코드 수정 금지).
+- Team 간 직접 협업 금지. 모든 반송/승인은 Task Manager(필요 시 PM) 경유.
 - 수정 권한: 코드를 직접 수정하는 것은 \`$(role_agent worker)\`뿐(해당 역할이 체제에 있을 때). 리뷰어는 수정 없이 보고서만.
 
 ### 1.1 PM 가드레일
@@ -359,6 +363,21 @@ EOF
     local dst="$CWD/agents/${PREFIX}-${role}.md"
     if [[ -f "$dst" && "$FORCE" -eq 0 ]]; then continue; fi
     case "$role" in
+      taskmanager) cat > "$dst" <<EOF
+# Role: ${PREFIX}-taskmanager (Task Manager — 파이프라인 오케스트레이터)
+
+## 핵심 미션
+Team이 쉼 없이 작업하도록 순차 파이프라인을 실시간 중계·드라이브. 코드 수정 금지.
+
+## 규칙
+- 역할 위임 고정: 기획/설계→\`${PREFIX}-planner\`, 구현→\`${PREFIX}-worker\`, 검증·리뷰→\`${PREFIX}-reviewer\`.
+- 오케스트레이션 전담: \`herdr agent prompt\`로 위임, \`wait/read\`로 모니터링, 산출물 중계.
+- 무방치 원칙: 각 단계 완료 즉시 다음 단계 연결. 모든 반송/승인은 Task Manager(필요 시 PM) 경유.
+
+## 보고 형식
+- 진행 태스크 / 에이전트 산출물 요약(Planner 명세·Worker 테스트·Reviewer 판정) / 다음 단계.
+EOF
+        ;;
       planner) cat > "$dst" <<EOF
 # Role: ${PLANNER} (기획 및 아키텍처 설계)
 

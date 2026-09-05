@@ -22,17 +22,20 @@
 ## Why herdr-team?
 
 - **app — Solo App & Idea Discovery (1인 앱/아이템).**
-  Weekend side project? The planner turns your one-line idea into buildable tasks,
-  the worker ships code with tests, and the reviewer runs deploy/E2E checks —
-  you just answer the preset menu and watch three panes work.
+  Weekend side project? The task manager relays the pipeline, the planner turns
+  your one-line idea into buildable tasks, the worker ships code with tests,
+  and the reviewer runs deploy/E2E checks — you just answer the preset menu and
+  watch four panes work.
 - **biz — Small Business Operations (스몰 비즈니스).**
-  No code required. The researcher compares vendors, prices, and options with
-  sources attached, the planner structures the decision, and the reviewer
-  validates it. Research-first teamwork without hiring anyone.
-- **dev — Software Development, TDD (개발 3인 팀).**
+  No code required. The task manager drives the flow, the researcher compares
+  vendors, prices, and options with sources attached, the planner structures
+  the decision, and the reviewer validates it. Research-first teamwork without
+  hiring anyone.
+- **dev — Software Development, TDD (개발 4인 팀).**
   Every feature goes planner → worker (Red→Green→Refactor) → reviewer
-  (build/unit/E2E executed, log attached). `[APPROVE]` only counts with
-  execution logs — quality gate built into the workflow.
+  (build/unit/E2E executed, log attached), relayed by the task manager so no
+  agent idles. `[APPROVE]` only counts with execution logs — quality gate built
+  into the workflow.
 
 ## Quick Start
 
@@ -78,6 +81,7 @@ herdr-team/
 ├── templates/
 │   ├── AGENTS.md               # {{PREFIX}} team orchestration master template
 │   ├── agents/
+│   │   ├── ROLE-taskmanager.md # {{PREFIX}}-taskmanager role template (pipeline relay)
 │   │   ├── ROLE-planner.md     # {{PREFIX}}-planner role template
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker role template
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer role template
@@ -102,9 +106,9 @@ herdr-team/
 2. **Preset** — `--preset dev|app|biz`, `HERDR_TEAM_PRESET`, or the interactive TUI menu (default: `dev`).
 3. **Templates** — copies `AGENTS.md` + `agents/<prefix>-*.md` from `~/templates/agent-team`
    (with `{{PREFIX}}` substitution). Skipped if team docs already exist (idempotent).
-4. **Pane split** — current pane (PM) → split right (role 1) → split down twice (roles 2–3).
-5. **Equalize** — `herdr pane resize` evens the 3 right panes (~1:1:1, best-effort).
-6. **Label + start** — renames to ① PM / ② / ③ / ④ and runs
+4. **Pane split** — current pane (PM) → split right (task manager) → split down for each remaining role.
+5. **Equalize** — `herdr pane resize` evens the right panes (~1:1:1, best-effort).
+6. **Label + start** — renames to ① PM / ② Task Manager / ③④⑤ roles and runs
    `herdr agent start <prefix>-<role> --kind opencode` (skips existing agents).
 
 `install.sh` creates these symlinks (plus `~/bin` PATH registration in
@@ -126,7 +130,7 @@ With no `--preset` (and no `HERDR_TEAM_PRESET` / `--no-interactive`), a preset m
 
 ```
 Select AI team preset (1-3 or name, default: dev):
-  1) dev - Software Development (개발 3인 팀, 기본값)
+  1) dev - Software Development (개발 4인 팀, 기본값)
   2) app - Solo App & Idea Discovery (1인 앱/아이템)
   3) biz - Small Business Operations (스몰 비즈니스)
 Select [1-3/dev/app/biz] (default: dev, 10s):
@@ -142,9 +146,9 @@ Notes:
 
 | Preset | Roles | Focus |
 |--------|-------|-------|
-| `dev` (default) | planner, worker, reviewer | Software Development, TDD |
-| `app` | planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
-| `biz` | planner, researcher, reviewer | Small Business Operations, research-first (no worker) |
+| `dev` (default) | taskmanager, planner, worker, reviewer | Software Development, TDD |
+| `app` | taskmanager, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
+| `biz` | taskmanager, planner, researcher, reviewer | Small Business Operations, research-first (no worker) |
 
 Each preset lives in `templates/<preset>/` (`preset.conf` + `AGENTS.md`).
 Roles are generalized: the script derives agent names (`<prefix>-<role>`) from the preset's `ROLES`,
@@ -189,13 +193,15 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 - `jq` (parses `herdr pane current/split` JSON responses)
 - Windows launcher: WSL (preferred) or Git-Bash
 
-### Team model (3 roles)
+### Team model (task manager + 3 roles)
 
 ```
-User → PM(agy) → planner → worker → reviewer ─[APPROVE + run log]→ report
-                               ↑____[REQUEST CHANGES]____|
+User → PM(agy) → task manager → planner → worker → reviewer ─[APPROVE + run log]→ report
+                                             ↑________[REQUEST CHANGES]________|
 ```
 
+- Task manager relays the sequential pipeline (no code edits); PM stays for user
+  communication & top-level goals.
 - Only worker edits code. Reviewer runs static review + build/unit/integration·E2E·regression, then judges only.
 - On-demand: researcher (research), ops (deploy/infra) — started by PM when needed.
 - See template `AGENTS.md` + role docs for the full protocol.

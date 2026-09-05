@@ -50,12 +50,14 @@ done
 # preset.conf 역할 정의 검증
 assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "planner" "dev preset roles에 planner"
 assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "worker" "dev preset roles에 worker"
+assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "taskmanager" "dev preset roles에 taskmanager"
 assert_contains "$(cat "$REPO/templates/biz/preset.conf" 2>/dev/null)" "researcher" "biz preset roles에 researcher (역할 일반화 증거)"
 
 echo "== 4) --preset dev --dry-run (비대화형) =="
 DEV_OUT="$("$BIN" test --preset dev --dry-run --no-template --no-interactive 2>&1)"; DEV_RC=$?
 assert_exit "$DEV_RC" 0 "dev dry-run exit 0"
 assert_contains "$DEV_OUT" "preset=dev" "dev dry-run에 preset=dev 표시"
+assert_contains "$DEV_OUT" "test-taskmanager" "dev dry-run에 test-taskmanager"
 assert_contains "$DEV_OUT" "test-planner" "dev dry-run에 test-planner"
 assert_contains "$DEV_OUT" "test-worker" "dev dry-run에 test-worker"
 assert_contains "$DEV_OUT" "test-reviewer" "dev dry-run에 test-reviewer"
@@ -64,12 +66,14 @@ echo "== 5) --preset app --dry-run =="
 APP_OUT="$("$BIN" test --preset app --dry-run --no-template --no-interactive 2>&1)"; APP_RC=$?
 assert_exit "$APP_RC" 0 "app dry-run exit 0"
 assert_contains "$APP_OUT" "preset=app" "app dry-run에 preset=app 표시"
+assert_contains "$APP_OUT" "test-taskmanager" "app dry-run에 test-taskmanager"
 assert_contains "$APP_OUT" "test-planner" "app dry-run에 test-planner"
 
 echo "== 6) --preset biz --dry-run (역할 일반화: researcher) =="
 BIZ_OUT="$("$BIN" test --preset biz --dry-run --no-template --no-interactive 2>&1)"; BIZ_RC=$?
 assert_exit "$BIZ_RC" 0 "biz dry-run exit 0"
 assert_contains "$BIZ_OUT" "preset=biz" "biz dry-run에 preset=biz 표시"
+assert_contains "$BIZ_OUT" "test-taskmanager" "biz dry-run에 test-taskmanager (일반화)"
 assert_contains "$BIZ_OUT" "test-researcher" "biz dry-run에 test-researcher (일반화)"
 assert_not_contains "$BIZ_OUT" "test-worker" "biz dry-run에 test-worker 없음 (일반화)"
 

@@ -55,7 +55,7 @@ set "PRESET_ARG="
 if "%~1"=="" (
   if not defined HERDR_TEAM_PRESET (
     echo Select AI team preset / AI 팀 프리셋 선택:
-    echo   1^) dev - Software Development (개발 3인 팀, 기본값)
+    echo   1^) dev - Software Development (개발 4인 팀, 기본값)
     echo   2^) app - Solo App ^& Idea Discovery (1인 앱/아이템)
     echo   3^) biz - Small Business Operations (스몰 비즈니스)
     choice /c 123 /t 10 /d 1 /n /m "Select [1-3] (default 1 after 10s / 10초 후 기본값 1): "
