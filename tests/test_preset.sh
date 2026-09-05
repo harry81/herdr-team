@@ -141,6 +141,32 @@ for hf in ".github/workflows/ci.yml" ".github/ISSUE_TEMPLATE/bug_report.yml" ".g
   if [[ -f "$REPO/$hf" ]]; then ok "존재: $hf"; else bad "존재: $hf"; fi
 done
 
+echo "== 15) 에이전트 종류(Kind) TUI 및 CLI/ENV 테스트 =="
+# --kind 옵션 반영
+KIND_OPT_OUT="$("$BIN" test --kind claude --dry-run --no-template --no-interactive 2>&1)"
+assert_contains "$KIND_OPT_OUT" "kind=claude" "CLI: --kind claude 반영"
+assert_contains "$KIND_OPT_OUT" "--kind claude" "CLI: herdr agent start에 --kind claude"
+
+# HERDR_TEAM_KIND 환경변수 반영
+KIND_ENV_OUT="$(HERDR_TEAM_KIND=codex "$BIN" test --dry-run --no-template --no-interactive 2>&1)"
+assert_contains "$KIND_ENV_OUT" "kind=codex" "ENV: HERDR_TEAM_KIND=codex 반영"
+assert_contains "$KIND_ENV_OUT" "--kind codex" "ENV: herdr agent start에 --kind codex"
+
+# TUI 2단계: preset(1=dev) + kind(2=claude) 파이프 시뮬레이션
+TUI_KIND_OUT="$(printf '1\n2\n' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$TUI_KIND_OUT" "preset=dev" "TUI 2단계: dev 선택"
+assert_contains "$TUI_KIND_OUT" "kind=claude" "TUI 2단계: claude 선택"
+assert_contains "$TUI_KIND_OUT" "Select agent kind" "TUI: kind 프롬프트 출력"
+
+# TUI 2단계: preset(app) + kind(3=codex) 파이프 시뮬레이션
+TUI_KIND_OUT2="$(printf 'app\n3\n' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$TUI_KIND_OUT2" "preset=app" "TUI 2단계: app 선택"
+assert_contains "$TUI_KIND_OUT2" "kind=codex" "TUI 2단계: codex 선택"
+
+# 잘못된 kind 거부
+BAD_KIND_OUT="$("$BIN" test --kind invalid_kind --dry-run --no-template --no-interactive 2>&1 || true)"
+assert_contains "$BAD_KIND_OUT" "invalid_kind" "invalid kind 에러 출력"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

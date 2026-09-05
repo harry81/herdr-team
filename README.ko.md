@@ -171,12 +171,12 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 | 옵션 | 설명 |
 |------|------|
 | `prefix` | 에이전트 prefix (예: `sd`, `myproj`), 생략 시 자동 결정 |
-| `--kind KIND` | agent kind (기본값: `opencode`) |
+| `--kind KIND` | agent kind (기본값: `opencode` / TUI 메뉴; 지원: `opencode`, `claude`, `codex`, `agy` 등, 또는 `HERDR_TEAM_KIND`) |
 | `--cwd PATH` | 작업 디렉토리 (기본값: `$PWD`) |
 | `--template-dir D` | 템플릿 디렉토리 (기본값: `~/templates/agent-team`, 또는 `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | 팀 프리셋: `dev` \| `app` \| `biz` (또는 `HERDR_TEAM_PRESET`, 기본값: `dev` / TUI) |
 | `--list-presets` | 프리셋 목록 출력 후 종료 |
-| `--no-interactive` | 묻지 않고 진행 (`preset=dev`) |
+| `--no-interactive` | 묻지 않고 기본값으로 진행 (`preset=dev`, `kind=opencode`) |
 | `--no-template` | 템플릿 복사/생성 생략 |
 | `--no-resize` | pane resize 생략 |
 | `--no-start` | 에이전트 시작 생략 (분할+레이블만 수행) |

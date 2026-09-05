@@ -67,6 +67,26 @@ if "%~1"=="" (
   )
 )
 
+rem --- Kind menu only when no args and no env (defaults to opencode after 10s) ---
+rem --- 에이전트 종류 메뉴: 인자도 env도 없을 때만 (10초 무입력 시 opencode) ---
+set "KIND_ARG="
+if "%~1"=="" (
+  if not defined HERDR_TEAM_KIND (
+    echo Select agent kind / 에이전트 종류 선택:
+    echo   1^) opencode - OpenCode Interpreter (기본값)
+    echo   2^) claude   - Anthropic Claude Code
+    echo   3^) codex    - OpenAI Codex / CLI
+    echo   4^) agy      - Google Antigravity Agent
+    choice /c 1234 /t 10 /d 1 /n /m "Select [1-4] (default 1 after 10s / 10초 후 기본값 1): "
+    if errorlevel 4 set "KIND_ARG=--kind agy"
+    if errorlevel 3 set "KIND_ARG=--kind codex"
+    if errorlevel 2 set "KIND_ARG=--kind claude"
+    if "%KIND_ARG%"=="" set "KIND_ARG=--kind opencode"
+  ) else (
+    set "KIND_ARG=--kind %HERDR_TEAM_KIND%"
+  )
+)
+
 rem --- 실행 ---
 if "%BACKEND%"=="wsl" (
   for /f "delims=" %%p in ('wsl wslpath -u "%REPO%"') do set "WSL_REPO=%%p"
@@ -76,9 +96,9 @@ if "%BACKEND%"=="wsl" (
     exit /b 1
   )
   if "%HERDR_TEAM_DRYRUN%"=="1" (
-    echo [dry-run] wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %*
+    echo [dry-run] wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %KIND_ARG% %*
   ) else (
-    wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %*
+    wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %KIND_ARG% %*
     if errorlevel 1 (
       echo [FAILED] Team setup exited with an error / [실패] 팀 셋업이 오류로 종료되었습니다.
       pause
@@ -88,9 +108,9 @@ if "%BACKEND%"=="wsl" (
 ) else (
   set "MSYS_REPO=%REPO:\=/%"
   if "%HERDR_TEAM_DRYRUN%"=="1" (
-    echo [dry-run] "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %*
+    echo [dry-run] "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %KIND_ARG% %*
   ) else (
-    "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %*
+    "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %KIND_ARG% %*
     if errorlevel 1 (
       echo [FAILED] Team setup exited with an error / [실패] 팀 셋업이 오류로 종료되었습니다.
       pause

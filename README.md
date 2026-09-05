@@ -174,12 +174,12 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 | Option | Description |
 |--------|-------------|
 | `prefix` | Agent prefix (e.g. `sd`, `myproj`); auto-detected when omitted |
-| `--kind KIND` | Agent kind (default: `opencode`) |
+| `--kind KIND` | Agent kind (default: `opencode` / TUI menu; supported: `opencode`, `claude`, `codex`, `agy`, etc., or `HERDR_TEAM_KIND`) |
 | `--cwd PATH` | Working directory (default: `$PWD`) |
 | `--template-dir D` | Template directory (default: `~/templates/agent-team`, or `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | Team preset: `dev` \| `app` \| `biz` (or `HERDR_TEAM_PRESET`; default: `dev` / TUI) |
 | `--list-presets` | Print available presets and exit |
-| `--no-interactive` | Never prompt; default `preset=dev` |
+| `--no-interactive` | Never prompt; default `preset=dev`, `kind=opencode` |
 | `--no-template` | Skip template copy/generate step |
 | `--no-resize` | Skip pane resize step |
 | `--no-start` | Skip agent start (split + label only) |
