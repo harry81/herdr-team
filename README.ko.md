@@ -5,7 +5,19 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/harry81/herdr-team?style=social)](https://github.com/harry81/herdr-team/stargazers)
 
-**명령어 하나로 터미널이 4분할 AI 팀으로 변합니다. 기획·구현·검증까지 알아서 분업 — 프리셋을 고르고 더블클릭하거나 `hts` 한 줄이면 끝.**
+> 기존 `herdr-team-setup` 이름은 100% 호환 레거시 별칭으로 계속 동작합니다.
+> English version: [README.md](README.md). 본 문서는 한국어 사용자를 위한 가이드입니다.
+
+## 문제 & 해결책
+
+> **문제** — AI 에이전트 팀을 돌리려면 매번 탭을 만들고, 여러 개의 pane으로 분할하고,
+> 에이전트를 하나씩 시작하고, 역할 문서를 손으로 연결해야 합니다.
+>
+> **해결** — `hts` 한 줄(또는 Windows 더블클릭)이면 터미널이 4분할 AI 팀으로 변합니다.
+> task manager가 파이프라인을 중계하므로 planner → worker → reviewer가 기획·구현(TDD)·
+> 로그 첨부 검증을 수행하며, 어떤 에이전트도 놀지 않습니다.
+
+## 어떻게 보이나요
 
 ```
 +----------------+----------------+----------------+----------------+
@@ -16,23 +28,21 @@
        └──── 작업 ───────┴────── 코드+테스트 ─────┴── 승인(APPROVE) ┘
 ```
 
-> 기존 `herdr-team-setup` 이름은 100% 호환 레거시 별칭으로 계속 동작합니다.
-> English version: [README.md](README.md). 본 문서는 한국어 사용자를 위한 가이드입니다.
+파이프라인 흐름:
+
+```
+User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer ─[APPROVE + 실행 로그]→ 보고
+                                       ↑______________[REQUEST CHANGES]______________|
+```
 
 ## 왜 herdr-team인가요?
 
-- **app — 1인 앱 개발 & 아이템 발굴.**
-  주말 사이드 프로젝트? taskmanager가 파이프라인을 중계하고, 한 줄 아이디어를 planner가
-  만들 수 있는 작업으로 나누고, worker가 테스트 딸린 코드로 배송하고, reviewer가 배포·E2E 점검까지 —
-  당신은 프리셋 메뉴에서 고르고 네 개 창이 일하는 것만 보면 됩니다.
-- **biz — 스몰 비즈니스 운용.**
-  코딩 없이 씁니다. taskmanager가 흐름을 드라이브하고, researcher가 출처 딸린 견적·업체·옵션
-  비교를 뽑고, planner가 의사결정 구조를 잡고, reviewer가 검증합니다.
-  직원을 뽑지 않고도 조사 중심 팀워크를 돌릴 수 있습니다.
-- **dev — 소프트웨어 개발 TDD (개발 4인 팀).**
-  모든 기능이 taskmanager 중계로 planner → worker(Red→Green→Refactor) → reviewer
-  (빌드/단위/E2E 직접 실행, 로그 첨부) 순서로 갑니다. 중계자가 각 단계를 즉시 연결하므로
-  에이전트가 놀지 않습니다. 실행 로그 없는 `[APPROVE]`는 무효 — 품질 게이트가 워크플로에 내장되어 있습니다.
+- **dev — 소프트웨어 개발 TDD:** 코드를 출시하는 개발팀을 위한 — 모든 기능이 planner 설계 →
+  worker TDD 구현 → reviewer 실행 로그 첨부 검증으로 이어지는 품질 게이트.
+- **app — 1인 앱 개발 & 아이템 발굴:** 혼자 만드는 사람을 위한 — 주말 아이디어를 만들 수 있는
+  작업으로 나눠 코드와 배포·E2E 점검까지, 컨텍스트 스위칭 없이 완성.
+- **biz — 스몰 비즈니스 운용:** 코딩 없는 운영자를 위한 — 출처가 붙은 업체·가격·옵션 비교를
+  조사 중심 팀이 뽑아주므로 직원을 뽑지 않고 결정만 하면 됩니다.
 
 ## 30초 빠른 시작
 
@@ -57,6 +67,17 @@ hts                    # prefix 자동 결정, TUI 프리셋 메뉴, 분할+시�
 hts myproj --preset app
 hts sd --dry-run       # 실행 없이 계획만 출력
 ```
+
+## 프리셋 요약
+
+| 프리셋 | 누구를 위한 것인가 | 팀 구성 | 초점 |
+|--------|--------------------|---------|------|
+| `dev` (기본) | 코드를 출시하는 개발팀 | taskmanager, planner, worker, reviewer | 소프트웨어 개발, TDD 품질 게이트 |
+| `app` | 아이디어를 검증하는 1인 개발자 | taskmanager, planner, worker, reviewer | 1인 앱/아이템 발굴, 배포·E2E 강조 |
+| `biz` | 코딩 없는 소규모 운영자 | taskmanager, planner, researcher, reviewer | 출처 붙은 조사 중심 의사결정 (worker 없음) |
+
+<details>
+<summary><b>고급 — 전체 참고 자료 (저장소 구조, 동작 순서, TUI, 프리셋, Windows, CLI 옵션, 요구사항, 팀 모델, 테스트)</b></summary>
 
 ## 고급 / 참고 자료
 
@@ -104,7 +125,8 @@ herdr-team/
 3. **템플릿 준비** — `AGENTS.md`·`agents/<prefix>-*.md`가 없으면 `~/templates/agent-team`에서 복사
    (파일 내 `{{PREFIX}}` 치환). 이미 있으면 생략(멱등).
 4. **Pane 분할** — 현재 Pane(PM) 기준 우측 분할(Task Manager) → 나머지 역할은 아래로 순차 분할.
-5. **균등화** — `herdr pane resize`로 우측 Pane 높이 약 1:1:1 조정 (best-effort).
+5. **균등화** — 각 down 분할이 `--ratio 1/(N-k+1)`을 전달하므로 우측 컬럼 pane이 정확히
+   균등해짐(~1:1:1:1, 별도 resize 단계 불필요).
 6. **레이블 + 시작** — ① PM / ② Task Manager / ③④⑤ 역할 로 변경 후
    `herdr agent start <prefix>-<role> --kind opencode` (이미 있으면 생략).
 
@@ -178,7 +200,7 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 | `--list-presets` | 프리셋 목록 출력 후 종료 |
 | `--no-interactive` | 묻지 않고 기본값으로 진행 (`preset=dev`, `kind=opencode`) |
 | `--no-template` | 템플릿 복사/생성 생략 |
-| `--no-resize` | pane resize 생략 |
+| `--no-resize` | `--ratio` 균등화 없이 분할 (별도 resize 단계 없음) |
 | `--no-start` | 에이전트 시작 생략 (분할+레이블만 수행) |
 | `--force` | 기존 `AGENTS.md`/agents 문서 덮어쓰기 |
 | `--dry-run` | 실제 실행 없이 수행할 명령만 출력 |
@@ -210,7 +232,9 @@ bash tests/test_install.sh           # 설치 + 배포 zip
 bash tests/test_windows_launcher.sh  # 런처 구조 + 전달 명령 시뮬레이션
 ```
 
-### 라이선스
+</details>
+
+## 라이선스
 
 MIT License — [LICENSE](LICENSE) 참조.
 Copyright (c) 2026 Herdr Team Contributors.

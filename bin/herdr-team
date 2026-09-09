@@ -14,7 +14,7 @@
 #   1) prefix 결정 ($1 또는 자동 추출)
 #   2) AGENTS.md / agents/<prefix>-*.md 없으면 템플릿 복사 또는 기본 문서 생성
 #   3) 현재 Pane(PM) 기준 우측 분할(Task Manager) → 해당 Pane을 아래로 순차 분할(Planner, Worker, ...)
-#   4) 각 Pane 높이 균등화(herdr pane resize, best-effort)
+#   4) 우측 컬럼 down 분할 시 --ratio 1/(N-k+1)로 정확 균등화 (1:1:1:1, resize 불필요)
 #   5) Pane 레이블링 + 에이전트 시작(멱등)
 set -euo pipefail
 
@@ -55,7 +55,8 @@ Options:
   --list-presets    print available presets and exit
   --no-interactive  never prompt; proceed with defaults (preset=dev, kind=opencode)
   --no-template     skip template copy/generate step
-  --no-resize       skip pane resize step
+  --no-resize       split without --ratio equalization (no separate resize
+                    step; flag kept for compatibility)
   --no-start        skip agent start (split + label only)
   --force           overwrite existing AGENTS.md/agents docs
   --dry-run         print planned commands without executing
@@ -85,9 +86,10 @@ Layout:
                       [Role 2 (middle)]
                       [Role 3 (middle)]
                       [Role 4 (bottom)]
-  The right panes are equalized with resize (~1:1:1, best-effort as the
-  meaning of amount differs per version). Task Manager relays the pipeline
-  (PM stays for user communication & top-level goals).
+  Right-column down splits use --ratio 1/(N-k+1) for exact 1:1:1:1
+  equalization: the k-th down split keeps 1/(N-k+1) of the split pane and the
+  remainder goes to the new pane (no resize step). Task Manager relays the
+  pipeline (PM stays for user communication & top-level goals).
 
 Labels:
   ① PM / ② <role 1 (taskmanager)> / ③ <role 2> / ④ <role 3> / ⑤ <role 4>
@@ -315,6 +317,19 @@ herdr_pane_id() {
     // empty
   ' 2>/dev/null | head -n1
 }
+# --- 우측 컬럼 down 분할 균등화 ratio 계산 ---
+# herdr pane split --direction down --ratio F 는 "분할 대상 pane이 보유하는 비율"이며
+# 나머지(1-F)가 새 pane에 할당된다. 우측 컬럼 역할 총수 N에 대해 k번째 down 분할
+# (k=1..N-1, N=1이면 down 없음)의 균등 ratio = 1/(N-k+1).
+# 예) N=4: k=1→1/4=0.25, k=2→1/3≈0.333333, k=3→1/2=0.5 → 새 pane 4개가 각 1/N로 균등.
+# 주의: ratio를 i/(i+1)로 계산하면 0.5/0.666667/0.75가 되어 균등화되지 않는다.
+# python3 의존을 피하려 POSIX awk로 산출 (bash 3.x 호환).
+down_split_ratio() {
+  local n="$1" k="$2" v
+  v="$(awk -v n="$n" -v k="$k" 'BEGIN { printf "%.6f", 1.0 / (n - k + 1) }')"
+  v="${v%"${v##*[!0]}"}"   # 후행 0 제거: 0.250000 → 0.25
+  printf '%s' "${v%.}"     # 후행 소수점 제거 방어: 1.000000 → 1
+}
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "error: '$1' 명령을 찾을 수 없습니다." >&2; exit 127
@@ -414,7 +429,7 @@ EOF
     {
       printf '\n## 3. Herdr 운용\n'
       printf -- '- 고정 Pane ID 금지. `herdr pane/tab/agent list`로 조회.\n'
-      printf -- '- `herdr-team %s --preset %s` 실행 시 현재 Pane(PM) 기준 우측 분할 후 아래로 %d분할, resize 균등화.\n' "$PREFIX" "$PRESET" "$((${#ROLES[@]} - 1))"
+      printf -- '- `herdr-team %s --preset %s` 실행 시 현재 Pane(PM) 기준 우측 분할 후 아래로 %d분할(--ratio 균등화).\n' "$PREFIX" "$PRESET" "$((${#ROLES[@]} - 1))"
     } >> "$CWD/AGENTS.md"
   fi
   local role
@@ -494,23 +509,22 @@ setup_panes() {
   # dry-run은 herdr/jq 없이도 계획 출력 (TUI·인자 검증용)
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log "prefix=${PREFIX} preset=${PRESET} kind=${KIND} cwd=${CWD} (dry-run)"
-    local _prev="BASE" _role _var _agent _i
+    local _prev="BASE" _role _var _agent _i _k=0 _ratio=""
     printf '+ BASE=$(herdr pane current | jq -r .result.pane.pane_id)  # PM pane\n'
     for _role in "${ROLES[@]}"; do
       _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
       if [[ "$_prev" == "BASE" ]]; then
         printf '+ %s=$(herdr pane split "$%s" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+      elif [[ "$NO_RESIZE" -eq 0 ]]; then
+        # k번째 down 분할 ratio = 1/(N-k+1) (N=우측 컬럼 역할수): 정확 1:1:1:1 균등
+        _k=$((_k+1))
+        _ratio="$(down_split_ratio "${#ROLES[@]}" "$_k")"
+        printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD"
       else
         printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
       fi
       _prev="$_var"
     done
-    if [[ "$NO_RESIZE" -eq 0 && "${#ROLES[@]}" -ge 3 ]]; then
-      local _mid_var="P_$(printf '%s' "${ROLES[1]}" | tr '[:lower:]' '[:upper:]')"
-      local _last_var="P_$(printf '%s' "${ROLES[${#ROLES[@]}-1]}" | tr '[:lower:]' '[:upper:]')"
-      printf '+ herdr pane resize --pane "$%s" --direction up --amount 0.10   # 균등화 best-effort\n' "$_mid_var"
-      printf '+ herdr pane resize --pane "$%s" --direction down --amount 0.10 # 균등화 best-effort\n' "$_last_var"
-    fi
     printf '+ herdr pane rename "$BASE" "① PM"\n'
     _i=0
     for _role in "${ROLES[@]}"; do
@@ -544,26 +558,30 @@ setup_panes() {
   fi
   log "BASE(PM) pane: $base_pane (preset=${PRESET})"
   # 역할 일반화: ROLES 순서대로 체이닝 분할 (첫 역할은 right, 이후는 down).
+  # down 분할은 --ratio 1/(N-k+1)로 균등화(k=1..N-1, N=우측 컬럼 역할수). ratio는 분할
+  # 대상 pane이 보유할 비율이며 나머지가 새 pane에 할당된다. 예) N=4: 0.25→0.333333→0.5
+  # → 4 pane이 1:1:1:1 균등(별도 resize 불필요). --no-resize 시엔 ratio 없이 기본 분할.
   # 연관배열 미사용(bash 3.x 호환): PANE_IDS[i] ↔ ROLES[i].
   local PANE_IDS=()
-  local prev_pane="$base_pane" split_out pane_id role direction first=1
+  local prev_pane="$base_pane" split_out pane_id role direction ratio first=1 k=0 n_roles
+  n_roles="${#ROLES[@]}"
   for role in "${ROLES[@]}"; do
-    if [[ "$first" -eq 1 ]]; then direction="right"; first=0; else direction="down"; fi
-    split_out="$(herdr pane split "$prev_pane" --direction "$direction" --cwd "$CWD" --no-focus)"
+    if [[ "$first" -eq 1 ]]; then
+      direction="right"; first=0
+      split_out="$(herdr pane split "$prev_pane" --direction "$direction" --cwd "$CWD" --no-focus)"
+    elif [[ "$NO_RESIZE" -eq 0 ]]; then
+      k=$((k+1))
+      ratio="$(down_split_ratio "$n_roles" "$k")"
+      split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD" --no-focus)"
+    else
+      split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
+    fi
     pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
     if [[ -z "$pane_id" ]]; then echo "error: ${role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
     PANE_IDS+=("$pane_id")
     prev_pane="$pane_id"
     log "${role} pane: $pane_id"
   done
-  local last_idx=$((${#ROLES[@]} - 1))
-
-  if [[ "$NO_RESIZE" -eq 0 && "${#ROLES[@]}" -ge 3 ]]; then
-    # 우측 컬럼 분할 균등화 시도. amount 의미가 버전별로 다를 수 있어 실패 무시(best-effort).
-    herdr pane resize --pane "${PANE_IDS[1]}" --direction up --amount 0.10 || true
-    herdr pane resize --pane "${PANE_IDS[$last_idx]}" --direction down --amount 0.10 || true
-    log "resize 균등화 시도 완료 (best-effort, 육안 확인 권장)"
-  fi
 
   run herdr pane rename "$base_pane" "① PM"
   local i=0 agent cap

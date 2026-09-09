@@ -5,7 +5,19 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/harry81/herdr-team?style=social)](https://github.com/harry81/herdr-team/stargazers)
 
-**One command turns your terminal into a 4-pane AI crew that plans, builds, and gate-checks every change — pick a preset, double-click or type `hts`, done.**
+> Formerly `herdr-team-setup` — that name still works as a fully compatible legacy alias.
+> 한국어 가이드는 [README.ko.md](README.ko.md) 참조.
+
+## Problem & Solution
+
+> **Problem** — every time you want an AI agent team you manually create a tab,
+> split it into panes, start each agent, and wire up role docs by hand.
+>
+> **Solution** — one `hts` line (or a Windows double-click) turns your terminal into a
+> 4-pane AI crew. A task manager relays the pipeline so planner → worker → reviewer
+> plan, build (TDD), and gate-check every change — without any agent idling.
+
+## How it looks
 
 ```
 +----------------+----------------+----------------+----------------+
@@ -16,26 +28,21 @@
        └──── tasks ──────┴────── code + tests ─────┴── APPROVE ──┘
 ```
 
-> Formerly `herdr-team-setup` — that name still works as a fully compatible legacy alias.
-> 한국어 가이드는 [README.ko.md](README.ko.md) 참조.
+Pipeline view:
+
+```
+User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer ─[APPROVE + run log]→ report
+                                       ↑______________[REQUEST CHANGES]______________|
+```
 
 ## Why herdr-team?
 
-- **app — Solo App & Idea Discovery (1인 앱/아이템).**
-  Weekend side project? The task manager relays the pipeline, the planner turns
-  your one-line idea into buildable tasks, the worker ships code with tests,
-  and the reviewer runs deploy/E2E checks — you just answer the preset menu and
-  watch four panes work.
-- **biz — Small Business Operations (스몰 비즈니스).**
-  No code required. The task manager drives the flow, the researcher compares
-  vendors, prices, and options with sources attached, the planner structures
-  the decision, and the reviewer validates it. Research-first teamwork without
-  hiring anyone.
-- **dev — Software Development, TDD (개발 4인 팀).**
-  Every feature goes planner → worker (Red→Green→Refactor) → reviewer
-  (build/unit/E2E executed, log attached), relayed by the task manager so no
-  agent idles. `[APPROVE]` only counts with execution logs — quality gate built
-  into the workflow.
+- **dev — Software Development (TDD):** for development teams that want every feature
+  planner-designed, TDD-built, and reviewer-gate-checked with attached execution logs.
+- **app — Solo App & Idea Discovery:** for solo builders — turn a weekend idea into
+  buildable tasks, shipped code, and deploy/E2E checks without juggling context.
+- **biz — Small Business Operations:** for non-coders — a research-first team compares
+  vendors, prices, and options with sources, so you decide without hiring anyone.
 
 ## Quick Start
 
@@ -60,6 +67,17 @@ hts                    # auto-detect prefix, TUI preset menu, split + start
 hts myproj --preset app
 hts sd --dry-run       # print plan only, no changes
 ```
+
+## Preset Summary
+
+| Preset | Who it's for | Team | Focus |
+|--------|--------------|------|-------|
+| `dev` (default) | development teams shipping code | taskmanager, planner, worker, reviewer | Software Development, TDD quality gate |
+| `app` | solo builders validating an idea | taskmanager, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
+| `biz` | small business operators, no code | taskmanager, planner, researcher, reviewer | research-first vendor/option research with sources (no worker) |
+
+<details>
+<summary><b>Advanced — full reference (repository layout, how it works, TUI, presets, Windows, CLI options, requirements, team model, tests)</b></summary>
 
 ## Advanced
 
@@ -107,7 +125,8 @@ herdr-team/
 3. **Templates** — copies `AGENTS.md` + `agents/<prefix>-*.md` from `~/templates/agent-team`
    (with `{{PREFIX}}` substitution). Skipped if team docs already exist (idempotent).
 4. **Pane split** — current pane (PM) → split right (task manager) → split down for each remaining role.
-5. **Equalize** — `herdr pane resize` evens the right panes (~1:1:1, best-effort).
+5. **Equalize** — each down split passes `--ratio 1/(N-k+1)`, so the right-column panes are exactly
+   equalized (~1:1:1:1, no resize step needed).
 6. **Label + start** — renames to ① PM / ② Task Manager / ③④⑤ roles and runs
    `herdr agent start <prefix>-<role> --kind opencode` (skips existing agents).
 
@@ -181,7 +200,7 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 | `--list-presets` | Print available presets and exit |
 | `--no-interactive` | Never prompt; default `preset=dev`, `kind=opencode` |
 | `--no-template` | Skip template copy/generate step |
-| `--no-resize` | Skip pane resize step |
+| `--no-resize` | Split without `--ratio` equalization (no separate resize step) |
 | `--no-start` | Skip agent start (split + label only) |
 | `--force` | Overwrite existing `AGENTS.md`/agents docs |
 | `--dry-run` | Print planned commands without executing |
@@ -214,7 +233,9 @@ bash tests/test_install.sh           # installer + release zip
 bash tests/test_windows_launcher.sh  # launcher structure + forwarded-command simulation
 ```
 
-### License
+</details>
+
+## License
 
 MIT License — see [LICENSE](LICENSE).
 Copyright (c) 2026 Herdr Team Contributors.

@@ -167,6 +167,22 @@ assert_contains "$TUI_KIND_OUT2" "kind=codex" "TUI 2단계: codex 선택"
 BAD_KIND_OUT="$("$BIN" test --kind invalid_kind --dry-run --no-template --no-interactive 2>&1 || true)"
 assert_contains "$BAD_KIND_OUT" "invalid_kind" "invalid kind 에러 출력"
 
+echo "== 16) pane down 분할 균등 --ratio + resize JSON 누출 없음 =="
+# dev(4역할) dry-run: down 분할 ratio 수열 1/(N-k+1) = 0.25 / 0.333333 / 0.5 (N=4)
+assert_contains "$DEV_OUT" "--ratio 0.25" "dev down split #1 --ratio 0.25 (1/4 균등)"
+assert_contains "$DEV_OUT" "--ratio 0.333333" "dev down split #2 --ratio 0.333333 (1/3 균등)"
+assert_contains "$DEV_OUT" "--ratio 0.5" "dev down split #3 --ratio 0.5 (1/2 균등)"
+# biz(4역할, researcher)도 동일 ratio 일반화
+assert_contains "$BIZ_OUT" "--ratio 0.25" "biz down split #1 --ratio 0.25 (역할 일반화)"
+assert_contains "$BIZ_OUT" "--ratio 0.333333" "biz down split #2 --ratio 0.333333 (역할 일반화)"
+assert_contains "$BIZ_OUT" "--ratio 0.5" "biz down split #3 --ratio 0.5 (역할 일반화)"
+# resize JSON stdout 누출/잔재 회귀: dry-run에는 resize 호출·best-effort 문구가 없어야 함
+assert_not_contains "$DEV_OUT" "cli:pane:resize" "dry-run: cli:pane:resize JSON 누출 없음"
+assert_not_contains "$DEV_OUT" "pane resize" "dry-run: herdr pane resize 호출 미표시"
+assert_not_contains "$DEV_OUT" "균등화 best-effort" "dry-run: 기존 resize best-effort 문구 제거"
+# help Layout도 ratio 기반 설명으로 갱신
+assert_contains "$HELP_OUT" "--ratio" "help: Layout에 균등 --ratio 설명"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
