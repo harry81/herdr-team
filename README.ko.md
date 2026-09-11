@@ -104,6 +104,12 @@ herdr-team/
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker 역할 템플릿
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer 역할 템플릿
 │   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher 역할 템플릿 (biz 프리셋)
+│   ├── opencode-agents/        # opencode primary agent 정의 (--agent <prefix>-<role>, 권한 강제)
+│   │   ├── ROLE-taskmanager.md
+│   │   ├── ROLE-planner.md
+│   │   ├── ROLE-worker.md
+│   │   ├── ROLE-reviewer.md
+│   │   └── ROLE-researcher.md
 │   ├── dev/                    # 프리셋: 개발 4인 팀
 │   ├── app/                    # 프리셋: 1인 앱/아이템 발굴
 │   └── biz/                    # 프리셋: 스몰 비즈니스 운영
@@ -124,11 +130,13 @@ herdr-team/
 2. **프리셋 결정** — `--preset dev|app|biz`, 환경변수 `HERDR_TEAM_PRESET`, 또는 TUI 메뉴 (기본값: `dev`).
 3. **템플릿 준비** — `AGENTS.md`·`agents/<prefix>-*.md`가 없으면 `~/templates/agent-team`에서 복사
    (파일 내 `{{PREFIX}}` 치환). 이미 있으면 생략(멱등).
+   opencode 역할 agent도 `.opencode/agents/<prefix>-*.md`로 설치(파일별 멱등).
 4. **Pane 분할** — 현재 Pane(PM) 기준 우측 분할(Task Manager) → 나머지 역할은 아래로 순차 분할.
 5. **균등화** — 각 down 분할이 `--ratio 1/(N-k+1)`을 전달하므로 우측 컬럼 pane이 정확히
    균등해짐(~1:1:1:1, 별도 resize 단계 불필요).
 6. **레이블 + 시작** — ① PM / ② Task Manager / ③④⑤ 역할 로 변경 후
-   `herdr agent start <prefix>-<role> --kind opencode` (이미 있으면 생략).
+   `herdr agent start <prefix>-<role> --kind opencode -- --agent <prefix>-<role>`
+   (opencode 역할 강제; 이미 있으면 생략).
 
 `install.sh`는 아래 심볼릭 링크를 만들고,
 `~/.bashrc`·`~/.zshrc`에 `~/bin` PATH 등록을 수행합니다 (marker 주석, 멱등):

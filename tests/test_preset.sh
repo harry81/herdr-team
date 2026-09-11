@@ -183,6 +183,55 @@ assert_not_contains "$DEV_OUT" "균등화 best-effort" "dry-run: 기존 resize b
 # help Layout도 ratio 기반 설명으로 갱신
 assert_contains "$HELP_OUT" "--ratio" "help: Layout에 균등 --ratio 설명"
 
+echo "== 17) opencode --agent 적용 (역할별 agent 강제) =="
+# dev(4역할): herdr agent start ... -- --agent <prefix>-<role>
+for r in taskmanager planner worker reviewer; do
+  assert_contains "$DEV_OUT" "-- --agent test-$r" "dev: herdr agent start -- agent test-$r"
+done
+# biz: researcher는 --agent, worker는 없음 (역할 일반화 + kind 게이팅)
+assert_contains "$BIZ_OUT" "-- --agent test-researcher" "biz: herdr agent start -- agent test-researcher"
+assert_not_contains "$BIZ_OUT" "-- --agent test-worker" "biz: --agent test-worker 없음"
+# codex(미지원 kind): --agent 미사용
+assert_not_contains "$KIND_ENV_OUT" "--agent" "codex: --agent 미사용(kind 게이팅)"
+
+echo "== 18) opencode agent 템플릿 + {{PREFIX}} 치환 설치 =="
+for r in taskmanager planner worker reviewer researcher; do
+  if [[ -f "$REPO/templates/opencode-agents/ROLE-$r.md" ]]; then ok "templates/opencode-agents/ROLE-$r.md 존재";
+  else bad "templates/opencode-agents/ROLE-$r.md 존재"; fi
+done
+# dry-run(템플릿 단계 포함)에 .opencode/agents 설치 계획 출력
+GEN_DRY="$("$BIN" test --preset dev --dry-run --no-interactive --no-start 2>&1)"
+assert_contains "$GEN_DRY" ".opencode/agents/test-taskmanager.md" "dry-run: .opencode/agents 설치 계획"
+# 실제 생성 (herdr stub + 임시 CWD, jq 필요)
+if command -v jq >/dev/null 2>&1; then
+  STUB="$(mktemp -d)"; TMPCWD="$(mktemp -d)"; TMPCWD2="$(mktemp -d)"
+  cat > "$STUB/herdr" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
+STUBEOF
+  chmod +x "$STUB/herdr"
+  PATH="$STUB:$PATH" "$BIN" testteam --preset dev --cwd "$TMPCWD" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1
+  for r in taskmanager planner worker reviewer; do
+    if [[ -f "$TMPCWD/.opencode/agents/testteam-$r.md" ]]; then ok "생성: .opencode/agents/testteam-$r.md";
+    else bad "생성: .opencode/agents/testteam-$r.md"; fi
+  done
+  if [[ -f "$TMPCWD/.opencode/agents/testteam-taskmanager.md" ]]; then
+    TM="$(cat "$TMPCWD/.opencode/agents/testteam-taskmanager.md")"
+    assert_contains "$TM" "mode: primary" "agent frontmatter: mode primary"
+    assert_contains "$TM" "testteam-planner" "agent 본문: {{PREFIX}} 치환됨"
+    assert_not_contains "$TM" "{{PREFIX}}" "agent 본문: 미치환 placeholder 없음"
+  fi
+  # biz: researcher agent 생성, worker agent 미생성
+  PATH="$STUB:$PATH" "$BIN" testbiz --preset biz --cwd "$TMPCWD2" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1
+  if [[ -f "$TMPCWD2/.opencode/agents/testbiz-researcher.md" ]]; then ok "biz: researcher agent 생성";
+  else bad "biz: researcher agent 생성"; fi
+  if [[ ! -f "$TMPCWD2/.opencode/agents/testbiz-worker.md" ]]; then ok "biz: worker agent 미생성";
+  else bad "biz: worker agent 미생성"; fi
+  rm -rf "$STUB" "$TMPCWD" "$TMPCWD2"
+else
+  echo "SKIP: jq 없음 → opencode agent 생성 기능 테스트 생략"
+fi
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

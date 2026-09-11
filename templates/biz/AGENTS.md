@@ -40,6 +40,7 @@
   모든 반송/승인은 Task Manager(필요 시 PM)를 경유합니다.
 - **수정 권한**: biz 체제에서는 어떤 상시 멤버도 프로덕션 코드를 직접 수정하지 않습니다.
   조사 산출물(보고서·표·근거 링크)이 결과물이며, 구현이 필요하면 PM이 `{{PREFIX}}-worker`를 별도 기동합니다.
+- **역할 강제**: 각 역할 pane은 `.opencode/agents/{{PREFIX}}-<role>.md` agent(`--agent {{PREFIX}}-<role>`)로 시작되어 규칙·권한이 시스템 프롬프트로 고정됩니다. 상세 지침 정본은 `agents/{{PREFIX}}-<role>.md`.
 
 ### 1.1 ⚠️ 가드레일 (Strict Guardrails for PM & Task Manager)
 

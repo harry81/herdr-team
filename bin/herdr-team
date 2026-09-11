@@ -504,12 +504,51 @@ EOF
   done
 }
 
+# --- 1b) opencode agent 정의 설치 (.opencode/agents/<prefix>-<role>.md) ---
+# 역할 문서(agents/*.md)와 별개로, opencode가 `--agent <prefix>-<role>`로 선택할
+# 실제 primary agent 정의를 대상 프로젝트에 설치한다. setup_templates는 기존
+# 팀 문서가 있으면 조기 반환하므로, 기존 셋업 프로젝트도 받도록 별도 함수로 분리한다.
+setup_opencode_agents() {
+  if [[ "$NO_TEMPLATE" -eq 1 ]]; then log "opencode agent 단계 생략(--no-template)"; return; fi
+  # 소스 디렉토리 해석: preset 디렉토리 > --template-dir > 번들 templates
+  local preset_base=""
+  preset_base="$(preset_dir "$PRESET" 2>/dev/null || true)"
+  local oa_src="" c
+  for c in "$preset_base/opencode-agents" "$TEMPLATE_DIR/opencode-agents" "$SCRIPT_DIR/../templates/opencode-agents"; do
+    [[ -n "$c" && -d "$c" ]] && { oa_src="$c"; break; }
+  done
+  if [[ -z "$oa_src" ]]; then log "opencode agent 템플릿 없음 → 설치 생략"; return; fi
+  local dest_dir="$CWD/.opencode/agents"
+  log "opencode agent 설치: $oa_src → $dest_dir (prefix=${PREFIX})"
+  local role
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    for role in "${ROLES[@]}"; do
+      [[ -f "$oa_src/ROLE-${role}.md" ]] || continue
+      printf '+ mkdir -p %s && sed {{PREFIX}}→%s %s/ROLE-%s.md > %s/%s-%s.md\n' \
+        "$dest_dir" "$PREFIX" "$oa_src" "$role" "$dest_dir" "$PREFIX" "$role"
+    done
+    return
+  fi
+  mkdir -p "$dest_dir"
+  for role in "${ROLES[@]}"; do
+    local osrc="$oa_src/ROLE-${role}.md"
+    if [[ ! -f "$osrc" ]]; then log "경고: ROLE-${role}.md 없음 → skip"; continue; fi
+    local odst="$dest_dir/${PREFIX}-${role}.md"
+    if [[ -f "$odst" && "$FORCE" -eq 0 ]]; then
+      log "opencode agent 존재 → 생략: .opencode/agents/${PREFIX}-${role}.md"
+      continue
+    fi
+    sed "s/{{PREFIX}}/${PREFIX}/g" "$osrc" > "$odst"
+    log "opencode agent 생성: .opencode/agents/${PREFIX}-${role}.md"
+  done
+}
+
 # --- 2) Pane 분할 + 리사이즈 + 레이블 + 에이전트 시작 (preset ROLES 일반화) ---
 setup_panes() {
   # dry-run은 herdr/jq 없이도 계획 출력 (TUI·인자 검증용)
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log "prefix=${PREFIX} preset=${PRESET} kind=${KIND} cwd=${CWD} (dry-run)"
-    local _prev="BASE" _role _var _agent _i _k=0 _ratio=""
+    local _prev="BASE" _role _var _agent _i _k=0 _ratio="" _agent_flag=""
     printf '+ BASE=$(herdr pane current | jq -r .result.pane.pane_id)  # PM pane\n'
     for _role in "${ROLES[@]}"; do
       _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
@@ -537,7 +576,9 @@ setup_panes() {
       for _role in "${ROLES[@]}"; do
         _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
         _agent="$(role_agent "$_role")"
-        printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var"
+        # opencode만 --agent(<prefix>-<role>)를 지원한다. claude/agy는 별도 형식, codex/gemini는 미지원.
+        if [[ "$KIND" == "opencode" ]]; then _agent_flag=" -- --agent $_agent"; else _agent_flag=""; fi
+        printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"%s\n' "$_agent" "$_agent" "$KIND" "$_var" "$_agent_flag"
       done
     fi
     return
@@ -597,7 +638,11 @@ setup_panes() {
     for role in "${ROLES[@]}"; do
       agent="$(role_agent "$role")"
       if ! herdr agent list 2>/dev/null | grep -q -- "$agent"; then
-        run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
+        if [[ "$KIND" == "opencode" ]]; then
+          run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}" -- --agent "$agent"
+        else
+          run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
+        fi
       else log "$agent 이미 존재 → 시작 생략"; fi
       i=$((i+1))
     done
@@ -609,4 +654,5 @@ setup_panes() {
 }
 
 setup_templates
+setup_opencode_agents
 setup_panes

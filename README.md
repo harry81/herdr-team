@@ -104,6 +104,12 @@ herdr-team/
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker role template
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer role template
 │   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher role template (biz preset)
+│   ├── opencode-agents/        # opencode primary agent defs (--agent <prefix>-<role>, permission-enforced)
+│   │   ├── ROLE-taskmanager.md
+│   │   ├── ROLE-planner.md
+│   │   ├── ROLE-worker.md
+│   │   ├── ROLE-reviewer.md
+│   │   └── ROLE-researcher.md
 │   ├── dev/                    # Preset: Software Development
 │   ├── app/                    # Preset: Solo App & Idea Discovery
 │   └── biz/                    # Preset: Small Business Operations
@@ -124,11 +130,13 @@ herdr-team/
 2. **Preset** — `--preset dev|app|biz`, `HERDR_TEAM_PRESET`, or the interactive TUI menu (default: `dev`).
 3. **Templates** — copies `AGENTS.md` + `agents/<prefix>-*.md` from `~/templates/agent-team`
    (with `{{PREFIX}}` substitution). Skipped if team docs already exist (idempotent).
+   Also installs opencode role agents to `.opencode/agents/<prefix>-*.md` (per-file idempotent).
 4. **Pane split** — current pane (PM) → split right (task manager) → split down for each remaining role.
 5. **Equalize** — each down split passes `--ratio 1/(N-k+1)`, so the right-column panes are exactly
    equalized (~1:1:1:1, no resize step needed).
 6. **Label + start** — renames to ① PM / ② Task Manager / ③④⑤ roles and runs
-   `herdr agent start <prefix>-<role> --kind opencode` (skips existing agents).
+   `herdr agent start <prefix>-<role> --kind opencode -- --agent <prefix>-<role>`
+   (opencode role enforcement; skips existing agents).
 
 `install.sh` creates these symlinks (plus `~/bin` PATH registration in
 `~/.bashrc`/`~/.zshrc`, marker comment, idempotent):

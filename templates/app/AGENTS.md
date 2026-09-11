@@ -40,6 +40,7 @@
 - **Team 간 직접 협업 금지**: worker ↔ reviewer는 서로 직접 prompt하지 않습니다. 모든 반송/승인은 Task Manager(필요 시 PM)를 경유합니다.
 - **수정 권한**: 코드를 직접 수정하는 것은 `{{PREFIX}}-worker`뿐입니다
   (`{{PREFIX}}-ops`는 승인된 운영 범위만 예외).
+- **역할 강제**: 각 역할 pane은 `.opencode/agents/{{PREFIX}}-<role>.md` agent(`--agent {{PREFIX}}-<role>`)로 시작되어 규칙·권한이 시스템 프롬프트로 고정됩니다. 상세 지침 정본은 `agents/{{PREFIX}}-<role>.md`.
 
 ### 1.1 ⚠️ 가드레일 (Strict Guardrails for PM & Task Manager)
 
