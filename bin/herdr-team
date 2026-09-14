@@ -52,6 +52,8 @@ Options:
                     or HERDR_TEAM_TEMPLATE_DIR)
   --preset NAME     team preset: dev | app | biz
                     (or HERDR_TEAM_PRESET; default: dev / TUI menu)
+  --layout LAYOUT   team pane layout: 2col | right-stack
+                    (or HERDR_TEAM_LAYOUT; default: 2col)
   --list-presets    print available presets and exit
   --no-interactive  never prompt; proceed with defaults (preset=dev, kind=opencode)
   --no-template     skip template copy/generate step
@@ -81,15 +83,15 @@ Prefix auto-detect rules:
   (e.g. try2→try2, my-project→mp, scandimension→sc)
   Well-known abbreviations (e.g. sd) should be passed explicitly: `herdr-team sd`.
 
-Layout:
-  [PM: current pane] | [Task Manager (right, top)]
-                      [Role 2 (middle)]
-                      [Role 3 (middle)]
-                      [Role 4 (bottom)]
-  Right-column down splits use --ratio 1/(N-k+1) for exact 1:1:1:1
-  equalization: the k-th down split keeps 1/(N-k+1) of the split pane and the
-  remainder goes to the new pane (no resize step). Task Manager relays the
-  pipeline (PM stays for user communication & top-level goals).
+Layouts:
+  2col (default):
+    Left column:  [PM: top (50%)] / [Task Manager: bottom (50%)]
+    Right column: [Role 2 (top)] / [Role 3 (middle)] / [Role 4 (bottom)]
+    Right-column down splits use --ratio 1/(N-k+1) for exact equalization.
+  right-stack:
+    Left:         [PM: current pane]
+    Right:        [Task Manager (top)] / [Role 2] / [Role 3] / [Role 4]
+    Right-column down splits use --ratio 1/(N-k+1) for exact 1:1:1:1 equalization.
 
 Labels:
   ① PM / ② <role 1 (taskmanager)> / ③ <role 2> / ④ <role 3> / ⑤ <role 4>
@@ -98,6 +100,7 @@ EOF
 }
 
 # --- 인자 파싱 ---
+LAYOUT_ARG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
@@ -107,6 +110,7 @@ while [[ $# -gt 0 ]]; do
     --no-template) NO_TEMPLATE=1; shift ;;
     --force) FORCE=1; shift ;;
     --kind) KIND_ARG="${2:?--kind에 값이 필요합니다}"; shift 2 ;;
+    --layout) LAYOUT_ARG="${2:?--layout에 값이 필요합니다 (2col|right-stack)}"; shift 2 ;;
     --cwd) CWD="${2:?--cwd에 값이 필요합니다}"; shift 2 ;;
     --template-dir) TEMPLATE_DIR="${2:?--template-dir에 값이 필요합니다}"; shift 2 ;;
     --preset) PRESET_ARG="${2:?--preset에 값이 필요합니다 (dev|app|biz)}"; shift 2 ;;
@@ -283,6 +287,15 @@ else
     KIND="$(choose_kind_tui)"
   fi
 fi
+
+# layout 해결: 명시적 --layout > HERDR_TEAM_LAYOUT > preset.conf LAYOUT > 2col
+if [[ -z "$LAYOUT_ARG" && -n "${HERDR_TEAM_LAYOUT:-}" ]]; then LAYOUT_ARG="$HERDR_TEAM_LAYOUT"; fi
+PRESET_LAYOUT="$(grep -E '^LAYOUT=' "$(preset_dir "$PRESET")/preset.conf" 2>/dev/null | sed -e 's/^LAYOUT=//' -e 's/^"//' -e 's/"$//' | head -n1 || true)"
+LAYOUT="${LAYOUT_ARG:-${PRESET_LAYOUT:-2col}}"
+case "$LAYOUT" in
+  2col|right-stack) ;;
+  *) echo "error: 알 수 없는 layout: $LAYOUT (2col|right-stack 중 선택)" >&2; exit 2 ;;
+esac
 
 # --- 역할 일반화: preset.conf의 ROLES에서 에이전트명 도출 ---
 PRESET_ROLES="$(grep -E '^ROLES=' "$(preset_dir "$PRESET")/preset.conf" | sed -e 's/^ROLES=//' -e 's/^"//' -e 's/"$//' | head -n1)"
@@ -545,25 +558,64 @@ setup_opencode_agents() {
 
 # --- 2) Pane 분할 + 리사이즈 + 레이블 + 에이전트 시작 (preset ROLES 일반화) ---
 setup_panes() {
+  local has_taskmanager=0 _r
+  for _r in "${ROLES[@]}"; do
+    if [[ "$_r" == "taskmanager" ]]; then has_taskmanager=1; break; fi
+  done
+
   # dry-run은 herdr/jq 없이도 계획 출력 (TUI·인자 검증용)
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    log "prefix=${PREFIX} preset=${PRESET} kind=${KIND} cwd=${CWD} (dry-run)"
+    log "prefix=${PREFIX} preset=${PRESET} kind=${KIND} layout=${LAYOUT} cwd=${CWD} (dry-run)"
     local _prev="BASE" _role _var _agent _i _k=0 _ratio="" _agent_flag=""
     printf '+ BASE=$(herdr pane current | jq -r .result.pane.pane_id)  # PM pane\n'
-    for _role in "${ROLES[@]}"; do
-      _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
-      if [[ "$_prev" == "BASE" ]]; then
-        printf '+ %s=$(herdr pane split "$%s" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
-      elif [[ "$NO_RESIZE" -eq 0 ]]; then
-        # k번째 down 분할 ratio = 1/(N-k+1) (N=우측 컬럼 역할수): 정확 1:1:1:1 균등
-        _k=$((_k+1))
-        _ratio="$(down_split_ratio "${#ROLES[@]}" "$_k")"
-        printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD"
+    if [[ "$LAYOUT" == "2col" && "$has_taskmanager" -eq 1 ]]; then
+      local _right_roles=()
+      for _r in "${ROLES[@]}"; do
+        if [[ "$_r" != "taskmanager" ]]; then _right_roles+=("$_r"); fi
+      done
+      local _n_right="${#_right_roles[@]}"
+      local _first_right="${_right_roles[0]}"
+      local _first_var="P_$(printf '%s' "$_first_right" | tr '[:lower:]' '[:upper:]')"
+      # 1) 우측 상단 첫 pane (right from BASE)
+      printf '+ %s=$(herdr pane split "$BASE" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_first_var" "$CWD"
+      # 2) PM 하단 taskmanager (down from BASE with ratio 0.5)
+      if [[ "$NO_RESIZE" -eq 0 ]]; then
+        printf '+ P_TASKMANAGER=$(herdr pane split "$BASE" --direction down --ratio 0.5 --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
       else
-        printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+        printf '+ P_TASKMANAGER=$(herdr pane split "$BASE" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
       fi
-      _prev="$_var"
-    done
+      # 3) 우측 나머지 pane들 (down from _first_var)
+      _prev="$_first_var"
+      _k=0
+      local _idx
+      for ((_idx=1; _idx<_n_right; _idx++)); do
+        _role="${_right_roles[$_idx]}"
+        _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
+        if [[ "$NO_RESIZE" -eq 0 ]]; then
+          _k=$((_k+1))
+          _ratio="$(down_split_ratio "$_n_right" "$_k")"
+          printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD"
+        else
+          printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+        fi
+        _prev="$_var"
+      done
+    else
+      for _role in "${ROLES[@]}"; do
+        _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
+        if [[ "$_prev" == "BASE" ]]; then
+          printf '+ %s=$(herdr pane split "$%s" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+        elif [[ "$NO_RESIZE" -eq 0 ]]; then
+          # k번째 down 분할 ratio = 1/(N-k+1) (N=우측 컬럼 역할수): 정확 1:1:1:1 균등
+          _k=$((_k+1))
+          _ratio="$(down_split_ratio "${#ROLES[@]}" "$_k")"
+          printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD"
+        else
+          printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+        fi
+        _prev="$_var"
+      done
+    fi
     printf '+ herdr pane rename "$BASE" "① PM"\n'
     _i=0
     for _role in "${ROLES[@]}"; do
@@ -597,32 +649,86 @@ setup_panes() {
     echo "error: 현재 Pane ID를 확인할 수 없습니다. Herdr 세션 안에서 실행하세요." >&2
     exit 1
   fi
-  log "BASE(PM) pane: $base_pane (preset=${PRESET})"
-  # 역할 일반화: ROLES 순서대로 체이닝 분할 (첫 역할은 right, 이후는 down).
-  # down 분할은 --ratio 1/(N-k+1)로 균등화(k=1..N-1, N=우측 컬럼 역할수). ratio는 분할
-  # 대상 pane이 보유할 비율이며 나머지가 새 pane에 할당된다. 예) N=4: 0.25→0.333333→0.5
-  # → 4 pane이 1:1:1:1 균등(별도 resize 불필요). --no-resize 시엔 ratio 없이 기본 분할.
-  # 연관배열 미사용(bash 3.x 호환): PANE_IDS[i] ↔ ROLES[i].
+  log "BASE(PM) pane: $base_pane (preset=${PRESET}, layout=${LAYOUT})"
   local PANE_IDS=()
-  local prev_pane="$base_pane" split_out pane_id role direction ratio first=1 k=0 n_roles
-  n_roles="${#ROLES[@]}"
-  for role in "${ROLES[@]}"; do
-    if [[ "$first" -eq 1 ]]; then
-      direction="right"; first=0
-      split_out="$(herdr pane split "$prev_pane" --direction "$direction" --cwd "$CWD" --no-focus)"
-    elif [[ "$NO_RESIZE" -eq 0 ]]; then
-      k=$((k+1))
-      ratio="$(down_split_ratio "$n_roles" "$k")"
-      split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD" --no-focus)"
+  if [[ "$LAYOUT" == "2col" && "$has_taskmanager" -eq 1 ]]; then
+    local right_roles=() r
+    for r in "${ROLES[@]}"; do
+      if [[ "$r" != "taskmanager" ]]; then right_roles+=("$r"); fi
+    done
+    local n_right="${#right_roles[@]}"
+    local first_right_role="${right_roles[0]}"
+    local split_out pane_id
+
+    # 1) 우측 상단 첫 pane (PM에서 right 분할)
+    split_out="$(herdr pane split "$base_pane" --direction right --cwd "$CWD" --no-focus)"
+    local first_right_pane
+    first_right_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
+    if [[ -z "$first_right_pane" ]]; then echo "error: ${first_right_role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+    log "${first_right_role} pane: $first_right_pane"
+
+    # 2) PM 하단 taskmanager (PM에서 down 분할, ratio 0.5로 상하 50:50 균등)
+    if [[ "$NO_RESIZE" -eq 0 ]]; then
+      split_out="$(herdr pane split "$base_pane" --direction down --ratio 0.5 --cwd "$CWD" --no-focus)"
     else
-      split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
+      split_out="$(herdr pane split "$base_pane" --direction down --cwd "$CWD" --no-focus)"
     fi
-    pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
-    if [[ -z "$pane_id" ]]; then echo "error: ${role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
-    PANE_IDS+=("$pane_id")
-    prev_pane="$pane_id"
-    log "${role} pane: $pane_id"
-  done
+    local tm_pane
+    tm_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
+    if [[ -z "$tm_pane" ]]; then echo "error: taskmanager 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+    log "taskmanager pane: $tm_pane"
+
+    # 3) 우측 나머지 pane들 (first_right_pane 하단으로 순차 down 분할)
+    local right_panes=("$first_right_pane")
+    local prev_pane="$first_right_pane" k=0 ratio role idx
+    for ((idx=1; idx<n_right; idx++)); do
+      role="${right_roles[$idx]}"
+      if [[ "$NO_RESIZE" -eq 0 ]]; then
+        k=$((k+1))
+        ratio="$(down_split_ratio "$n_right" "$k")"
+        split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD" --no-focus)"
+      else
+        split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
+      fi
+      pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
+      if [[ -z "$pane_id" ]]; then echo "error: ${role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+      right_panes+=("$pane_id")
+      prev_pane="$pane_id"
+      log "${role} pane: $pane_id"
+    done
+
+    # 4) ROLES 순서대로 PANE_IDS 매핑
+    local right_idx=0
+    for role in "${ROLES[@]}"; do
+      if [[ "$role" == "taskmanager" ]]; then
+        PANE_IDS+=("$tm_pane")
+      else
+        PANE_IDS+=("${right_panes[$right_idx]}")
+        right_idx=$((right_idx+1))
+      fi
+    done
+  else
+    # right-stack: ROLES 순서대로 체이닝 분할 (첫 역할은 right, 이후는 down).
+    local prev_pane="$base_pane" split_out pane_id role direction ratio first=1 k=0 n_roles
+    n_roles="${#ROLES[@]}"
+    for role in "${ROLES[@]}"; do
+      if [[ "$first" -eq 1 ]]; then
+        direction="right"; first=0
+        split_out="$(herdr pane split "$prev_pane" --direction "$direction" --cwd "$CWD" --no-focus)"
+      elif [[ "$NO_RESIZE" -eq 0 ]]; then
+        k=$((k+1))
+        ratio="$(down_split_ratio "$n_roles" "$k")"
+        split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD" --no-focus)"
+      else
+        split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
+      fi
+      pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
+      if [[ -z "$pane_id" ]]; then echo "error: ${role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+      PANE_IDS+=("$pane_id")
+      prev_pane="$pane_id"
+      log "${role} pane: $pane_id"
+    done
+  fi
 
   run herdr pane rename "$base_pane" "① PM"
   local i=0 agent cap

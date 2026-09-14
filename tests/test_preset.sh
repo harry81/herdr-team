@@ -12,7 +12,7 @@ ok()   { PASS=$((PASS+1)); printf 'PASS: %s\n' "$*"; }
 bad()  { FAIL=$((FAIL+1)); printf 'FAIL: %s\n' "$*"; }
 
 assert_contains() { # $1=output $2=needle $3=label
-  if printf '%s' "$1" | grep -qF -- "$2"; then ok "$3"; else bad "$3 (missing: $2)"; fi
+  if printf '%s' "$1" | grep -F -- "$2" >/dev/null; then ok "$3"; else bad "$3 (missing: $2)"; fi
 }
 assert_not_contains() {
   if printf '%s' "$1" | grep -qF -- "$2"; then bad "$3 (unexpected: $2)"; else ok "$3"; fi
@@ -30,6 +30,7 @@ assert_equal() { # $1=actual $2=expected $3=label
 echo "== 1) --help에 preset/TUI 옵션 문서화 =="
 HELP_OUT="$("$BIN" --help 2>&1 || true)"
 assert_contains "$HELP_OUT" "--preset" "help: --preset 문서화"
+assert_contains "$HELP_OUT" "--layout" "help: --layout 문서화"
 assert_contains "$HELP_OUT" "--list-presets" "help: --list-presets 문서화"
 assert_contains "$HELP_OUT" "--no-interactive" "help: --no-interactive 문서화"
 
@@ -168,20 +169,18 @@ BAD_KIND_OUT="$("$BIN" test --kind invalid_kind --dry-run --no-template --no-int
 assert_contains "$BAD_KIND_OUT" "invalid_kind" "invalid kind 에러 출력"
 
 echo "== 16) pane down 분할 균등 --ratio + resize JSON 누출 없음 =="
-# dev(4역할) dry-run: down 분할 ratio 수열 1/(N-k+1) = 0.25 / 0.333333 / 0.5 (N=4)
-assert_contains "$DEV_OUT" "--ratio 0.25" "dev down split #1 --ratio 0.25 (1/4 균등)"
-assert_contains "$DEV_OUT" "--ratio 0.333333" "dev down split #2 --ratio 0.333333 (1/3 균등)"
-assert_contains "$DEV_OUT" "--ratio 0.5" "dev down split #3 --ratio 0.5 (1/2 균등)"
-# biz(4역할, researcher)도 동일 ratio 일반화
-assert_contains "$BIZ_OUT" "--ratio 0.25" "biz down split #1 --ratio 0.25 (역할 일반화)"
-assert_contains "$BIZ_OUT" "--ratio 0.333333" "biz down split #2 --ratio 0.333333 (역할 일반화)"
-assert_contains "$BIZ_OUT" "--ratio 0.5" "biz down split #3 --ratio 0.5 (역할 일반화)"
+# 2col 기본값: dev(4역할: TM 좌측하단 + 우측 3역할: planner/worker/reviewer)
+assert_contains "$DEV_OUT" "layout=2col" "dev 기본 layout=2col 표시"
+assert_contains "$DEV_OUT" 'P_PLANNER=$(herdr pane split "$BASE" --direction right' "2col: 우측 첫 pane P_PLANNER"
+assert_contains "$DEV_OUT" 'P_TASKMANAGER=$(herdr pane split "$BASE" --direction down --ratio 0.5' "2col: PM 하단 P_TASKMANAGER (0.5 균등)"
+assert_contains "$DEV_OUT" 'P_WORKER=$(herdr pane split "$P_PLANNER" --direction down --ratio 0.333333' "2col: 우측 3개 중 1번째 down (1/3=0.333333)"
+assert_contains "$DEV_OUT" 'P_REVIEWER=$(herdr pane split "$P_WORKER" --direction down --ratio 0.5' "2col: 우측 3개 중 2번째 down (1/2=0.5)"
 # resize JSON stdout 누출/잔재 회귀: dry-run에는 resize 호출·best-effort 문구가 없어야 함
 assert_not_contains "$DEV_OUT" "cli:pane:resize" "dry-run: cli:pane:resize JSON 누출 없음"
 assert_not_contains "$DEV_OUT" "pane resize" "dry-run: herdr pane resize 호출 미표시"
 assert_not_contains "$DEV_OUT" "균등화 best-effort" "dry-run: 기존 resize best-effort 문구 제거"
-# help Layout도 ratio 기반 설명으로 갱신
-assert_contains "$HELP_OUT" "--ratio" "help: Layout에 균등 --ratio 설명"
+# help Layout도 설명 포함
+assert_contains "$HELP_OUT" "--layout" "help: Layout 옵션 설명"
 
 echo "== 17) opencode --agent 적용 (역할별 agent 강제) =="
 # dev(4역할): herdr agent start ... -- --agent <prefix>-<role>
@@ -231,6 +230,23 @@ STUBEOF
 else
   echo "SKIP: jq 없음 → opencode agent 생성 기능 테스트 생략"
 fi
+
+echo "== 19) --layout 옵션 (2col 기본값 vs right-stack 스택 모드) =="
+# --layout right-stack 명시적 테스트
+RS_OUT="$("$BIN" test --preset dev --layout right-stack --dry-run --no-template --no-interactive 2>&1)"
+assert_contains "$RS_OUT" "layout=right-stack" "--layout right-stack 반영"
+assert_contains "$RS_OUT" 'P_TASKMANAGER=$(herdr pane split "$BASE" --direction right' "right-stack: 첫 pane P_TASKMANAGER right"
+assert_contains "$RS_OUT" "--ratio 0.25" "right-stack down split #1 --ratio 0.25 (1/4 균등)"
+assert_contains "$RS_OUT" "--ratio 0.333333" "right-stack down split #2 --ratio 0.333333 (1/3 균등)"
+assert_contains "$RS_OUT" "--ratio 0.5" "right-stack down split #3 --ratio 0.5 (1/2 균등)"
+
+# HERDR_TEAM_LAYOUT 환경변수 반영
+ENV_RS_OUT="$(HERDR_TEAM_LAYOUT=right-stack "$BIN" test --dry-run --no-template --no-interactive 2>&1)"
+assert_contains "$ENV_RS_OUT" "layout=right-stack" "ENV: HERDR_TEAM_LAYOUT=right-stack 반영"
+
+# 잘못된 layout 에러
+BAD_LAYOUT_OUT="$("$BIN" test --layout invalid_layout --dry-run --no-template --no-interactive 2>&1 || true)"
+assert_contains "$BAD_LAYOUT_OUT" "invalid_layout" "invalid layout 에러 출력"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

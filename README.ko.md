@@ -131,9 +131,11 @@ herdr-team/
 3. **템플릿 준비** — `AGENTS.md`·`agents/<prefix>-*.md`가 없으면 `~/templates/agent-team`에서 복사
    (파일 내 `{{PREFIX}}` 치환). 이미 있으면 생략(멱등).
    opencode 역할 agent도 `.opencode/agents/<prefix>-*.md`로 설치(파일별 멱등).
-4. **Pane 분할** — 현재 Pane(PM) 기준 우측 분할(Task Manager) → 나머지 역할은 아래로 순차 분할.
-5. **균등화** — 각 down 분할이 `--ratio 1/(N-k+1)`을 전달하므로 우측 컬럼 pane이 정확히
-   균등해짐(~1:1:1:1, 별도 resize 단계 불필요).
+4. **Pane 분할 및 레이아웃** — 기본 레이아웃은 `2col`:
+   - 좌측 열: [PM (상단 50%)] / [Task Manager (하단 50%)]
+   - 우측 열: [Role 2 (상단)] / [Role 3 (중단)] / [Role 4 (하단)]
+   (기존 단일 우측 스택을 원할 경우 `--layout right-stack` 사용).
+5. **균등화** — 각 down 분할 시 `--ratio 1/(N-k+1)` (및 PM/TM 0.5)을 전달하므로 별도 resize 없이 정확히 균등해집니다.
 6. **레이블 + 시작** — ① PM / ② Task Manager / ③④⑤ 역할 로 변경 후
    `herdr agent start <prefix>-<role> --kind opencode -- --agent <prefix>-<role>`
    (opencode 역할 강제; 이미 있으면 생략).

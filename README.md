@@ -131,9 +131,12 @@ herdr-team/
 3. **Templates** — copies `AGENTS.md` + `agents/<prefix>-*.md` from `~/templates/agent-team`
    (with `{{PREFIX}}` substitution). Skipped if team docs already exist (idempotent).
    Also installs opencode role agents to `.opencode/agents/<prefix>-*.md` (per-file idempotent).
-4. **Pane split** — current pane (PM) → split right (task manager) → split down for each remaining role.
-5. **Equalize** — each down split passes `--ratio 1/(N-k+1)`, so the right-column panes are exactly
-   equalized (~1:1:1:1, no resize step needed).
+4. **Pane split & Layout** — default layout is `2col`:
+   - Left column: [PM (top 50%)] / [Task Manager (bottom 50%)]
+   - Right column: [Role 2 (top)] / [Role 3 (middle)] / [Role 4 (bottom)]
+   (Use `--layout right-stack` if you prefer the single right-column stack layout).
+5. **Equalize** — down splits pass `--ratio 1/(N-k+1)` (and `0.5` for PM/TM), so panes are exactly
+   equalized without manual resize.
 6. **Label + start** — renames to ① PM / ② Task Manager / ③④⑤ roles and runs
    `herdr agent start <prefix>-<role> --kind opencode -- --agent <prefix>-<role>`
    (opencode role enforcement; skips existing agents).

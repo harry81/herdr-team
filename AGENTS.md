@@ -94,13 +94,15 @@ herdr pane list
 herdr tab create --cwd "$PWD" --label "hts-team" --no-focus
 # -> TAB_ID 확인 (herdr tab list)
 
-# 2. 4인 균등 분할: BASE → right(Task Manager) → down(Planner) → down(Worker) → down(Reviewer)
-# herdr pane split [PANE_ID] --direction right|down --cwd "$PWD" --no-focus
-P_TASK=$(herdr pane split <BASE_PANE> --direction right --cwd "$PWD" --no-focus)
-P_PLANNER=$(herdr pane split $P_TASK --direction down --cwd "$PWD" --no-focus)
-P_WORKER=$(herdr pane split $P_PLANNER --direction down --cwd "$PWD" --no-focus)
-P_REVIEWER=$(herdr pane split $P_WORKER --direction down --cwd "$PWD" --no-focus)
-# 우측 컬럼이 좁으면 BASE 하단에 down 분할로 2x2 유사 배치도 가능. on-demand(researcher/ops)는 별도 탭 또는 reviewer 완료 후 pane 재사용 (동시 쓰기 방지)
+# 2. 2열 분할 (2col 기본값): 좌측[PM / Task Manager 50:50] + 우측[Planner / Worker / Reviewer 1:1:1]
+#   1) 우측 컬럼 상단: BASE(PM)에서 right 분할 -> Planner
+#   2) 좌측 컬럼 하단: BASE(PM)에서 down 분할 (ratio 0.5) -> Task Manager
+#   3) 우측 컬럼 하단들: Planner에서 순차 down 분할 (ratio 0.333333, 0.5)
+P_PLANNER=$(herdr pane split <BASE_PANE> --direction right --cwd "$PWD" --no-focus)
+P_TASK=$(herdr pane split <BASE_PANE> --direction down --ratio 0.5 --cwd "$PWD" --no-focus)
+P_WORKER=$(herdr pane split $P_PLANNER --direction down --ratio 0.333333 --cwd "$PWD" --no-focus)
+P_REVIEWER=$(herdr pane split $P_WORKER --direction down --ratio 0.5 --cwd "$PWD" --no-focus)
+# (단일 우측 스택을 원할 경우: herdr-team --layout right-stack 사용)
 
 # 3. 빈 pane에만 에이전트 시작 (멱등: list에 있으면 start 생략)
 #    역할 agent는 herdr-team 실행 시 .opencode/agents/hts-<role>.md 로 자동 설치됩니다.

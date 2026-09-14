@@ -26,13 +26,13 @@ mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"
 
 if command -v zip >/dev/null 2>&1; then
-  (cd "$REPO" && zip -qr "$OUT" . -x '.git/*' 'tests/*')
+  (cd "$REPO" && zip -qr "$OUT" . -x '.git/*' 'tests/*' '.opencode/*')
 else
   # zip 미설치 환경 폴백 (python3 내장 zipfile)
   python3 - "$REPO" "$OUT" <<'EOF'
 import os, sys, zipfile
 repo, out = sys.argv[1], sys.argv[2]
-skip = ('.git/', 'tests/')
+skip = ('.git/', 'tests/', '.opencode/')
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
     for root, dirs, files in os.walk(repo):
         rel = os.path.relpath(root, repo)

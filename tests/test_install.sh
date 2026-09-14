@@ -12,7 +12,7 @@ ok()   { PASS=$((PASS+1)); printf 'PASS: %s\n' "$*"; }
 bad()  { FAIL=$((FAIL+1)); printf 'FAIL: %s\n' "$*"; }
 
 assert_contains() { # $1=output $2=needle $3=label
-  if printf '%s' "$1" | grep -qF -- "$2"; then ok "$3"; else bad "$3 (missing: $2)"; fi
+  if printf '%s' "$1" | grep -F -- "$2" >/dev/null; then ok "$3"; else bad "$3 (missing: $2)"; fi
 }
 assert_exit() { # $1=actual $2=expected $3=label
   if [[ "$1" -eq "$2" ]]; then ok "$3"; else bad "$3 (exit=$1, want=$2)"; fi
