@@ -36,6 +36,7 @@
 4. **무방치 원칙**: 각 에이전트가 작업 완료 후 idle로 남지 않도록 즉시 다음 단계를 연결합니다.
 5. **Team 간 직접 협업 금지**: worker ↔ reviewer는 서로 직접 prompt하지 않습니다. 모든 반송/승인은 Task Manager(필요 시 PM)를 경유합니다.
 6. **Watcher와의 분업 (폴링 금지, 동기화 대기)**: 실시간 멈춤(`blocked`) 감시 및 셸 실행 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링을 하지 말고, `--wait` 또는 `wait`를 통해 작업 완료 시점만 동기화한 뒤 산출물 중계에 집중합니다.
+7. **팀원 식별 및 엔진 유연성 (Engine Agnostic)**: `herdr agent list` 단독 조회 대신 `herdr pane list`의 페인 라벨(Label)을 1차 기준으로 팀원을 매핑합니다. 팀원의 엔진이 `opencode`에서 `agy` 등으로 변경되더라도 페인 라벨을 최우선 신뢰하며, 각 엔진 인터페이스에 맞게 지시합니다.
 
 ---
 

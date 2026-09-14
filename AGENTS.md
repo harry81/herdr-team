@@ -52,6 +52,9 @@
 3. **오케스트레이션 전담 (Task Manager)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 대기(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
 4. **무방치 원칙 (Task Manager)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
 5. **Watcher와의 분업 (Task Manager)**: 실시간 멈춤(`blocked`) 감시 및 셸 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링을 지양하고, `--wait`를 통한 완료 시점 동기화와 업무 중계에만 집중합니다.
+6. **팀원 식별 및 엔진 유연성 (Engine Agnostic 원칙)**:
+   - **식별 기준**: `herdr agent list` 단독 조회 대신 반드시 `herdr pane list`의 페인 라벨(Label, 예: `hts-planner`, `hts-worker` 등)을 1차 기준으로 팀원을 식별합니다.
+   - **엔진 전환 대응**: 팀원의 실행 엔진이 `opencode`에서 `agy` 등으로 변경되더라도 페인 라벨을 최우선 신뢰하며, 각 엔진의 인터페이스(TUI 큐, 프롬프트 입력창 등)에 맞추어 작업을 지시합니다.
 
 ---
 
