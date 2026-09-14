@@ -1,12 +1,13 @@
 # herdr-team
 
+> **Multi-agent orchestration for AI coding agents** — a one-command 4-pane planner / worker / reviewer crew on the [herdr](https://github.com/herdrdev/herdr) terminal multiplexer.
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-blue)](README.md)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/harry81/herdr-team?style=social)](https://github.com/harry81/herdr-team/stargazers)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-> Formerly `herdr-team-setup` — that name still works as a fully compatible legacy alias.
-> 한국어 가이드는 [README.ko.md](README.ko.md) 참조.
+> 한국어 가이드는 [README.ko.md](README.ko.md) 참조. (Formerly `herdr-team-setup` alias is fully supported)
 
 ## Problem & Solution
 
@@ -46,7 +47,7 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 
 ## Quick Start
 
-**Windows — zero terminal.** Download `herdr-team.zip` from GitHub Releases,
+**Windows — zero terminal.** Download the release zip (`herdr-team-YYYYMMDD.zip`) from GitHub Releases,
 unzip, and double-click **`start-team.bat`** (and optionally **`start-watcher.bat`** for auto-unblocking).
 Pick a preset from the menu. That's it — no terminal opened, ever.
 

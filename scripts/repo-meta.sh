@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # scripts/repo-meta.sh — GitHub 저장소 메타데이터 원클릭 멱등 적용
 #
-# gh repo edit으로 160자 최적화 Description + Topics 14개를 적용한다.
-# topics는 add-only(덧셈)라 재실행해도 안전하고, description은 동일 값이라 멱등하다.
+# Description은 gh repo edit으로, Topics는 PUT /repos/{owner}/{repo}/topics 로
+# 원자적 replace-all(선언 세트 수렴, 멱등)한다. topics 상한은 20개.
 # gh 미설치 시에는 실행할 명령을 dry-run으로 출력하고 정상 종료한다.
 #
-# 사용법: bash scripts/repo-meta.sh [--repo harry81/herdr-team] [--dry-run]
+# 사용법: bash scripts/repo-meta.sh [--repo OWNER/NAME] [--dry-run]
 set -euo pipefail
 
 REPO_SLUG="harry81/herdr-team"
 DRY_RUN=0
-DESC="One-command 4-pane AI crew for your terminal: plan, build and gate-check every change. Presets for solo apps, small biz ops, and TDD teams."
+DESC="Multi-agent orchestration for AI coding agents: one-command planner/worker/reviewer crew on the herdr terminal multiplexer. TDD, solo-app, small-biz presets."
 TOPICS=(
-  ai-agents multi-agent orchestration terminal cli shell bash
-  automation tdd developer-tools side-project small-business
-  windows wsl
+  ai-agents multi-agent orchestration agent-orchestration coding-agents ai-agent
+  opencode claude-code codex
+  herdr terminal-multiplexer terminal tui cli
+  developer-tools automation tdd shell windows wsl
 )
 
 while [[ $# -gt 0 ]]; do
@@ -26,9 +27,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-topic_args() {
-  local t
-  for t in "${TOPICS[@]}"; do printf ' --add-topic %s' "$t"; done
+# 사전 검증(guard): 원격 적용 전에 규칙 위반을 차단한다.
+if (( ${#TOPICS[@]} > 20 )); then
+  echo "error: topics 상한(20) 초과: ${#TOPICS[@]}개" >&2
+  exit 1
+fi
+for t in "${TOPICS[@]}"; do
+  if [[ ! "$t" =~ ^[a-z0-9-]{1,50}$ ]]; then
+    echo "error: topic 규칙 위반(^[a-z0-9-]{1,50}\$): '$t'" >&2
+    exit 1
+  fi
+done
+
+print_plan() {
+  printf '+ gh repo edit %s --description "%s"\n' "$REPO_SLUG" "$DESC"
+  printf '+ gh api --method PUT repos/%s/topics' "$REPO_SLUG"
+  printf ' -f "names[]=%s"' "${TOPICS[@]}"
+  printf '\n'
+  printf 'Description: %d자\n' "${#DESC}"
+  printf 'Topics: %d개 (상한 20)\n' "${#TOPICS[@]}"
 }
 
 if [[ "$DRY_RUN" -eq 0 ]] && ! command -v gh >/dev/null 2>&1; then
@@ -36,24 +53,19 @@ if [[ "$DRY_RUN" -eq 0 ]] && ! command -v gh >/dev/null 2>&1; then
 [repo-meta] 'gh' CLI가 없습니다. 아래 명령을 dry-run으로 출력합니다.
 설치: https://cli.github.com/ → 'gh auth login' 후 재실행.
 
-  gh repo edit ${REPO_SLUG} --description "${DESC}"$(topic_args)
-
-Description: ${#DESC}자 (GitHub 권장 ≤160자)
-Topics (${#TOPICS[@]}개): ${TOPICS[*]}
 EOF
+  print_plan
   exit 0
 fi
 
-# shellcheck disable=SC2086
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  # shellcheck disable=SC2086
-  printf '+ gh repo edit %s --description %s' "$REPO_SLUG" "$DESC"
-  printf ' --add-topic %s' "${TOPICS[@]}"
-  printf '\n'
+  print_plan
 else
   gh repo edit "$REPO_SLUG" --description "$DESC" >/dev/null
+  put_args=()
   for t in "${TOPICS[@]}"; do
-    gh repo edit "$REPO_SLUG" --add-topic "$t" >/dev/null
+    put_args+=(-f "names[]=$t")
   done
-  printf '[repo-meta] 적용 완료: %s (topics %d개)\n' "$REPO_SLUG" "${#TOPICS[@]}"
+  gh api --method PUT "repos/$REPO_SLUG/topics" "${put_args[@]}" >/dev/null
+  printf '[repo-meta] 적용 완료: %s (description %d자, topics %d개 원자적 교체)\n' "$REPO_SLUG" "${#DESC}" "${#TOPICS[@]}"
 fi

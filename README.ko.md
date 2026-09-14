@@ -1,9 +1,11 @@
 # herdr-team (한국어 가이드)
 
+> **AI 코딩 에이전트를 위한 멀티에이전트 오케스트레이션** — herdr 터미널 멀티플렉서 위에서 planner / worker / reviewer 4-pane 팀을 한 줄 명령으로 띄웁니다.
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-blue)](README.md)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/harry81/herdr-team?style=social)](https://github.com/harry81/herdr-team/stargazers)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 > 기존 `herdr-team-setup` 이름은 100% 호환 레거시 별칭으로 계속 동작합니다.
 > English version: [README.md](README.md). 본 문서는 한국어 사용자를 위한 가이드입니다.
@@ -46,7 +48,7 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 
 ## 30초 빠른 시작
 
-**Windows — 터미널 0회.** GitHub Releases에서 `herdr-team.zip`을 받아
+**Windows — 터미널 0회.** GitHub Releases에서 배포 zip(`herdr-team-YYYYMMDD.zip`)을 받아
 압축을 풀고 **`start-team.bat`**(및 권한 자동승인용 **`start-watcher.bat`**)을 더블클릭하세요. 메뉴에서 프리셋 선택.
 끝입니다. 터미널은 한 번도 안 엽니다.
 
