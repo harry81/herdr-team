@@ -6,7 +6,9 @@
 #   2) ~/bin/ht               -> <repo>/bin/herdr-team (단축 명령어)
 #   3) ~/bin/hts              -> <repo>/bin/herdr-team (단축 명령어)
 #   4) ~/bin/herdr-team-setup -> <repo>/bin/herdr-team (레거시 별칭)
-#   5) ~/templates/agent-team -> <repo>/templates
+#   5) ~/bin/herdr-watcher    -> <repo>/bin/herdr-watcher
+#   6) ~/bin/htw              -> <repo>/bin/herdr-watcher (단축 명령어)
+#   7) ~/templates/agent-team -> <repo>/templates
 #      (스크립트 기본 TEMPLATE_DIR이 ~/templates/agent-team 이므로,
 #       이 링크 하나로 외부 템플릿 복사 경로가 바로 동작합니다.)
 #   6) ~/.bashrc, ~/.zshrc에 ~/bin PATH 등록 (marker 주석, 멱등,
@@ -108,9 +110,11 @@ link "$REPO/bin/herdr-team" "$HOME/bin/herdr-team"
 link "$REPO/bin/herdr-team" "$HOME/bin/ht"
 link "$REPO/bin/herdr-team" "$HOME/bin/hts"
 link "$REPO/bin/herdr-team" "$HOME/bin/herdr-team-setup"
+link "$REPO/bin/herdr-watcher" "$HOME/bin/herdr-watcher"
+link "$REPO/bin/herdr-watcher" "$HOME/bin/htw"
 link "$REPO/templates" "$HOME/templates/agent-team"
 
 ensure_path "$HOME/.bashrc"
 ensure_path "$HOME/.zshrc"
 
-printf '[install] 완료. 확인: herdr-team --help (단축: ht, hts / 레거시: herdr-team-setup)\n'
+printf '[install] 완료. 확인: herdr-team --help (단축: ht, hts / watcher: htw / 레거시: herdr-team-setup)\n'

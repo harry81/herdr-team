@@ -64,6 +64,7 @@ Then, inside an empty shell pane of a Herdr session:
 ```bash
 cd <target-project>
 hts                    # auto-detect prefix, TUI preset menu, split + start
+htw &                  # (recommended) run background watcher to auto-unblock permission prompts
 hts myproj --preset app
 hts sd --dry-run       # print plan only, no changes
 ```
@@ -149,6 +150,8 @@ herdr-team/
 ~/bin/ht               -> <repo>/bin/herdr-team
 ~/bin/hts              -> <repo>/bin/herdr-team
 ~/bin/herdr-team-setup -> <repo>/bin/herdr-team   # legacy alias
+~/bin/herdr-watcher    -> <repo>/bin/herdr-watcher
+~/bin/htw              -> <repo>/bin/herdr-watcher # watcher alias
 ~/templates/agent-team -> <repo>/templates
 ```
 

@@ -64,6 +64,7 @@ hts --help
 ```bash
 cd <target-project>
 hts                    # prefix 자동 결정, TUI 프리셋 메뉴, 분할+시작
+htw &                  # (권장) 백그라운드 Watcher 실행: 셸 권한 팝업 자동 승인 및 멈춤 방지
 hts myproj --preset app
 hts sd --dry-run       # 실행 없이 계획만 출력
 ```
@@ -148,6 +149,8 @@ herdr-team/
 ~/bin/ht               -> <repo>/bin/herdr-team
 ~/bin/hts              -> <repo>/bin/herdr-team
 ~/bin/herdr-team-setup -> <repo>/bin/herdr-team   # 레거시 별칭
+~/bin/herdr-watcher    -> <repo>/bin/herdr-watcher
+~/bin/htw              -> <repo>/bin/herdr-watcher # watcher 별칭
 ~/templates/agent-team -> <repo>/templates
 ```
 

@@ -49,8 +49,9 @@
 2. **역할 위임 고정**:
    - 기획/설계 → `hts-planner`, 구현/버그수정 → `hts-worker`, 실행 검증 겸 코드 리뷰(최종 게이트) → `hts-reviewer`.
    - 리서치/조사 → `hts-researcher` (on-demand), 배포/인프라/비밀값 → `hts-ops` (on-demand, 승인 범위 내).
-3. **오케스트레이션 전담 (Task Manager)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 상태 모니터링(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
+3. **오케스트레이션 전담 (Task Manager)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 대기(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
 4. **무방치 원칙 (Task Manager)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
+5. **Watcher와의 분업 (Task Manager)**: 실시간 멈춤(`blocked`) 감시 및 셸 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링을 지양하고, `--wait`를 통한 완료 시점 동기화와 업무 중계에만 집중합니다.
 
 ---
 
@@ -136,7 +137,10 @@ herdr agent rename hts-reviewer "hts-reviewer"
 `--wait`는 상태 변화를 한 번만 감지하므로, 장시간 작업은 `wait` + `read`로 폴링합니다.
 
 ```bash
-# 작업 지시 (역할 문서 주입을 첫 줄에 포함)
+# 0. 백그라운드 Watcher 가동 (권장: 에이전트 셸 권한 승인 자동화 및 멈춤 방지)
+htw --prefix hts- &
+
+# 1. 작업 지시 (역할 문서 주입을 첫 줄에 포함)
 herdr agent prompt hts-planner "agents/hts-planner.md를 읽고 그 산출물 형식을 따르라. ..." --wait --timeout 180000
 herdr agent prompt hts-worker "agents/hts-worker.md를 따르라. TDD Red→Green→Refactor, ... " --wait --timeout 600000
 herdr agent prompt hts-reviewer "agents/hts-reviewer.md를 따르라. [APPROVE]/[REQUEST CHANGES]로 판정, ..." --wait --timeout 600000

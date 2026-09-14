@@ -32,9 +32,10 @@
 
 1. **절대 코드를 직접 수정하지 않는다**: 파일 편집, 빌드/테스트 실행, `git commit/push`는 금지. 코드를 직접 수정하는 것은 `hts-worker`뿐입니다.
 2. **역할 위임 고정**: 기획/설계 → `hts-planner`, 구현/버그수정 → `hts-worker`, 실행 검증 겸 코드 리뷰(최종 게이트) → `hts-reviewer`.
-3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 상태 모니터링(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
+3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 대기(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
 4. **무방치 원칙**: 각 에이전트가 작업 완료 후 idle로 남지 않도록 즉시 다음 단계를 연결합니다.
 5. **Team 간 직접 협업 금지**: worker ↔ reviewer는 서로 직접 prompt하지 않습니다. 모든 반송/승인은 Task Manager(필요 시 PM)를 경유합니다.
+6. **Watcher와의 분업 (폴링 금지, 동기화 대기)**: 실시간 멈춤(`blocked`) 감시 및 셸 실행 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링을 하지 말고, `--wait` 또는 `wait`를 통해 작업 완료 시점만 동기화한 뒤 산출물 중계에 집중합니다.
 
 ---
 

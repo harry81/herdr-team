@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""
+Herdr Multi-Agent Team Watcher (herdr-watcher / htw)
+Monitors herdr agents, detects state transitions (idle, working, blocked),
+and automatically unblocks agents waiting on permission approvals.
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+
+
+def get_agents(prefix=None, cwd_filter=None):
+    try:
+        out = subprocess.check_output(["herdr", "agent", "list"], stderr=subprocess.DEVNULL)
+        data = json.loads(out)
+        agents = data.get("result", {}).get("agents", [])
+
+        filtered = {}
+        for a in agents:
+            name = a.get("name") or ""
+            if prefix and not name.startswith(prefix):
+                continue
+            if cwd_filter and cwd_filter not in (a.get("cwd") or ""):
+                continue
+            if not name:
+                continue
+
+            filtered[name] = {
+                "status": a.get("agent_status"),
+                "pane_id": a.get("pane_id"),
+                "title": a.get("terminal_title", ""),
+                "cwd": a.get("cwd", ""),
+                "interactive_ready": a.get("interactive_ready", False),
+            }
+        return filtered
+    except Exception:
+        return {}
+
+
+def check_permission_screen(name):
+    try:
+        out = subprocess.check_output(
+            ["herdr", "agent", "read", name, "--source", "visible"],
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        ).decode("utf-8", errors="ignore")
+        return "Permission required" in out or "Allow once" in out
+    except Exception:
+        return False
+
+
+def unblock_agent(pane_id, name):
+    print(f"[{time.strftime('%H:%M:%S')}] [AUTO-ALLOW] {name} ({pane_id}) Permission 대기 감지 -> 승인 키(tab+enter) 전송")
+    subprocess.run(
+        ["herdr", "pane", "send-keys", pane_id, "tab", "enter"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True):
+    prev_states = {}
+    iteration = 0
+    print(f"=== Herdr Agent Watcher 가동 (인터벌: {interval}초, 접두사: {prefix or '전체'}) ===")
+    sys.stdout.flush()
+
+    while True:
+        if max_iterations is not None and iteration >= max_iterations:
+            break
+        iteration += 1
+
+        current_agents = get_agents(prefix=prefix)
+        changes = []
+
+        for name, info in current_agents.items():
+            prev = prev_states.get(name)
+            curr_status = info["status"]
+            pane_id = info["pane_id"]
+
+            if prev is None:
+                changes.append(f"[{name}] 초기 감지: {curr_status} ({info['title']})")
+            elif prev["status"] != curr_status:
+                changes.append(f"[{name}] 상태 전이: {prev['status']} -> {curr_status}")
+
+            is_blocked = (curr_status == "blocked")
+            if not is_blocked and auto_allow:
+                # OpenCode 내부 상태가 working으로 유지되더라도 화면 팝업 검사로 보완
+                is_blocked = check_permission_screen(name)
+
+            if is_blocked and auto_allow:
+                unblock_agent(pane_id, name)
+
+        prev_states = current_agents
+
+        if changes:
+            print(f"[{time.strftime('%H:%M:%S')}] 상태 변화 이벤트:")
+            for ch in changes:
+                print(f"  • {ch}")
+            sys.stdout.flush()
+        elif iteration % 12 == 0:
+            summary = ", ".join(f"{k}:{v['status']}" for k, v in current_agents.items())
+            print(f"[{time.strftime('%H:%M:%S')}] 핑 체크 (정상): {summary}")
+            sys.stdout.flush()
+
+        if max_iterations is not None and iteration >= max_iterations:
+            break
+
+        time.sleep(interval)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Herdr Multi-Agent Team Watcher (herdr-watcher / htw)")
+    parser.add_argument("--prefix", type=str, default=None, help="Agent name prefix to filter (e.g. hts-, fa-)")
+    parser.add_argument("--interval", type=int, default=5, help="Polling interval in seconds (default: 5)")
+    parser.add_argument("--max-iterations", type=int, default=None, help="Maximum loop iterations (for testing)")
+    parser.add_argument("--no-auto-allow", action="store_true", help="Disable automatic permission approval")
+    args = parser.parse_args()
+
+    run_watch(
+        prefix=args.prefix,
+        interval=args.interval,
+        max_iterations=args.max_iterations,
+        auto_allow=not args.no_auto_allow,
+    )
+
+
+if __name__ == "__main__":
+    main()

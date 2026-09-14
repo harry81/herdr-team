@@ -30,12 +30,16 @@ export HOME="$FIX/home"
 mkdir -p "$HOME"
 
 CANON="$REPO/bin/herdr-team"
+CANON_WATCH="$REPO/bin/herdr-watcher"
 
-echo "== 1) 링크 생성 (herdr-team, ht, hts, herdr-team-setup) =="
+echo "== 1) 링크 생성 (herdr-team, ht, hts, herdr-team-setup, herdr-watcher, htw) =="
 HOME="$FIX/home" bash "$INST" >/dev/null 2>&1; INST_RC=$?
 assert_exit "$INST_RC" 0 "install exit 0"
 for name in herdr-team ht hts herdr-team-setup; do
   assert_link "$HOME/bin/$name" "$CANON" "link: ~/bin/$name"
+done
+for name in herdr-watcher htw; do
+  assert_link "$HOME/bin/$name" "$CANON_WATCH" "link: ~/bin/$name"
 done
 assert_link "$HOME/templates/agent-team" "$REPO/templates" "link: ~/templates/agent-team"
 
@@ -69,6 +73,9 @@ assert_exit "$PIPE_RC" 0 "pipe install exit 0"
 for name in herdr-team ht hts herdr-team-setup; do
   assert_link "$FIX/pipehome/bin/$name" "$CANON" "pipe: ~/bin/$name"
 done
+for name in herdr-watcher htw; do
+  assert_link "$FIX/pipehome/bin/$name" "$CANON_WATCH" "pipe: ~/bin/$name"
+done
 
 echo "== 4) 배포 zip 빌드 (GitHub Releases용) =="
 ZIP_OUT="$FIX/hts-pkg.zip"
@@ -77,6 +84,7 @@ assert_exit "$ZIP_RC" 0 "build-zip exit 0"
 if [[ -f "$ZIP_OUT" ]]; then ok "zip 생성: $ZIP_OUT"; else bad "zip 생성: $ZIP_OUT"; fi
 ZIP_LIST="$(python3 -m zipfile -l "$ZIP_OUT" 2>/dev/null || true)"
 assert_contains "$ZIP_LIST" "bin/herdr-team" "zip: 정본 스크립트 포함"
+assert_contains "$ZIP_LIST" "bin/herdr-watcher" "zip: watcher 스크립트 포함"
 assert_contains "$ZIP_LIST" "bin/herdr-team-setup" "zip: 레거시 래퍼 포함"
 assert_contains "$ZIP_LIST" "windows/start-team.bat" "zip: Windows 런처 포함"
 assert_contains "$ZIP_LIST" "README.md" "zip: README 포함"
@@ -89,6 +97,14 @@ mkdir -p "$FIX/zipdef" && rm -f "$FIX/zipdef"/herdr-team-*.zip
 (cd "$FIX/zipdef" && bash "$REPO/scripts/build-zip.sh" >/dev/null 2>&1); DEF_RC=$?
 assert_exit "$DEF_RC" 0 "build-zip 기본 실행 exit 0"
 if ls "$FIX/zipdef"/herdr-team-*.zip >/dev/null 2>&1; then ok "기본 산출물: herdr-team-*.zip"; else bad "기본 산출물: herdr-team-*.zip"; fi
+
+echo "== 5) herdr-watcher CLI 기본 동작 및 1회 실행 =="
+WATCH_HELP="$("$REPO/bin/herdr-watcher" --help 2>&1 || true)"
+assert_contains "$WATCH_HELP" "--prefix" "watcher help: --prefix 옵션"
+assert_contains "$WATCH_HELP" "--interval" "watcher help: --interval 옵션"
+assert_contains "$WATCH_HELP" "--no-auto-allow" "watcher help: --no-auto-allow 옵션"
+WATCH_RUN="$("$REPO/bin/herdr-watcher" --prefix non_existent_prefix_xyz --max-iterations 1 2>&1 || true)"
+assert_contains "$WATCH_RUN" "Herdr Agent Watcher 가동" "watcher 1회 실행 정상 완료"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
