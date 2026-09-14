@@ -90,9 +90,9 @@ ensure_path() {
   if [[ ! -f "$rc" ]]; then
     : > "$rc"
   fi
-  # 레거시 마커 마이그레이션: 구 마커 라인을 신 마커로 제자리 교체
+  # 레거시 마커 마이그레이션: 구 마커 라인을 신 마커로 제자리 교체 (POSIX/macOS 호환 임시파일 방식)
   if grep -qF "$LEGACY_MARKER" "$rc" 2>/dev/null; then
-    sed -i "s|^${LEGACY_MARKER}$|${MARKER}|" "$rc"
+    sed "s|^${LEGACY_MARKER}$|${MARKER}|" "$rc" > "$rc.tmp" && mv "$rc.tmp" "$rc"
     printf '[install] 마커 마이그레이션: %s\n' "$rc"
   fi
   if grep -qF "$MARKER" "$rc" 2>/dev/null; then

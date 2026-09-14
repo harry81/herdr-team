@@ -28,21 +28,26 @@ has_crlf() { # $1=file → CRLF 포함 시 0
 CORE="$REPO/windows/start-team.bat"
 SHORTCUT="$REPO/windows/create-shortcut.bat"
 ROOT_CORE="$REPO/start-team.bat"
+WATCH_CORE="$REPO/windows/start-watcher.bat"
+ROOT_WATCH="$REPO/start-watcher.bat"
 
 echo "== 1) windows/ 런처 영문 파일명만 존재 (한글 파일명 제거) =="
-for f in "$CORE" "$SHORTCUT"; do
+for f in "$CORE" "$SHORTCUT" "$WATCH_CORE"; do
   if [[ -f "$f" ]]; then ok "존재: ${f#$REPO/}"; else bad "존재: ${f#$REPO/}"; fi
 done
 if [[ ! -e "$REPO/windows/AI-팀-시작하기.bat" ]]; then ok "삭제 확인: windows/AI-팀-시작하기.bat 없음"; else bad "삭제 확인: windows/AI-팀-시작하기.bat 없음 (잔존)"; fi
 if [[ -z "$(ls "$REPO/windows" | grep -P '[^\x00-\x7F]' 2>/dev/null)" ]]; then ok "windows/: 비ASCII 파일명 없음"; else bad "windows/: 비ASCII 파일명 없음"; fi
 
 echo "== 2) 루트 바로가기/래퍼 존재 (사용자 가시성) =="
-if [[ -f "$ROOT_CORE" ]]; then ok "존재: ${ROOT_CORE#$REPO/}"; else bad "존재: ${ROOT_CORE#$REPO/}"; fi
+for rf in "$ROOT_CORE" "$ROOT_WATCH"; do
+  if [[ -f "$rf" ]]; then ok "존재: ${rf#$REPO/}"; else bad "존재: ${rf#$REPO/}"; fi
+done
 if [[ ! -e "$REPO/AI-팀-시작하기.bat" ]]; then ok "삭제 확인: AI-팀-시작하기.bat 없음"; else bad "삭제 확인: AI-팀-시작하기.bat 없음 (잔존)"; fi
 assert_contains "$(cat "$ROOT_CORE" 2>/dev/null)" 'windows\start-team.bat' "루트 start-team.bat → windows/ 위임"
+assert_contains "$(cat "$ROOT_WATCH" 2>/dev/null)" 'windows\start-watcher.bat' "루트 start-watcher.bat → windows/ 위임"
 
 echo "== 3) CRLF 개행 (cmd.exe 한글/배치 안정성) =="
-for f in "$CORE" "$SHORTCUT" "$ROOT_CORE"; do
+for f in "$CORE" "$SHORTCUT" "$ROOT_CORE" "$WATCH_CORE" "$ROOT_WATCH"; do
   if [[ -f "$f" ]] && has_crlf "$f"; then ok "CRLF: ${f#$REPO/}"; else bad "CRLF: ${f#$REPO/}"; fi
 done
 
@@ -94,6 +99,13 @@ echo "== 8) 의존성 점검 위저드 (Git/WSL 부재 시) =="
 assert_contains "$CORE_TXT" "winget" "core: winget 설치 유도"
 assert_contains "$CORE_TXT" "HERDR_TEAM_SKIP_CHECK" "core: HERDR_TEAM_SKIP_CHECK 플래그"
 assert_contains "$CORE_TXT" "wsl --install" "core: wsl --install 안내"
+
+echo "== 9) start-watcher.bat 토큰 및 명령 검증 =="
+WATCH_TXT="$(cat "$WATCH_CORE" 2>/dev/null)"
+assert_contains "$WATCH_TXT" "bin/herdr-watcher" "watcher bat: bin/herdr-watcher 브릿지"
+assert_contains "$WATCH_TXT" "wsl" "watcher bat: wsl 분기"
+assert_contains "$WATCH_TXT" "chcp 65001" "watcher bat: UTF-8 코드페이지"
+assert_contains "$WATCH_TXT" "%*" "watcher bat: 인자 패스스루"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

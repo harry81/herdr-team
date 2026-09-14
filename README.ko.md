@@ -47,7 +47,7 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 ## 30초 빠른 시작
 
 **Windows — 터미널 0회.** GitHub Releases에서 `herdr-team.zip`을 받아
-압축을 풀고 **`start-team.bat`**을 더블클릭하세요. 메뉴에서 프리셋 선택.
+압축을 풀고 **`start-team.bat`**(및 권한 자동승인용 **`start-watcher.bat`**)을 더블클릭하세요. 메뉴에서 프리셋 선택.
 끝입니다. 터미널은 한 번도 안 엽니다.
 
 **Linux / macOS — 한 줄이면 어디서든 `hts`:**

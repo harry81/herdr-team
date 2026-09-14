@@ -47,8 +47,8 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 ## Quick Start
 
 **Windows — zero terminal.** Download `herdr-team.zip` from GitHub Releases,
-unzip, and double-click **`start-team.bat`**. Pick a preset from the menu.
-That's it — no terminal opened, ever.
+unzip, and double-click **`start-team.bat`** (and optionally **`start-watcher.bat`** for auto-unblocking).
+Pick a preset from the menu. That's it — no terminal opened, ever.
 
 **Linux / macOS — one line, then `hts` works everywhere:**
 
