@@ -90,11 +90,14 @@ Everything below is reference material. You never need it for the 30-second star
 herdr-team/
 ├── bin/
 │   ├── herdr-team        # Main script (executable, canonical)
+│   ├── herdr-watcher     # Team watcher script (auto-unblocks permission prompts, htw)
 │   └── herdr-team-setup  # Legacy wrapper (100% compatible, forwards to herdr-team)
 ├── windows/
-│   ├── start-team.bat          # Windows one-click launcher (double-click this)
+│   ├── start-team.bat          # Windows one-click team launcher (double-click this)
+│   ├── start-watcher.bat       # Windows one-click watcher launcher (double-click this)
 │   └── create-shortcut.bat     # Desktop shortcut creator ("Start AI Team")
 ├── start-team.bat              # Root wrapper → windows\start-team.bat
+├── start-watcher.bat           # Root wrapper → windows\start-watcher.bat
 ├── scripts/
 │   └── build-zip.sh            # Release archive builder (default: herdr-team-<date>.zip)
 ├── templates/
@@ -192,8 +195,9 @@ so adding a preset is just adding a directory (+ `ROLE-<role>.md` if it uses a n
 For non-technical users on Windows — double-click, no terminal knowledge required:
 
 1. Double-click **`start-team.bat`** (repo root, or from the release zip).
-2. Pick a preset from the menu (English primary + Korean, 10s default: dev).
-3. A desktop shortcut ("Start AI Team") can be created with `windows\create-shortcut.bat`.
+2. Double-click **`start-watcher.bat`** (recommended: auto-allows command approval prompts in background).
+3. Pick a preset from the menu (English primary + Korean, 10s default: dev).
+4. A desktop shortcut ("Start AI Team") can be created with `windows\create-shortcut.bat`.
 
 The launcher runs the repo script via WSL (fallback: Git-Bash), converting paths with
 `wsl wslpath`, forwarding all args (`--preset`, `--dry-run`, ...).
@@ -208,6 +212,7 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 |--------|-------------|
 | `prefix` | Agent prefix (e.g. `sd`, `myproj`); auto-detected when omitted |
 | `--kind KIND` | Agent kind (default: `opencode` / TUI menu; supported: `opencode`, `claude`, `codex`, `agy`, etc., or `HERDR_TEAM_KIND`) |
+| `--layout LAYOUT` | Team pane layout: `2col` (default, TM below PM) \| `right-stack` (or `HERDR_TEAM_LAYOUT`) |
 | `--cwd PATH` | Working directory (default: `$PWD`) |
 | `--template-dir D` | Template directory (default: `~/templates/agent-team`, or `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | Team preset: `dev` \| `app` \| `biz` (or `HERDR_TEAM_PRESET`; default: `dev` / TUI) |

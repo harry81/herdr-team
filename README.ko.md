@@ -90,11 +90,14 @@ hts sd --dry-run       # 실행 없이 계획만 출력
 herdr-team/
 ├── bin/
 │   ├── herdr-team        # 본 스크립트 (실행 파일, 정본)
+│   ├── herdr-watcher     # 팀 워처 스크립트 (셸 권한 팝업 자동 승인, htw)
 │   └── herdr-team-setup  # 레거시 래퍼 (100% 호환, herdr-team으로 전달)
 ├── windows/
-│   ├── start-team.bat          # Windows 원클릭 런처 (더블클릭 실행)
+│   ├── start-team.bat          # Windows 팀 원클릭 런처 (더블클릭 실행)
+│   ├── start-watcher.bat       # Windows 워처 원클릭 런처 (더블클릭 실행)
 │   └── create-shortcut.bat     # 바탕화면 바로가기 생성기 ("Start AI Team")
 ├── start-team.bat              # 루트 래퍼 → windows\start-team.bat
+├── start-watcher.bat           # 루트 래퍼 → windows\start-watcher.bat
 ├── scripts/
 │   └── build-zip.sh            # 배포 아카이브 생성 (기본: herdr-team-<날짜>.zip)
 ├── templates/
@@ -191,8 +194,9 @@ Select [1-3/dev/app/biz] (default: dev, 10s):
 Windows 일반 사용자용 — 더블클릭만으로 실행, 터미널 지식 불필요:
 
 1. 저장소 루트(또는 배포 zip)의 **`start-team.bat`** 더블클릭.
-2. 메뉴에서 프리셋 선택 (영어 기본 + 한국어 병기, 10초 무입력 시 dev).
-3. `windows\create-shortcut.bat` 실행 시 바탕화면 바로가기("Start AI Team") 생성.
+2. 백그라운드 워처 실행을 원할 시 **`start-watcher.bat`** 더블클릭 (권장: 셸 실행 승인 팝업 자동 처리).
+3. 메뉴에서 프리셋 선택 (영어 기본 + 한국어 병기, 10초 무입력 시 dev).
+4. `windows\create-shortcut.bat` 실행 시 바탕화면 바로가기("Start AI Team") 생성.
 
 런처는 WSL(없으면 Git-Bash) 경유로 저장소 스크립트를 실행하며,
 `wsl wslpath`로 경로 변환, 모든 인자(`--preset`, `--dry-run` 등)를 그대로 전달합니다.
@@ -207,6 +211,7 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 |------|------|
 | `prefix` | 에이전트 prefix (예: `sd`, `myproj`), 생략 시 자동 결정 |
 | `--kind KIND` | agent kind (기본값: `opencode` / TUI 메뉴; 지원: `opencode`, `claude`, `codex`, `agy` 등, 또는 `HERDR_TEAM_KIND`) |
+| `--layout LAYOUT` | 팀 pane 레이아웃: `2col` (기본값, PM 하단에 TM) \| `right-stack` (또는 `HERDR_TEAM_LAYOUT`) |
 | `--cwd PATH` | 작업 디렉토리 (기본값: `$PWD`) |
 | `--template-dir D` | 템플릿 디렉토리 (기본값: `~/templates/agent-team`, 또는 `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | 팀 프리셋: `dev` \| `app` \| `biz` (또는 `HERDR_TEAM_PRESET`, 기본값: `dev` / TUI) |
