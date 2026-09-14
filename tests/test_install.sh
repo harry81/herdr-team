@@ -100,13 +100,25 @@ mkdir -p "$FIX/zipdef" && rm -f "$FIX/zipdef"/herdr-team-*.zip
 assert_exit "$DEF_RC" 0 "build-zip 기본 실행 exit 0"
 if ls "$FIX/zipdef"/herdr-team-*.zip >/dev/null 2>&1; then ok "기본 산출물: herdr-team-*.zip"; else bad "기본 산출물: herdr-team-*.zip"; fi
 
-echo "== 5) herdr-watcher CLI 기본 동작 및 1회 실행 =="
+echo "== 5) herdr-watcher CLI 기본 동작 및 prefix 자동 감지 =="
 WATCH_HELP="$("$REPO/bin/herdr-watcher" --help 2>&1 || true)"
 assert_contains "$WATCH_HELP" "--prefix" "watcher help: --prefix 옵션"
 assert_contains "$WATCH_HELP" "--interval" "watcher help: --interval 옵션"
+assert_contains "$WATCH_HELP" "--all" "watcher help: --all 옵션"
 assert_contains "$WATCH_HELP" "--no-auto-allow" "watcher help: --no-auto-allow 옵션"
-WATCH_RUN="$("$REPO/bin/herdr-watcher" --prefix non_existent_prefix_xyz --max-iterations 1 2>&1 || true)"
-assert_contains "$WATCH_RUN" "Herdr Agent Watcher 가동" "watcher 1회 실행 정상 완료"
+
+# 1) 기본 인자 없는 실행: PWD(herdr-team) 기반 auto_prefix -> ht-
+WATCH_AUTO_RUN="$("$REPO/bin/herdr-watcher" --max-iterations 1 2>&1 || true)"
+assert_contains "$WATCH_AUTO_RUN" "Herdr Agent Watcher 가동" "watcher 1회 실행 완료"
+assert_contains "$WATCH_AUTO_RUN" "접두사: ht-" "watcher 기본 실행: PWD prefix(ht-) 자동 감지"
+
+# 2) --all 옵션: 전체 에이전트 감시
+WATCH_ALL_RUN="$("$REPO/bin/herdr-watcher" --all --max-iterations 1 2>&1 || true)"
+assert_contains "$WATCH_ALL_RUN" "접두사: 전체" "watcher --all: 전체 감시"
+
+# 3) 수동 --prefix 지정
+WATCH_MANUAL_RUN="$("$REPO/bin/herdr-watcher" --prefix custom- --max-iterations 1 2>&1 || true)"
+assert_contains "$WATCH_MANUAL_RUN" "접두사: custom-" "watcher --prefix: 수동 지정 반영"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

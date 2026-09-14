@@ -7,9 +7,49 @@ and automatically unblocks agents waiting on permission approvals.
 
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 import time
+
+
+def auto_prefix(cwd=None):
+    if cwd is None:
+        cwd = os.getcwd()
+    try:
+        git_root = subprocess.check_output(
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        base = os.path.basename(git_root)
+    except Exception:
+        base = os.path.basename(os.path.abspath(cwd))
+
+    # 소문자 + 영숫자만
+    clean = re.sub(r'[^a-z0-9]+', ' ', base.lower()).strip()
+    nospace = re.sub(r'\s+', '', clean)
+    if not nospace:
+        return "tm"
+    if len(nospace) <= 4:
+        return nospace
+
+    # camelCase/숫자/구분자 경계 분리 후 토큰 이니셜
+    spaced = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', base)
+    spaced = re.sub(r'([A-Za-z])([0-9])', r'\1 \2', spaced)
+    spaced = re.sub(r'([0-9])([A-Za-z])', r'\1 \2', spaced)
+    spaced = re.sub(r'[-_.]+', ' ', spaced)
+    words = spaced.split()
+    initials = ""
+    for w in words:
+        ch = w.lower()[:1]
+        if ch.isalnum():
+            initials += ch
+        if len(initials) >= 4:
+            break
+    if len(initials) >= 2:
+        return initials
+    return nospace[:2]
 
 
 def get_agents(prefix=None, cwd_filter=None):
@@ -113,14 +153,24 @@ def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True):
 
 def main():
     parser = argparse.ArgumentParser(description="Herdr Multi-Agent Team Watcher (herdr-watcher / htw)")
-    parser.add_argument("--prefix", type=str, default=None, help="Agent name prefix to filter (e.g. hts-, fa-)")
+    parser.add_argument("--prefix", type=str, default=None, help="Agent name prefix to filter (e.g. ht-, fa-)")
+    parser.add_argument("--all", action="store_true", help="Monitor all agents without prefix filtering")
+    parser.add_argument("--cwd", type=str, default=None, help="Working directory for auto prefix detection")
     parser.add_argument("--interval", type=int, default=5, help="Polling interval in seconds (default: 5)")
     parser.add_argument("--max-iterations", type=int, default=None, help="Maximum loop iterations (for testing)")
     parser.add_argument("--no-auto-allow", action="store_true", help="Disable automatic permission approval")
     args = parser.parse_args()
 
+    if args.all:
+        prefix = None
+    elif args.prefix:
+        prefix = args.prefix
+    else:
+        detected = auto_prefix(args.cwd)
+        prefix = f"{detected}-"
+
     run_watch(
-        prefix=args.prefix,
+        prefix=prefix,
         interval=args.interval,
         max_iterations=args.max_iterations,
         auto_allow=not args.no_auto_allow,
