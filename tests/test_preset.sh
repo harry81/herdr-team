@@ -51,14 +51,14 @@ done
 # preset.conf 역할 정의 검증
 assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "planner" "dev preset roles에 planner"
 assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "worker" "dev preset roles에 worker"
-assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "taskmanager" "dev preset roles에 taskmanager"
+assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "orchestrator" "dev preset roles에 orchestrator"
 assert_contains "$(cat "$REPO/templates/biz/preset.conf" 2>/dev/null)" "researcher" "biz preset roles에 researcher (역할 일반화 증거)"
 
 echo "== 4) --preset dev --dry-run (비대화형) =="
 DEV_OUT="$("$BIN" test --preset dev --dry-run --no-template --no-interactive 2>&1)"; DEV_RC=$?
 assert_exit "$DEV_RC" 0 "dev dry-run exit 0"
 assert_contains "$DEV_OUT" "preset=dev" "dev dry-run에 preset=dev 표시"
-assert_contains "$DEV_OUT" "test-taskmanager" "dev dry-run에 test-taskmanager"
+assert_contains "$DEV_OUT" "test-orchestrator" "dev dry-run에 test-orchestrator"
 assert_contains "$DEV_OUT" "test-planner" "dev dry-run에 test-planner"
 assert_contains "$DEV_OUT" "test-worker" "dev dry-run에 test-worker"
 assert_contains "$DEV_OUT" "test-reviewer" "dev dry-run에 test-reviewer"
@@ -67,14 +67,14 @@ echo "== 5) --preset app --dry-run =="
 APP_OUT="$("$BIN" test --preset app --dry-run --no-template --no-interactive 2>&1)"; APP_RC=$?
 assert_exit "$APP_RC" 0 "app dry-run exit 0"
 assert_contains "$APP_OUT" "preset=app" "app dry-run에 preset=app 표시"
-assert_contains "$APP_OUT" "test-taskmanager" "app dry-run에 test-taskmanager"
+assert_contains "$APP_OUT" "test-orchestrator" "app dry-run에 test-orchestrator"
 assert_contains "$APP_OUT" "test-planner" "app dry-run에 test-planner"
 
 echo "== 6) --preset biz --dry-run (역할 일반화: researcher) =="
 BIZ_OUT="$("$BIN" test --preset biz --dry-run --no-template --no-interactive 2>&1)"; BIZ_RC=$?
 assert_exit "$BIZ_RC" 0 "biz dry-run exit 0"
 assert_contains "$BIZ_OUT" "preset=biz" "biz dry-run에 preset=biz 표시"
-assert_contains "$BIZ_OUT" "test-taskmanager" "biz dry-run에 test-taskmanager (일반화)"
+assert_contains "$BIZ_OUT" "test-orchestrator" "biz dry-run에 test-orchestrator (일반화)"
 assert_contains "$BIZ_OUT" "test-researcher" "biz dry-run에 test-researcher (일반화)"
 assert_not_contains "$BIZ_OUT" "test-worker" "biz dry-run에 test-worker 없음 (일반화)"
 
@@ -172,7 +172,7 @@ echo "== 16) pane down 분할 균등 --ratio + resize JSON 누출 없음 =="
 # 2col 기본값: dev(4역할: TM 좌측하단 + 우측 3역할: planner/worker/reviewer)
 assert_contains "$DEV_OUT" "layout=2col" "dev 기본 layout=2col 표시"
 assert_contains "$DEV_OUT" 'P_PLANNER=$(herdr pane split "$BASE" --direction right' "2col: 우측 첫 pane P_PLANNER"
-assert_contains "$DEV_OUT" 'P_TASKMANAGER=$(herdr pane split "$BASE" --direction down --ratio 0.5' "2col: PM 하단 P_TASKMANAGER (0.5 균등)"
+assert_contains "$DEV_OUT" 'P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction down --ratio 0.5' "2col: PM 하단 P_ORCHESTRATOR (0.5 균등)"
 assert_contains "$DEV_OUT" 'P_WORKER=$(herdr pane split "$P_PLANNER" --direction down --ratio 0.333333' "2col: 우측 3개 중 1번째 down (1/3=0.333333)"
 assert_contains "$DEV_OUT" 'P_REVIEWER=$(herdr pane split "$P_WORKER" --direction down --ratio 0.5' "2col: 우측 3개 중 2번째 down (1/2=0.5)"
 # resize JSON stdout 누출/잔재 회귀: dry-run에는 resize 호출·best-effort 문구가 없어야 함
@@ -184,7 +184,7 @@ assert_contains "$HELP_OUT" "--layout" "help: Layout 옵션 설명"
 
 echo "== 17) opencode --agent 적용 (역할별 agent 강제) =="
 # dev(4역할): herdr agent start ... -- --agent <prefix>-<role>
-for r in taskmanager planner worker reviewer; do
+for r in orchestrator planner worker reviewer; do
   assert_contains "$DEV_OUT" "-- --agent test-$r" "dev: herdr agent start -- agent test-$r"
 done
 # biz: researcher는 --agent, worker는 없음 (역할 일반화 + kind 게이팅)
@@ -194,13 +194,13 @@ assert_not_contains "$BIZ_OUT" "-- --agent test-worker" "biz: --agent test-worke
 assert_not_contains "$KIND_ENV_OUT" "--agent" "codex: --agent 미사용(kind 게이팅)"
 
 echo "== 18) opencode agent 템플릿 + {{PREFIX}} 치환 설치 =="
-for r in taskmanager planner worker reviewer researcher; do
+for r in orchestrator planner worker reviewer researcher; do
   if [[ -f "$REPO/templates/opencode-agents/ROLE-$r.md" ]]; then ok "templates/opencode-agents/ROLE-$r.md 존재";
   else bad "templates/opencode-agents/ROLE-$r.md 존재"; fi
 done
 # dry-run(템플릿 단계 포함)에 .opencode/agents 설치 계획 출력
 GEN_DRY="$("$BIN" test --preset dev --dry-run --no-interactive --no-start 2>&1)"
-assert_contains "$GEN_DRY" ".opencode/agents/test-taskmanager.md" "dry-run: .opencode/agents 설치 계획"
+assert_contains "$GEN_DRY" ".opencode/agents/test-orchestrator.md" "dry-run: .opencode/agents 설치 계획"
 # 실제 생성 (herdr stub + 임시 CWD, jq 필요)
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d)"; TMPCWD="$(mktemp -d)"; TMPCWD2="$(mktemp -d)"
@@ -210,12 +210,12 @@ printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
 STUBEOF
   chmod +x "$STUB/herdr"
   PATH="$STUB:$PATH" "$BIN" testteam --preset dev --cwd "$TMPCWD" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1
-  for r in taskmanager planner worker reviewer; do
+  for r in orchestrator planner worker reviewer; do
     if [[ -f "$TMPCWD/.opencode/agents/testteam-$r.md" ]]; then ok "생성: .opencode/agents/testteam-$r.md";
     else bad "생성: .opencode/agents/testteam-$r.md"; fi
   done
-  if [[ -f "$TMPCWD/.opencode/agents/testteam-taskmanager.md" ]]; then
-    TM="$(cat "$TMPCWD/.opencode/agents/testteam-taskmanager.md")"
+  if [[ -f "$TMPCWD/.opencode/agents/testteam-orchestrator.md" ]]; then
+    TM="$(cat "$TMPCWD/.opencode/agents/testteam-orchestrator.md")"
     assert_contains "$TM" "mode: primary" "agent frontmatter: mode primary"
     assert_contains "$TM" "testteam-planner" "agent 본문: {{PREFIX}} 치환됨"
     assert_not_contains "$TM" "{{PREFIX}}" "agent 본문: 미치환 placeholder 없음"
@@ -235,7 +235,7 @@ echo "== 19) --layout 옵션 (2col 기본값 vs right-stack 스택 모드) =="
 # --layout right-stack 명시적 테스트
 RS_OUT="$("$BIN" test --preset dev --layout right-stack --dry-run --no-template --no-interactive 2>&1)"
 assert_contains "$RS_OUT" "layout=right-stack" "--layout right-stack 반영"
-assert_contains "$RS_OUT" 'P_TASKMANAGER=$(herdr pane split "$BASE" --direction right' "right-stack: 첫 pane P_TASKMANAGER right"
+assert_contains "$RS_OUT" 'P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction right' "right-stack: 첫 pane P_ORCHESTRATOR right"
 assert_contains "$RS_OUT" "--ratio 0.25" "right-stack down split #1 --ratio 0.25 (1/4 균등)"
 assert_contains "$RS_OUT" "--ratio 0.333333" "right-stack down split #2 --ratio 0.333333 (1/3 균등)"
 assert_contains "$RS_OUT" "--ratio 0.5" "right-stack down split #3 --ratio 0.5 (1/2 균등)"

@@ -74,9 +74,9 @@ hts sd --dry-run       # print plan only, no changes
 
 | Preset | Who it's for | Team | Focus |
 |--------|--------------|------|-------|
-| `dev` (default) | development teams shipping code | taskmanager, planner, worker, reviewer | Software Development, TDD quality gate |
-| `app` | solo builders validating an idea | taskmanager, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
-| `biz` | small business operators, no code | taskmanager, planner, researcher, reviewer | research-first vendor/option research with sources (no worker) |
+| `dev` (default) | development teams shipping code | orchestrator, planner, worker, reviewer | Software Development, TDD quality gate |
+| `app` | solo builders validating an idea | orchestrator, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
+| `biz` | small business operators, no code | orchestrator, planner, researcher, reviewer | research-first vendor/option research with sources (no worker) |
 
 <details>
 <summary><b>Advanced — full reference (repository layout, how it works, TUI, presets, Windows, CLI options, requirements, team model, tests)</b></summary>
@@ -104,13 +104,13 @@ herdr-team/
 ├── templates/
 │   ├── AGENTS.md               # {{PREFIX}} team orchestration master template
 │   ├── agents/
-│   │   ├── ROLE-taskmanager.md # {{PREFIX}}-taskmanager role template (pipeline relay)
+│   │   ├── ROLE-orchestrator.md # {{PREFIX}}-orchestrator role template (pipeline relay)
 │   │   ├── ROLE-planner.md     # {{PREFIX}}-planner role template
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker role template
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer role template
 │   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher role template (biz preset)
 │   ├── opencode-agents/        # opencode primary agent defs (--agent <prefix>-<role>, permission-enforced)
-│   │   ├── ROLE-taskmanager.md
+│   │   ├── ROLE-orchestrator.md
 │   │   ├── ROLE-planner.md
 │   │   ├── ROLE-worker.md
 │   │   ├── ROLE-reviewer.md
@@ -183,9 +183,9 @@ Notes:
 
 | Preset | Roles | Focus |
 |--------|-------|-------|
-| `dev` (default) | taskmanager, planner, worker, reviewer | Software Development, TDD |
-| `app` | taskmanager, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
-| `biz` | taskmanager, planner, researcher, reviewer | Small Business Operations, research-first (no worker) |
+| `dev` (default) | orchestrator, planner, worker, reviewer | Software Development, TDD |
+| `app` | orchestrator, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
+| `biz` | orchestrator, planner, researcher, reviewer | Small Business Operations, research-first (no worker) |
 
 Each preset lives in `templates/<preset>/` (`preset.conf` + `AGENTS.md`).
 Roles are generalized: the script derives agent names (`<prefix>-<role>`) from the preset's `ROLES`,

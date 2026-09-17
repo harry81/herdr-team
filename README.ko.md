@@ -75,9 +75,9 @@ hts sd --dry-run       # 실행 없이 계획만 출력
 
 | 프리셋 | 누구를 위한 것인가 | 팀 구성 | 초점 |
 |--------|--------------------|---------|------|
-| `dev` (기본) | 코드를 출시하는 개발팀 | taskmanager, planner, worker, reviewer | 소프트웨어 개발, TDD 품질 게이트 |
-| `app` | 아이디어를 검증하는 1인 개발자 | taskmanager, planner, worker, reviewer | 1인 앱/아이템 발굴, 배포·E2E 강조 |
-| `biz` | 코딩 없는 소규모 운영자 | taskmanager, planner, researcher, reviewer | 출처 붙은 조사 중심 의사결정 (worker 없음) |
+| `dev` (기본) | 코드를 출시하는 개발팀 | orchestrator, planner, worker, reviewer | 소프트웨어 개발, TDD 품질 게이트 |
+| `app` | 아이디어를 검증하는 1인 개발자 | orchestrator, planner, worker, reviewer | 1인 앱/아이템 발굴, 배포·E2E 강조 |
+| `biz` | 코딩 없는 소규모 운영자 | orchestrator, planner, researcher, reviewer | 출처 붙은 조사 중심 의사결정 (worker 없음) |
 
 <details>
 <summary><b>고급 — 전체 참고 자료 (저장소 구조, 동작 순서, TUI, 프리셋, Windows, CLI 옵션, 요구사항, 팀 모델, 테스트)</b></summary>
@@ -105,13 +105,13 @@ herdr-team/
 ├── templates/
 │   ├── AGENTS.md               # {{PREFIX}} 템플릿화된 팀 오케스트레이션 정본
 │   ├── agents/
-│   │   ├── ROLE-taskmanager.md # {{PREFIX}}-taskmanager 역할 템플릿 (파이프라인 중계)
+│   │   ├── ROLE-orchestrator.md # {{PREFIX}}-orchestrator 역할 템플릿 (파이프라인 중계)
 │   │   ├── ROLE-planner.md     # {{PREFIX}}-planner 역할 템플릿
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker 역할 템플릿
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer 역할 템플릿
 │   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher 역할 템플릿 (biz 프리셋)
 │   ├── opencode-agents/        # opencode primary agent 정의 (--agent <prefix>-<role>, 권한 강제)
-│   │   ├── ROLE-taskmanager.md
+│   │   ├── ROLE-orchestrator.md
 │   │   ├── ROLE-planner.md
 │   │   ├── ROLE-worker.md
 │   │   ├── ROLE-reviewer.md
@@ -183,9 +183,9 @@ Select [1-3/dev/app/biz] (default: dev, 10s):
 
 | 프리셋 | 역할 | 용도 |
 |--------|------|------|
-| `dev` (기본) | taskmanager, planner, worker, reviewer | 개발 4인 팀, TDD 개발용 |
-| `app` | taskmanager, planner, worker, reviewer | 1인 앱/아이템 발굴, 배포·E2E 강조 |
-| `biz` | taskmanager, planner, researcher, reviewer | 스몰 비즈니스 운영, 조사 중심 (worker 없음) |
+| `dev` (기본) | orchestrator, planner, worker, reviewer | 개발 4인 팀, TDD 개발용 |
+| `app` | orchestrator, planner, worker, reviewer | 1인 앱/아이템 발굴, 배포·E2E 강조 |
+| `biz` | orchestrator, planner, researcher, reviewer | 스몰 비즈니스 운영, 조사 중심 (worker 없음) |
 
 각 프리셋은 `templates/<preset>/` (`preset.conf` + `AGENTS.md`)에 정의됩니다.
 역할은 일반화되어 있어 프리셋의 `ROLES`에서 에이전트명(`<prefix>-<role>`)을 도출하므로,

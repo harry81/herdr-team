@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# herdr-team — Herdr 기반 에이전트 팀 원클릭 셋업 (PM + taskmanager + planner/worker/reviewer)
+# herdr-team — Herdr 기반 에이전트 팀 원클릭 셋업 (PM + orchestrator + planner/worker/reviewer)
 #
 # 사용법:
 #   herdr-team [prefix] [options]
@@ -13,7 +13,7 @@
 # 동작 개요:
 #   1) prefix 결정 ($1 또는 자동 추출)
 #   2) AGENTS.md / agents/<prefix>-*.md 없으면 템플릿 복사 또는 기본 문서 생성
-#   3) 현재 Pane(PM) 기준 우측 분할(Task Manager) → 해당 Pane을 아래로 순차 분할(Planner, Worker, ...)
+#   3) 현재 Pane(PM) 기준 우측 분할(Orchestrator) → 해당 Pane을 아래로 순차 분할(Planner, Worker, ...)
 #   4) 우측 컬럼 down 분할 시 --ratio 1/(N-k+1)로 정확 균등화 (1:1:1:1, resize 불필요)
 #   5) Pane 레이블링 + 에이전트 시작(멱등)
 set -euo pipefail
@@ -68,9 +68,9 @@ Options:
                 forwards every argument to herdr-team).
 
 Presets (templates/<preset>/preset.conf):
-  dev             Software Development (default, taskmanager/planner/worker/reviewer, TDD)
-  app             Solo App & Idea Discovery (taskmanager/planner/worker/reviewer, deploy/E2E focus)
-  biz             Small Business Operations (taskmanager/planner/researcher/reviewer, research focus)
+  dev             Software Development (default, orchestrator/planner/worker/reviewer, TDD)
+  app             Solo App & Idea Discovery (orchestrator/planner/worker/reviewer, deploy/E2E focus)
+  biz             Small Business Operations (orchestrator/planner/researcher/reviewer, research focus)
 
   With no preset: the TUI menu prompts when stdin allows a choice,
   otherwise preset=dev (--no-interactive, EOF input, or timeout).
@@ -85,16 +85,16 @@ Prefix auto-detect rules:
 
 Layouts:
   2col (default):
-    Left column:  [PM: top (50%)] / [Task Manager: bottom (50%)]
+    Left column:  [PM: top (50%)] / [Orchestrator: bottom (50%)]
     Right column: [Role 2 (top)] / [Role 3 (middle)] / [Role 4 (bottom)]
     Right-column down splits use --ratio 1/(N-k+1) for exact equalization.
   right-stack:
     Left:         [PM: current pane]
-    Right:        [Task Manager (top)] / [Role 2] / [Role 3] / [Role 4]
+    Right:        [Orchestrator (top)] / [Role 2] / [Role 3] / [Role 4]
     Right-column down splits use --ratio 1/(N-k+1) for exact 1:1:1:1 equalization.
 
 Labels:
-  ① PM / ② <role 1 (taskmanager)> / ③ <role 2> / ④ <role 3> / ⑤ <role 4>
+  ① PM / ② <role 1 (orchestrator)> / ③ <role 2> / ④ <role 3> / ⑤ <role 4>
   (agents: {prefix}-<role>)
 EOF
 }
@@ -357,7 +357,7 @@ setup_templates() {
   local first_agent
   first_agent="$(role_agent "${ROLES[0]}")"
   local existing_team=""
-  existing_team="$(ls "$CWD/agents/" 2>/dev/null | grep -E '\-(planner|worker|reviewer|researcher|taskmanager)\.md$' | head -n1 || true)"
+  existing_team="$(ls "$CWD/agents/" 2>/dev/null | grep -E '\-(planner|worker|reviewer|researcher|orchestrator|taskmanager)\.md$' | head -n1 || true)"
   if [[ -f "$CWD/AGENTS.md" && -n "$existing_team" && "$FORCE" -eq 0 ]]; then
     if [[ -f "$CWD/agents/${first_agent}.md" ]]; then
       log "AGENTS.md + agents 문서 존재 → 템플릿 단계 생략"
@@ -450,8 +450,8 @@ EOF
     local dst="$CWD/agents/${PREFIX}-${role}.md"
     if [[ -f "$dst" && "$FORCE" -eq 0 ]]; then continue; fi
     case "$role" in
-      taskmanager) cat > "$dst" <<EOF
-# Role: ${PREFIX}-taskmanager (Task Manager — 파이프라인 오케스트레이터)
+      orchestrator|taskmanager) cat > "$dst" <<EOF
+# Role: ${PREFIX}-orchestrator (Orchestrator — 파이프라인 오케스트레이터)
 
 ## 핵심 미션
 Team이 쉼 없이 작업하도록 순차 파이프라인을 실시간 중계·드라이브. 코드 수정 금지.
@@ -459,7 +459,7 @@ Team이 쉼 없이 작업하도록 순차 파이프라인을 실시간 중계·�
 ## 규칙
 - 역할 위임 고정: 기획/설계→\`${PREFIX}-planner\`, 구현→\`${PREFIX}-worker\`, 검증·리뷰→\`${PREFIX}-reviewer\`.
 - 오케스트레이션 전담: \`herdr agent prompt\`로 위임, \`wait/read\`로 모니터링, 산출물 중계.
-- 무방치 원칙: 각 단계 완료 즉시 다음 단계 연결. 모든 반송/승인은 Task Manager(필요 시 PM) 경유.
+- 무방치 원칙: 각 단계 완료 즉시 다음 단계 연결. 모든 반송/승인은 Orchestrator(필요 시 PM) 경유.
 
 ## 보고 형식
 - 진행 태스크 / 에이전트 산출물 요약(Planner 명세·Worker 테스트·Reviewer 판정) / 다음 단계.
@@ -558,9 +558,9 @@ setup_opencode_agents() {
 
 # --- 2) Pane 분할 + 리사이즈 + 레이블 + 에이전트 시작 (preset ROLES 일반화) ---
 setup_panes() {
-  local has_taskmanager=0 _r
+  local has_orchestrator=0 _r
   for _r in "${ROLES[@]}"; do
-    if [[ "$_r" == "taskmanager" ]]; then has_taskmanager=1; break; fi
+    if [[ "$_r" == "orchestrator" || "$_r" == "taskmanager" ]]; then has_orchestrator=1; break; fi
   done
 
   # dry-run은 herdr/jq 없이도 계획 출력 (TUI·인자 검증용)
@@ -568,21 +568,21 @@ setup_panes() {
     log "prefix=${PREFIX} preset=${PRESET} kind=${KIND} layout=${LAYOUT} cwd=${CWD} (dry-run)"
     local _prev="BASE" _role _var _agent _i _k=0 _ratio="" _agent_flag=""
     printf '+ BASE=$(herdr pane current | jq -r .result.pane.pane_id)  # PM pane\n'
-    if [[ "$LAYOUT" == "2col" && "$has_taskmanager" -eq 1 ]]; then
+    if [[ "$LAYOUT" == "2col" && "$has_orchestrator" -eq 1 ]]; then
       local _right_roles=()
       for _r in "${ROLES[@]}"; do
-        if [[ "$_r" != "taskmanager" ]]; then _right_roles+=("$_r"); fi
+        if [[ "$_r" != "orchestrator" && "$_r" != "taskmanager" ]]; then _right_roles+=("$_r"); fi
       done
       local _n_right="${#_right_roles[@]}"
       local _first_right="${_right_roles[0]}"
       local _first_var="P_$(printf '%s' "$_first_right" | tr '[:lower:]' '[:upper:]')"
       # 1) 우측 상단 첫 pane (right from BASE)
       printf '+ %s=$(herdr pane split "$BASE" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_first_var" "$CWD"
-      # 2) PM 하단 taskmanager (down from BASE with ratio 0.5)
+      # 2) PM 하단 orchestrator (down from BASE with ratio 0.5)
       if [[ "$NO_RESIZE" -eq 0 ]]; then
-        printf '+ P_TASKMANAGER=$(herdr pane split "$BASE" --direction down --ratio 0.5 --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
+        printf '+ P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction down --ratio 0.5 --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
       else
-        printf '+ P_TASKMANAGER=$(herdr pane split "$BASE" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
+        printf '+ P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
       fi
       # 3) 우측 나머지 pane들 (down from _first_var)
       _prev="$_first_var"
@@ -651,10 +651,10 @@ setup_panes() {
   fi
   log "BASE(PM) pane: $base_pane (preset=${PRESET}, layout=${LAYOUT})"
   local PANE_IDS=()
-  if [[ "$LAYOUT" == "2col" && "$has_taskmanager" -eq 1 ]]; then
+  if [[ "$LAYOUT" == "2col" && "$has_orchestrator" -eq 1 ]]; then
     local right_roles=() r
     for r in "${ROLES[@]}"; do
-      if [[ "$r" != "taskmanager" ]]; then right_roles+=("$r"); fi
+      if [[ "$r" != "orchestrator" && "$r" != "taskmanager" ]]; then right_roles+=("$r"); fi
     done
     local n_right="${#right_roles[@]}"
     local first_right_role="${right_roles[0]}"
@@ -667,16 +667,16 @@ setup_panes() {
     if [[ -z "$first_right_pane" ]]; then echo "error: ${first_right_role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
     log "${first_right_role} pane: $first_right_pane"
 
-    # 2) PM 하단 taskmanager (PM에서 down 분할, ratio 0.5로 상하 50:50 균등)
+    # 2) PM 하단 orchestrator (PM에서 down 분할, ratio 0.5로 상하 50:50 균등)
     if [[ "$NO_RESIZE" -eq 0 ]]; then
       split_out="$(herdr pane split "$base_pane" --direction down --ratio 0.5 --cwd "$CWD" --no-focus)"
     else
       split_out="$(herdr pane split "$base_pane" --direction down --cwd "$CWD" --no-focus)"
     fi
-    local tm_pane
-    tm_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
-    if [[ -z "$tm_pane" ]]; then echo "error: taskmanager 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
-    log "taskmanager pane: $tm_pane"
+    local orch_pane
+    orch_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
+    if [[ -z "$orch_pane" ]]; then echo "error: orchestrator 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+    log "orchestrator pane: $orch_pane"
 
     # 3) 우측 나머지 pane들 (first_right_pane 하단으로 순차 down 분할)
     local right_panes=("$first_right_pane")
@@ -700,8 +700,8 @@ setup_panes() {
     # 4) ROLES 순서대로 PANE_IDS 매핑
     local right_idx=0
     for role in "${ROLES[@]}"; do
-      if [[ "$role" == "taskmanager" ]]; then
-        PANE_IDS+=("$tm_pane")
+      if [[ "$role" == "orchestrator" || "$role" == "taskmanager" ]]; then
+        PANE_IDS+=("$orch_pane")
       else
         PANE_IDS+=("${right_panes[$right_idx]}")
         right_idx=$((right_idx+1))
