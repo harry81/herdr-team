@@ -35,7 +35,11 @@
 3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 대기(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
 4. **무방치 원칙**: 각 에이전트가 작업 완료 후 idle로 남지 않도록 즉시 다음 단계를 연결합니다.
 5. **Team 간 직접 협업 금지**: worker ↔ reviewer는 서로 직접 prompt하지 않습니다. 모든 반송/승인은 Task Manager(필요 시 PM)를 경유합니다.
-6. **Watcher와의 분업 (폴링 금지, 동기화 대기)**: 실시간 멈춤(`blocked`) 감시 및 셸 실행 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링을 하지 말고, `--wait` 또는 `wait`를 통해 작업 완료 시점만 동기화한 뒤 산출물 중계에 집중합니다.
+6. **대기 방식 엄격 준수 (Anti-Pattern 금지 & Watcher 협업)**:
+   - 실시간 멈춤(`blocked`) 감시 및 셸 실행 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다.
+   - ❌ **`sleep 20`, `while/for` 쉘 폴링 루프 작성 절대 금지** (공백 지연 및 프로세스 낭비).
+   - ✅ 프롬프트 전송과 완료 대기는 반드시 `--wait` 플래그 사용: `herdr agent prompt <TARGET> "..." --wait --timeout 600000`
+   - ✅ 비동기 실행 후 상태 대기는 반드시 소켓 이벤트 명령어 사용: `herdr agent wait <TARGET> --until idle,done --timeout 600000` (0ms 즉시 감지).
 
 ---
 

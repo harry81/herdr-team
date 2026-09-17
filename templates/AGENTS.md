@@ -47,6 +47,8 @@
    - 기획/설계 → `{{PREFIX}}-planner`, 구현/버그수정 → `{{PREFIX}}-worker`, 실행 검증 겸 코드 리뷰(최종 게이트) → `{{PREFIX}}-reviewer`.
    - 리서치/조사 → `{{PREFIX}}-researcher` (on-demand), 배포/인프라/비밀값 → `{{PREFIX}}-ops` (on-demand, 승인 범위 내).
 3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 상태 모니터링(`herdr agent wait/read`), 결과 종합 보고.
+   - ❌ `sleep` 폴링 쉘 루프 작성 절대 금지.
+   - ✅ `herdr agent prompt <TARGET> "..." --wait` 또는 `herdr agent wait <TARGET> --until idle,done`만 사용.
 
 ---
 
