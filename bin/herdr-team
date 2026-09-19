@@ -435,7 +435,7 @@ run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '+ %s\n' "$*"
   else
-    "$@"
+    "$@" >/dev/null
   fi
 }
 log() { printf '[herdr-team] %s\n' "$*"; }

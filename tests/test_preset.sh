@@ -560,6 +560,53 @@ else
   echo "SKIP: jq 없음 → 프리셋 격리 테스트 생략"
 fi
 
+echo "== 36) run(): stdout(JSON) 억제 / stderr 보존 / 종료코드 전파 / dry-run 불변 =="
+# bin/herdr-team은 하단 실행문이 있어 그냥 source하면 위험 → run() 정의만 추출해 단위 검증
+RUN_SRC_FILE="$(mktemp)"
+sed -n '/^run() {/,/^}/p' "$BIN" > "$RUN_SRC_FILE"
+if [[ -s "$RUN_SRC_FILE" ]]; then
+  # (a) 성공 시 stdout 억제 + 종료코드 0 전파
+  RUN_A_OUT="$(DRY_RUN=0 bash -c 'source "$1"; run bash -c "echo JSONLEAK; exit 0"' _ "$RUN_SRC_FILE" 2>&1)"; RUN_A_RC=$?
+  assert_exit "$RUN_A_RC" 0 "run_unit: 성공 종료코드 0 전파"
+  assert_not_contains "$RUN_A_OUT" "JSONLEAK" "run_unit: 성공 시 stdout 미노출"
+  # (b) stderr는 그대로 노출
+  RUN_B_OUT="$(DRY_RUN=0 bash -c 'source "$1"; run bash -c "echo ERRKEEP >&2; exit 0"' _ "$RUN_SRC_FILE" 2>&1)"
+  assert_contains "$RUN_B_OUT" "ERRKEEP" "run_unit: stderr 보존"
+  # (c) 비정상 종료코드 전파 (조용한 성공 위장 금지)
+  DRY_RUN=0 bash -c 'source "$1"; run bash -c "exit 7"' _ "$RUN_SRC_FILE" >/dev/null 2>&1; RUN_C_RC=$?
+  assert_exit "$RUN_C_RC" 7 "run_unit: 비정상 종료코드 전파"
+  # (d) --dry-run '+ 명령' 출력 불변
+  RUN_D_OUT="$(DRY_RUN=1 bash -c 'source "$1"; run echo hello world' _ "$RUN_SRC_FILE" 2>&1)"
+  assert_equal "$RUN_D_OUT" "+ echo hello world" "run_unit: dry-run '+ 명령' 출력 불변"
+else
+  bad "run_unit: run() 정의 추출 실패"
+fi
+rm -f "$RUN_SRC_FILE"
+
+# (e) 실제 스크립트 구동: fake herdr JSON stdout 누출 없음 / stderr 보존 / 종료코드 전파
+if command -v jq >/dev/null 2>&1; then
+  RSTUB="$(mktemp -d)"; RCWD="$(mktemp -d)"; RCWD2="$(mktemp -d)"
+  cat > "$RSTUB/herdr" <<'STUBEOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "pane" && "${2:-}" == "rename" ]]; then
+  printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
+  printf 'RENAME-STDERR-MARK\n' >&2
+  exit "${HERDR_STUB_RENAME_RC:-0}"
+fi
+printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
+STUBEOF
+  chmod +x "$RSTUB/herdr"
+  RUN_E_OUT="$(PATH="$RSTUB:$PATH" "$BIN" testrun --preset dev --cwd "$RCWD" --template-dir "$REPO/templates" --no-interactive --no-start 2>/dev/null)"; RUN_E_RC=$?
+  assert_exit "$RUN_E_RC" 0 "run_e2e: exit 0"
+  assert_not_contains "$RUN_E_OUT" '"pane_id"' "run_e2e: pane rename JSON stdout 미노출"
+  assert_not_contains "$RUN_E_OUT" '{"result"' "run_e2e: herdr JSON stdout 미노출"
+  RUN_E_ERR="$(PATH="$RSTUB:$PATH" "$BIN" testrun --preset dev --cwd "$RCWD" --template-dir "$REPO/templates" --no-interactive --no-start 2>&1 >/dev/null)"
+  assert_contains "$RUN_E_ERR" "RENAME-STDERR-MARK" "run_e2e: stderr 보존"
+  HERDR_STUB_RENAME_RC=3 PATH="$RSTUB:$PATH" "$BIN" testrun --preset dev --cwd "$RCWD2" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1; RUN_E_FAIL_RC=$?
+  assert_exit "$RUN_E_FAIL_RC" 3 "run_e2e: pane rename 실패 종료코드 전파"
+  rm -rf "$RSTUB" "$RCWD" "$RCWD2"
+fi
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
