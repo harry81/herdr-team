@@ -52,7 +52,7 @@
      검증 겸 리뷰(최종 게이트) → `{{PREFIX}}-reviewer`, 생산 초안 → `{{PREFIX}}-worker` (on-demand, 승인 범위 내).
 3. **오케스트레이션 전담 (Orchestrator)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 상태 모니터링(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
    - ❌ `sleep` 폴링 쉘 루프 작성 절대 금지.
-   - ✅ `herdr agent prompt <TARGET> "..." --wait` 또는 `herdr agent wait <TARGET> --until idle,done`만 사용.
+   - ✅ `herdr agent prompt <TARGET> "..." --wait` 또는 `herdr agent wait <TARGET> --until idle` (또는 옵션 없이 `herdr agent wait <TARGET>`) 사용.
 4. **무방치 원칙 (Orchestrator)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
 
 ---

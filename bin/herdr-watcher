@@ -101,6 +101,24 @@ def unblock_agent(pane_id, name):
     )
 
 
+def clean_stuck_waits(current_agents):
+    try:
+        out = subprocess.check_output(["ps", "-eo", "pid,args"], stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore")
+        for line in out.splitlines():
+            if "herdr agent wait" in line and "grep" not in line:
+                parts = line.strip().split()
+                if not parts:
+                    continue
+                pid = parts[0]
+                for name, info in current_agents.items():
+                    if f"wait {name}" in line:
+                        if info["status"] in ("idle", "done"):
+                            print(f"[{time.strftime('%H:%M:%S')}] [AUTO-UNBLOCK-WAIT] {name} 이미 {info['status']} 상태이나 대기 중인 프로세스(PID: {pid}) 감지 -> 자동 종료(kill)")
+                            subprocess.run(["kill", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
 def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True):
     prev_states = {}
     iteration = 0
@@ -113,6 +131,7 @@ def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True):
         iteration += 1
 
         current_agents = get_agents(prefix=prefix)
+        clean_stuck_waits(current_agents)
         changes = []
 
         for name, info in current_agents.items():

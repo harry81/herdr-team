@@ -33,7 +33,7 @@ permission:
 6. **대기 방식 엄격 준수 (Anti-Pattern 금지)**:
    - ❌ `sleep 20`, `for/while` 쉘 폴링 루프 작성 절대 금지 (불필요한 지연 발생).
    - ✅ 프롬프트와 완료 대기는 반드시 `--wait` 플래그 사용: `herdr agent prompt <TARGET> "..." --wait --timeout <MS>`
-   - ✅ 비동기 실행 후 상태 대기는 반드시 소켓 이벤트 명령어 사용: `herdr agent wait <TARGET> --until idle,done --timeout <MS>`
+   - ✅ 비동기 실행 후 상태 대기는 반드시 소켓 이벤트 명령어 사용: `herdr agent wait <TARGET> --until idle --timeout <MS>` (또는 옵션 없이 `herdr agent wait <TARGET>`)
 
 ## 보고 형식
 진행 태스크 / 각 agent 산출물 요약(Planner 명세·Worker 테스트·Reviewer 판정) / 다음 단계를 PM에게 보고한다.

@@ -39,7 +39,7 @@
    - 실시간 멈춤(`blocked`) 감시 및 셸 실행 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다.
    - ❌ **`sleep 20`, `while/for` 쉘 폴링 루프 작성 절대 금지** (공백 지연 및 프로세스 낭비).
    - ✅ 프롬프트 전송과 완료 대기는 반드시 `--wait` 플래그 사용: `herdr agent prompt <TARGET> "..." --wait --timeout 600000`
-   - ✅ 비동기 실행 후 상태 대기는 반드시 소켓 이벤트 명령어 사용: `herdr agent wait <TARGET> --until idle,done --timeout 600000` (0ms 즉시 감지).
+   - ✅ 비동기 실행 후 상태 대기는 반드시 소켓 이벤트 명령어 사용: `herdr agent wait <TARGET> --until idle --timeout 600000` (또는 옵션 없이 `herdr agent wait <TARGET>`).
 
 ---
 
