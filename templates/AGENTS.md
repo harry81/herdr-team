@@ -59,15 +59,15 @@
 | 에이전트 명 | 역할 (Role) | 엔진 | 상세 지침 문서 | 주요 업무 |
 |------------|------------|------|----------------|----------|
 | **PM** | 총괄 프로젝트 매니저 | `agy` | 본 문서 | 요구사항 분석, 작업 분배, 워크플로우 제어, 결과 취합 |
-| **{{PREFIX}}-planner** | 기획 및 아키텍처 설계 | `opencode` | [`{{PREFIX}}-planner.md`](agents/{{PREFIX}}-planner.md) | 기능 명세, 데이터 흐름 설계, Task Breakdown |
-| **{{PREFIX}}-worker** | 개발 및 단위 테스트 구현 | `opencode` | [`{{PREFIX}}-worker.md`](agents/{{PREFIX}}-worker.md) | TDD 기반 구현, 비즈니스 로직 작성, 단위 테스트 통과 |
-| **{{PREFIX}}-reviewer** | 실행 검증 겸 코드 리뷰 (최종 게이트) | `opencode` | [`{{PREFIX}}-reviewer.md`](agents/{{PREFIX}}-reviewer.md) | 빌드/단위/통합·E2E·회귀 직접 실행, [APPROVE]/[REQUEST CHANGES] 판정 |
+| **{{PREFIX}}-planner** | 기획 및 아키텍처 설계 | `opencode` | [`{{PREFIX}}-planner.md`](agents/{{PRESET}}/{{PREFIX}}-planner.md) | 기능 명세, 데이터 흐름 설계, Task Breakdown |
+| **{{PREFIX}}-worker** | 개발 및 단위 테스트 구현 | `opencode` | [`{{PREFIX}}-worker.md`](agents/{{PRESET}}/{{PREFIX}}-worker.md) | TDD 기반 구현, 비즈니스 로직 작성, 단위 테스트 통과 |
+| **{{PREFIX}}-reviewer** | 실행 검증 겸 코드 리뷰 (최종 게이트) | `opencode` | [`{{PREFIX}}-reviewer.md`](agents/{{PRESET}}/{{PREFIX}}-reviewer.md) | 빌드/단위/통합·E2E·회귀 직접 실행, [APPROVE]/[REQUEST CHANGES] 판정 |
 | *`{{PREFIX}}-researcher`* (on-demand) | 기술 조사·외부 리서치 | `opencode` | PM 지시 시 기동 | 읽기·보고만, 코드 수정 금지 |
 | *`{{PREFIX}}-ops`* (on-demand) | 배포·인프라·비밀값 운영 | `opencode` | PM 승인 범위 내 기동 | 배포/인프라 운영 대행 |
 
 > `{{PREFIX}}-qa.md`는 삭제됨. 통합/E2E/회귀 검증은 `{{PREFIX}}-reviewer`의 실행 검증 의무로 통합.
 
-> 역할 강제: 각 역할 pane은 프로젝트에 설치된 `.opencode/agents/{{PREFIX}}-<role>.md` (opencode primary agent)로 시작합니다 (`herdr agent start ... -- --agent {{PREFIX}}-<role>`). 역할 규칙·권한이 시스템 프롬프트로 고정되므로, 첫 prompt의 역할 문서 주입은 보조 수단입니다. 상세 프로토콜의 정본은 `agents/{{PREFIX}}-<role>.md`입니다.
+> 역할 강제: 각 역할 pane은 프로젝트에 설치된 `.opencode/agents/{{PREFIX}}-<role>.md` (opencode primary agent)로 시작합니다 (`herdr agent start ... -- --agent {{PREFIX}}-<role>`). 역할 규칙·권한이 시스템 프롬프트로 고정되므로, 첫 prompt의 역할 문서 주입은 보조 수단입니다. 상세 프로토콜의 정본은 `agents/{{PRESET}}/{{PREFIX}}-<role>.md`입니다.
 
 > 작업 디렉토리 주의: 3인 체제라도 동일 `$PWD`에 동시 쓰기를 두면 파일 충돌·테스트 간섭이 발생합니다. 기본은 **순차 실행**(한 번에 1명만 쓰기)으로 운용하고, 병렬이 필요하면 `herdr worktree create`로 분리합니다.
 
@@ -124,9 +124,9 @@ herdr agent rename {{PREFIX}}-worker "{{PREFIX}}-worker"
 
 ```bash
 # 작업 지시 (역할 문서 주입을 첫 줄에 포함)
-herdr agent prompt {{PREFIX}}-planner "agents/{{PREFIX}}-planner.md를 읽고 그 산출물 형식을 따르라. ..." --wait --timeout 180000
-herdr agent prompt {{PREFIX}}-worker "agents/{{PREFIX}}-worker.md를 따르라. TDD Red→Green→Refactor, ... " --wait --timeout 600000
-herdr agent prompt {{PREFIX}}-reviewer "agents/{{PREFIX}}-reviewer.md를 따르라. [APPROVE]/[REQUEST CHANGES]로 판정, ..." --wait --timeout 600000
+herdr agent prompt {{PREFIX}}-planner "agents/{{PRESET}}/{{PREFIX}}-planner.md를 읽고 그 산출물 형식을 따르라. ..." --wait --timeout 180000
+herdr agent prompt {{PREFIX}}-worker "agents/{{PRESET}}/{{PREFIX}}-worker.md를 따르라. TDD Red→Green→Refactor, ... " --wait --timeout 600000
+herdr agent prompt {{PREFIX}}-reviewer "agents/{{PRESET}}/{{PREFIX}}-reviewer.md를 따르라. [APPROVE]/[REQUEST CHANGES]로 판정, ..." --wait --timeout 600000
 
 # 상태 확인 / 출력 읽기 / 대기
 herdr agent list
@@ -141,7 +141,7 @@ herdr agent prompt {{PREFIX}}-worker "이어서 계속하라. ..." --wait --time
 프롬프트 템플릿 (PM → Team 공통; 역할은 `--agent`로 이미 강제되며 아래는 산출물 형식 지정용):
 
 ```
-agents/<role>.md를 읽고 그 역할·산출물 형식을 따르라.
+agents/{{PRESET}}/<role>.md를 읽고 그 역할·산출물 형식을 따르라.
 [배경] ... (요구사항, 관련 파일 경로)
 [작업] ... (할 일 N개, 완료 기준 명시)
 [제약] ... (수정 가능 범위, TDD/보고 형식)

@@ -145,9 +145,10 @@ herdr-team/
 1. **prefix 결정** — `$1` 우선, 없으면 git root 디렉토리명(없으면 폴더명)에서 자동 추출.
    `try2`→`try2`, `my-project`→`mp`, `scandimension`→`sc` 형태의 2~4글자 축약 또는 폴더명 그대로.
 2. **프리셋 결정** — `--preset dev|research|biz|mkt|creator`, 환경변수 `HERDR_TEAM_PRESET`, 또는 TUI 메뉴 (기본값: `dev`). `app`은 `dev`의 deprecated alias입니다.
-3. **템플릿 준비** — `AGENTS.md`·`agents/<prefix>-*.md`가 없으면 `~/templates/agent-team`에서 복사
-   (파일 내 `{{PREFIX}}` 치환). 이미 있으면 생략(멱등).
-   opencode 역할 agent도 `.opencode/agents/<prefix>-*.md`로 설치(파일별 멱등).
+3. **템플릿 준비 & 격리** — 프리셋별 정본은 `agents/<preset>/`(`AGENTS.md`·`<prefix>-<role>.md`)에,
+   활성 프리셋은 `.herdr-team/preset`에 기록됩니다. 루트 `AGENTS.md`는 활성 뷰로, 전환 시 루트 수정분을
+   나가는 프리셋 정본에 write-back한 뒤 들어오는 정본을 루트로 복사합니다.
+   opencode 역할 agent는 `.opencode/agents/<prefix>-*.md`로 재생성(비활성 role은 prune, 같은 프리셋 재실행은 편집 보존).
 4. **Pane 분할 및 레이아웃** — 기본 레이아웃은 `2col`:
    - 좌측 열: [PM (상단 50%)] / [Task Manager (하단 50%)]
    - 우측 열: [Role 2 (상단)] / [Role 3 (중단)] / [Role 4 (하단)]
@@ -171,6 +172,28 @@ herdr-team/
 ```
 
 > `~/bin`이 `PATH`에 있어야 터미널 어디서든 `herdr-team`으로 실행할 수 있습니다.
+
+### 프리셋 격리 & 무손실 전환
+
+역할 문서는 **대상 프로젝트** 안에서 프리셋별로 격리되어, 프리셋 전환이 다른 프리셋의 문서를 덮어쓰지 않습니다:
+
+```
+<대상 프로젝트>/
+├── AGENTS.md                     # 활성 뷰 (활성 프리셋 정본의 동기화 사본)
+├── .herdr-team/preset            # 활성 canonical preset 1줄 (예: mkt)
+├── agents/
+│   ├── dev/                      # 프리셋별 정본 (AGENTS.md + <prefix>-<role>.md)
+│   ├── mkt/                      # 프리셋별 정본
+│   └── <prefix>-<role>.md        # 레거시 평면 문서 (복사 import, 원본 불변)
+└── .opencode/agents/             # 생성물: 활성 ROLES만
+```
+
+- **전환(dev → mkt)**: 루트 `AGENTS.md` 수정분을 `agents/dev/AGENTS.md`로 write-back(무손실)한 뒤,
+  `agents/mkt/AGENTS.md`를 루트로 복사합니다. 되돌리면 dev가 복원됩니다.
+- **마이그레이션**: 기존 평면 `agents/<prefix>-<role>.md`는 `agents/<preset>/`로 복사 import(원본 불변).
+  공존 시 `agents/<preset>/` 우선. herdr-team 저장소 자신도 안전합니다.
+- **`--force`**: 요청한 프리셋 폴더만 템플릿에서 재시딩 + 루트 강제 활성. 다른 프리셋은 불가침.
+- **`--dry-run`**: 격리 계획만 출력하고 아무것도 쓰지 않습니다(문서·상태 미변경).
 
 ### TUI 인터랙티브 메뉴
 
@@ -239,7 +262,7 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 | `--no-template` | 템플릿 복사/생성 생략 |
 | `--no-resize` | `--ratio` 균등화 없이 분할 (별도 resize 단계 없음) |
 | `--no-start` | 에이전트 시작 생략 (분할+레이블만 수행) |
-| `--force` | 기존 `AGENTS.md`/agents 문서 덮어쓰기 |
+| `--force` | 요청한 프리셋 폴더(`agents/<preset>/`)만 템플릿에서 재시딩 + 루트 강제 활성 (타 프리셋 불가침) |
 | `--dry-run` | 실제 실행 없이 수행할 명령만 출력 |
 | `-h, --help` | 도움말 |
 

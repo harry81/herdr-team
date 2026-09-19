@@ -90,6 +90,11 @@ assert_contains "$SIM_MKT_OUT" "preset=mkt" "sim: preset=mkt 전달"
 SIM_CREATOR_OUT="$("$BIN" wintest --preset creator --dry-run --no-template --no-interactive 2>&1)"; SIM_CREATOR_RC=$?
 assert_exit "$SIM_CREATOR_RC" 0 "sim: creator dry-run exit 0"
 assert_contains "$SIM_CREATOR_OUT" "wintest-worker" "sim: creator worker 역할 토큰"
+# 프리셋 전환 격리 시뮬레이션 (dry-run: 격리 계획 로그)
+ISO_DRY="$("$BIN" wintest --preset mkt --dry-run --no-interactive --no-start 2>&1)"; ISO_DRY_RC=$?
+assert_exit "$ISO_DRY_RC" 0 "sim: 격리 dry-run exit 0"
+assert_contains "$ISO_DRY" "agents/mkt" "sim: 프리셋 격리 계획(agents/mkt)"
+assert_contains "$ISO_DRY" ".herdr-team/preset" "sim: 상태 계획(.herdr-team/preset)"
 WRAP_OUT="$(printf '' | "$WRAP" wintest --preset biz --dry-run --no-template --no-interactive 2>&1)"; WRAP_RC=$?
 assert_exit "$WRAP_RC" 0 "sim: 레거시 래퍼 exit 0"
 if [[ "$WRAP_OUT" == "$SIM_OUT" ]]; then ok "sim: 래퍼 출력 == 정본 출력"; else bad "sim: 래퍼 출력 == 정본 출력"; fi

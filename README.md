@@ -145,9 +145,12 @@ herdr-team/
 1. **Prefix** — `$1` wins; otherwise derived from the git root (or folder) name.
    `try2`→`try2`, `my-project`→`mp`, `scandimension`→`sc` (2–4 letter abbreviation or full name).
 2. **Preset** — `--preset dev|research|biz|mkt|creator`, `HERDR_TEAM_PRESET`, or the interactive TUI menu (default: `dev`). `app` is a deprecated alias for `dev`.
-3. **Templates** — copies `AGENTS.md` + `agents/<prefix>-*.md` from `~/templates/agent-team`
-   (with `{{PREFIX}}` substitution). Skipped if team docs already exist (idempotent).
-   Also installs opencode role agents to `.opencode/agents/<prefix>-*.md` (per-file idempotent).
+3. **Templates & isolation** — each preset's canonical docs live under `agents/<preset>/`
+   (`AGENTS.md` + `<prefix>-<role>.md`), with the active preset tracked in `.herdr-team/preset`.
+   The root `AGENTS.md` is the active view: on switch the root edits are written back to the
+   outgoing preset's canonical folder, then the incoming canonical is copied to the root.
+   Also installs/refreshes opencode role agents to `.opencode/agents/<prefix>-*.md`
+   (stale roles are pruned; same-preset reruns preserve your edits).
 4. **Pane split & Layout** — default layout is `2col`:
    - Left column: [PM (top 50%)] / [Task Manager (bottom 50%)]
    - Right column: [Role 2 (top)] / [Role 3 (middle)] / [Role 4 (bottom)]
@@ -172,6 +175,30 @@ herdr-team/
 ```
 
 > `~/bin` must be on your `PATH` to run `herdr-team` from anywhere.
+
+### Preset isolation & lossless switching
+
+Feature docs are isolated per preset inside the **target project**, so switching presets never
+overwrites another preset's docs:
+
+```
+<target-project>/
+├── AGENTS.md                     # active view (synced copy of the active preset canonical)
+├── .herdr-team/preset            # active canonical preset (one line, e.g. mkt)
+├── agents/
+│   ├── dev/                      # canonical per preset (AGENTS.md + <prefix>-<role>.md)
+│   ├── mkt/                      # canonical per preset
+│   └── <prefix>-<role>.md        # legacy flat docs (imported by copy, never modified)
+└── .opencode/agents/             # generated artifacts for the active ROLES only
+```
+
+- **Switch (dev → mkt)**: root `AGENTS.md` edits are written back to `agents/dev/AGENTS.md`
+  (lossless), then `agents/mkt/AGENTS.md` is copied to the root. Switching back restores `dev`.
+- **Migration**: existing flat `agents/<prefix>-<role>.md` are copied into `agents/<preset>/`
+  (originals untouched). If both exist, `agents/<preset>/` wins. herdr-team's own repo is safe.
+- **`--force`** now means: reseed **only the requested preset folder** from templates and
+  force-activate the root. Other presets under `agents/` are never touched.
+- **Dry-run** (`--dry-run`) prints the isolation plan and writes nothing (no docs, no state).
 
 ### Interactive TUI
 
@@ -241,7 +268,7 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 | `--no-template` | Skip template copy/generate step |
 | `--no-resize` | Split without `--ratio` equalization (no separate resize step) |
 | `--no-start` | Skip agent start (split + label only) |
-| `--force` | Overwrite existing `AGENTS.md`/agents docs |
+| `--force` | Reseed **only the requested preset folder** (`agents/<preset>/`) from templates and force-activate root `AGENTS.md`; other presets untouched |
 | `--dry-run` | Print planned commands without executing |
 | `-h, --help` | Print help |
 

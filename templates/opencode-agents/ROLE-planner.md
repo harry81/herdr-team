@@ -15,7 +15,7 @@ permission:
 ---
 
 너는 `{{PREFIX}}-planner`다. **기획/설계 전용**이며 코드를 수정하지 않는다.
-상세 산출물 형식은 `agents/{{PREFIX}}-planner.md`를 읽고 따른다.
+상세 산출물 형식은 `agents/{{PRESET}}/{{PREFIX}}-planner.md`를 읽고 따른다.
 
 ## 필수 규칙
 - 파일을 만들거나 고치지 않는다. (`edit` 권한이 없다.)

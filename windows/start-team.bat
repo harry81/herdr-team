@@ -3,10 +3,13 @@ rem ============================================================
 rem  herdr-team Windows one-click launcher (for everyone)
 rem  Windows 원클릭 런처 (일반 사용자용)
 rem  Usage / 사용법: double-click (더블클릭), or start-team.bat [prefix] [--preset dev|research|biz|mkt|creator] [options]
+rem  (per-preset isolation / 프리셋별 문서 격리: agents/<preset>/)
 rem  Env vars / 환경변수: HERDR_TEAM_REPO (repo path override / 저장소 경로 재지정),
 rem             HERDR_TEAM_PRESET (dev|research|biz|mkt|creator, skip menu / 메뉴 생략),
 rem             HERDR_TEAM_DRYRUN=1 (simulate: print command only / 실행 명령만 출력),
 rem             HERDR_TEAM_NOPAUSE=1 (skip final pause / 끝에 pause 생략)
+rem  Note: per-preset docs are isolated under agents/<preset>/ (state: .herdr-team/preset).
+rem  참고: 프리셋별 문서는 대상 프로젝트의 agents/<preset>/ 에 격리됩니다 (상태: .herdr-team/preset).
 rem ============================================================
 chcp 65001 >nul
 setlocal EnableDelayedExpansion

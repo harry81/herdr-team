@@ -120,7 +120,9 @@ Options:
   --no-resize       split without --ratio equalization (no separate resize
                     step; flag kept for compatibility)
   --no-start        skip agent start (split + label only)
-  --force           overwrite existing AGENTS.md/agents docs
+  --force           reseed only the requested preset folder from templates
+                    (agents/<preset>/) and force-activate root AGENTS.md;
+                    other presets are left untouched
   --dry-run         print planned commands without executing
   -h, --help        print this help
 
@@ -381,6 +383,54 @@ PLANNER="$(role_agent planner)"
 WORKER="$(role_agent worker)"
 REVIEWER="$(role_agent reviewer)"
 
+# --- 프리셋별 문서 격리 (agents/<preset>/) 헬퍼 ---
+preset_state_file() { printf '%s/.herdr-team/preset' "$CWD"; }
+active_preset() {
+  local f; f="$(preset_state_file)"
+  [[ -f "$f" ]] || return 0
+  head -n1 "$f" | tr -d '[:space:]'
+}
+set_active_preset() {
+  local p="$1"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ printf %s > .herdr-team/preset\n' "'$p\\n'"
+    return 0
+  fi
+  mkdir -p "$CWD/.herdr-team"
+  printf '%s\n' "$p" > "$(preset_state_file)"
+}
+canonical_dir() { printf '%s/agents/%s' "$CWD" "$PRESET"; }
+subst_tpl() {
+  local p r
+  p="$(printf '%s' "$PREFIX" | sed -e 's/[\\&/]/\\&/g')"
+  r="$(printf '%s' "$PRESET" | sed -e 's/[\\&/]/\\&/g')"
+  sed -e "s/{{PREFIX}}/$p/g" -e "s/{{PRESET}}/$r/g" "$1"
+}
+legacy_role_docs() {
+  ls "$CWD/agents/" 2>/dev/null | grep -E "^${PREFIX}-(planner|worker|reviewer|researcher|orchestrator|taskmanager)\.md$" || true
+}
+sync_root_agents() {
+  local active canon root
+  active="$(active_preset)"
+  if [[ -n "$active" ]] && ! is_known_preset "$active"; then
+    echo "[herdr-team] 경고: 알 수 없는 active preset '$active' → write-back 생략, '$PRESET'로 활성화" >&2
+    active=""
+  fi
+  canon="$(canonical_dir)"
+  root="$CWD/AGENTS.md"
+  # (4a) 아웃고잉 스냅샷: 루트 수정분을 나가는 프리셋 정본으로 (무손실)
+  if [[ -f "$root" && -n "$active" && "$active" != "$PRESET" && "$FORCE" -eq 0 ]]; then
+    mkdir -p "$CWD/agents/$active"
+    cp "$root" "$CWD/agents/$active/AGENTS.md"
+    log "write-back: AGENTS.md → agents/${active}/AGENTS.md"
+  fi
+  # (4b) 인커밍 활성화
+  if [[ ! -f "$root" || "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
+    cp "$canon/AGENTS.md" "$root"
+    log "activate: agents/${PRESET}/AGENTS.md → AGENTS.md"
+  fi
+}
+
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '+ %s\n' "$*"
@@ -422,68 +472,12 @@ need_cmd() {
   fi
 }
 
-# --- 1) 템플릿 복사/생성 (preset 일반화: ROLES 루프) ---
-setup_templates() {
-  if [[ "$NO_TEMPLATE" -eq 1 ]]; then log "템플릿 단계 생략(--no-template)"; return; fi
-  # 이미 팀 문서가 있으면(AGENTS.md + 요청 preset 첫 역할 문서) 생략.
-  # 단, 요청 prefix용 파일이 없고 FORCE도 없으면 다른 prefix 문서가 있다는 안내만 하고 생략.
-  local first_agent
-  first_agent="$(role_agent "${ROLES[0]}")"
-  local existing_team=""
-  existing_team="$(ls "$CWD/agents/" 2>/dev/null | grep -E '\-(planner|worker|reviewer|researcher|orchestrator|taskmanager)\.md$' | head -n1 || true)"
-  if [[ -f "$CWD/AGENTS.md" && -n "$existing_team" && "$FORCE" -eq 0 ]]; then
-    if [[ -f "$CWD/agents/${first_agent}.md" ]]; then
-      log "AGENTS.md + agents 문서 존재 → 템플릿 단계 생략"
-    else
-      log "팀 문서 존재(${existing_team}, prefix/preset 불일치?) → 생성 생략. '${PREFIX}'용 문서가 필요하면 --force 또는 해당 prefix로 재실행"
-    fi
-    return
-  fi
-
-  # 프리셋 템플릿 베이스 해결: --template-dir/<preset> 우선, 없으면 번들 templates/<preset>
-  local preset_base=""
-  preset_base="$(preset_dir "$PRESET" 2>/dev/null || true)"
-  local legacy_base="$TEMPLATE_DIR"
-  local src_base="${preset_base:-$legacy_base}"
-  # 외부/번들 템플릿 디렉토리가 있으면 복사(파일 내 {{PREFIX}} 치환)
-  if [[ -d "$src_base" ]]; then
-    log "프리셋 템플릿 사용: $src_base (preset=${PRESET})"
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      printf '+ mkdir -p %s/agents && cp %s/* %s/ ({{PREFIX}}→%s 치환, preset=%s)\n' "$CWD" "$src_base" "$CWD" "$PREFIX" "$PRESET"
-      return
-    fi
-    mkdir -p "$CWD/agents"
-    local agents_src="$src_base/agents"
-    if [[ ! -d "$agents_src" && -d "$TEMPLATE_DIR/agents" ]]; then agents_src="$TEMPLATE_DIR/agents"; fi
-    if [[ ! -d "$agents_src" && -d "$SCRIPT_DIR/../templates/agents" ]]; then agents_src="$SCRIPT_DIR/../templates/agents"; fi
-    if [[ -f "$src_base/AGENTS.md" && ( ! -f "$CWD/AGENTS.md" || "$FORCE" -eq 1 ) ]]; then
-      sed "s/{{PREFIX}}/${PREFIX}/g" "$src_base/AGENTS.md" > "$CWD/AGENTS.md"
-    fi
-    local role
-    for role in "${ROLES[@]}"; do
-      local src="$agents_src/ROLE-${role}.md"
-      local dst="$CWD/agents/${PREFIX}-${role}.md"
-      if [[ ! -f "$src" ]]; then src="$src_base/${PREFIX}-${role}.md"; fi
-      if [[ -f "$src" && ( ! -f "$dst" || "$FORCE" -eq 1 ) ]]; then
-        sed "s/{{PREFIX}}/${PREFIX}/g" "$src" > "$dst"
-      fi
-    done
-    return
-  fi
-
-  # 내장 기본 문서 생성 ({{PREFIX}} 치환 완료 상태, preset ROLES 기준)
-  log "내장 템플릿으로 기본 문서 생성 (prefix=${PREFIX} preset=${PRESET})"
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf '+ (내장 템플릿) %s/AGENTS.md + agents/%s-{%s}.md 생성 (preset=%s)\n' "$CWD" "$PREFIX" "$(IFS=,; printf '%s' "${ROLES[*]}")" "$PRESET"
-    return
-  fi
-  mkdir -p "$CWD/agents"
-  if [[ ! -f "$CWD/AGENTS.md" || "$FORCE" -eq 1 ]]; then
-    local agents_list=""
-    local r
-    for r in "${ROLES[@]}"; do agents_list+="$(role_agent "$r") / "; done
-    agents_list="${agents_list% / }"
-    cat > "$CWD/AGENTS.md" <<EOF
+# --- 1) 템플릿 복사/생성 (preset별 문서 격리: agents/<preset>/) ---
+write_builtin_agents_md() {
+  local dst="$1" agents_list="" r
+  for r in "${ROLES[@]}"; do agents_list+="$(role_agent "$r") / "; done
+  agents_list="${agents_list% / }"
+  cat > "$dst" <<EOF
 # Agents Configuration & Team Orchestration (preset: ${PRESET})
 
 ${#ROLES[@]}인 체제(PM - ${agents_list}) 정의서입니다. (preset=${PRESET})
@@ -509,21 +503,20 @@ ${#ROLES[@]}인 체제(PM - ${agents_list}) 정의서입니다. (preset=${PRESET
 |---|---|
 | PM (agy) | 본 문서 |
 EOF
-    for r in "${ROLES[@]}"; do
-      printf '| %s | agents/%s.md |\n' "$(role_agent "$r")" "$(role_agent "$r")" >> "$CWD/AGENTS.md"
-    done
-    {
-      printf '\n## 3. Herdr 운용\n'
-      printf -- '- 고정 Pane ID 금지. `herdr pane/tab/agent list`로 조회.\n'
-      printf -- '- `herdr-team %s --preset %s` 실행 시 현재 Pane(PM) 기준 우측 분할 후 아래로 %d분할(--ratio 균등화).\n' "$PREFIX" "$PRESET" "$((${#ROLES[@]} - 1))"
-    } >> "$CWD/AGENTS.md"
-  fi
-  local role
-  for role in "${ROLES[@]}"; do
-    local dst="$CWD/agents/${PREFIX}-${role}.md"
-    if [[ -f "$dst" && "$FORCE" -eq 0 ]]; then continue; fi
-    case "$role" in
-      orchestrator|taskmanager) cat > "$dst" <<EOF
+  for r in "${ROLES[@]}"; do
+    printf '| %s | agents/%s/%s.md |\n' "$(role_agent "$r")" "$PRESET" "$(role_agent "$r")" >> "$dst"
+  done
+  {
+    printf '\n## 3. Herdr 운용\n'
+    printf -- '- 고정 Pane ID 금지. `herdr pane/tab/agent list`로 조회.\n'
+    printf -- '- `herdr-team %s --preset %s` 실행 시 현재 Pane(PM) 기준 우측 분할 후 아래로 %d분할(--ratio 균등화).\n' "$PREFIX" "$PRESET" "$((${#ROLES[@]} - 1))"
+  } >> "$dst"
+}
+
+write_builtin_role_doc() {
+  local dst="$1" role="$2"
+  case "$role" in
+    orchestrator|taskmanager) cat > "$dst" <<EOF
 # Role: ${PREFIX}-orchestrator (Orchestrator — 파이프라인 오케스트레이터)
 
 ## 핵심 미션
@@ -537,8 +530,8 @@ Team이 쉼 없이 작업하도록 순차 파이프라인을 실시간 중계·�
 ## 보고 형식
 - 진행 태스크 / 에이전트 산출물 요약(Planner 명세·Worker 테스트·Reviewer 판정) / 다음 단계.
 EOF
-        ;;
-      planner) cat > "$dst" <<EOF
+      ;;
+    planner) cat > "$dst" <<EOF
 # Role: ${PLANNER} (기획 및 아키텍처 설계)
 
 ## 핵심 미션
@@ -548,8 +541,8 @@ EOF
 - 요구사항 요약 & 목표 / 아키텍처 & 데이터 흐름 / 작업 분할(완료 기준·TDD 대상) / 엣지 케이스.
 - 직접 코드 구현 금지 (인터페이스 예시만 가능).
 EOF
-        ;;
-      worker) cat > "$dst" <<EOF
+      ;;
+    worker) cat > "$dst" <<EOF
 # Role: ${WORKER} (개발 및 단위 테스트 구현)
 
 ## 핵심 미션
@@ -559,16 +552,16 @@ TDD Red→Green→Refactor로 구현하고 단위 테스트를 통과시킴.
 - 작업 개요 / 변경·추가 파일 / 단위 테스트 결과 / 특이사항 & 다음 제안.
 - 주요 이론 내용은 \`til/\`에 기록 후 커밋.
 EOF
-        ;;
-      reviewer) cat > "$dst" <<EOF
+      ;;
+    reviewer) cat > "$dst" <<EOF
 # Role: ${REVIEWER} (실행 검증 겸 코드 리뷰, 최종 게이트)
 
 ## 핵심 미션
 정적 리뷰 + 빌드/단위/통합·E2E·회귀 직접 실행 후 [APPROVE]/[REQUEST CHANGES] 판정.
 [APPROVE]는 실행 커맨드·로그 첨부 시에만 유효. 코드 수정 금지.
 EOF
-        ;;
-      researcher) cat > "$dst" <<EOF
+      ;;
+    researcher) cat > "$dst" <<EOF
 # Role: $(role_agent researcher) (기술 조사·외부 리서치)
 
 ## 핵심 미션
@@ -578,55 +571,184 @@ EOF
 ## 보고 형식
 - 조사 개요 / 근거 자료 / 비교 분석 / 다음 제안.
 EOF
-        ;;
-      *) cat > "$dst" <<EOF
+      ;;
+    *) cat > "$dst" <<EOF
 # Role: $(role_agent "$role") (preset: ${PRESET})
 
 ## 핵심 미션
 ${PRESET} 프리셋의 '${role}' 역할을 수행. PM 지시에 따라 산출물 형식을 준수.
 EOF
-        ;;
-    esac
+      ;;
+  esac
+}
+
+setup_templates() {
+  if [[ "$NO_TEMPLATE" -eq 1 ]]; then log "템플릿 단계 생략(--no-template)"; return; fi
+
+  local active canon root
+  active="$(active_preset)"
+  if [[ -n "$active" ]] && ! is_known_preset "$active"; then
+    echo "[herdr-team] 경고: 알 수 없는 active preset '$active' → write-back 생략, '$PRESET'로 활성화" >&2
+    active=""
+  fi
+  canon="$(canonical_dir)"
+  root="$CWD/AGENTS.md"
+
+  # 템플릿 소스 해석: 프리셋 로컬 > --template-dir > 번들
+  local preset_base="" c="" agents_src="" agents_md_src=""
+  preset_base="$(preset_dir "$PRESET" 2>/dev/null || true)"
+  for c in "$preset_base/agents" "$TEMPLATE_DIR/agents" "$SCRIPT_DIR/../templates/agents"; do
+    [[ -n "$c" && -d "$c" ]] && { agents_src="$c"; break; }
   done
+  for c in "$preset_base/AGENTS.md" "$TEMPLATE_DIR/AGENTS.md" "$SCRIPT_DIR/../templates/AGENTS.md"; do
+    [[ -n "$c" && -f "$c" ]] && { agents_md_src="$c"; break; }
+  done
+  local legacy_list=""
+  legacy_list="$(legacy_role_docs)"
+
+  # --- dry-run: 계획만 출력 (쓰기 0) ---
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    if [[ "$active" != "$PRESET" ]]; then
+      log "preset=${PRESET} active=${active:-<none>} (전환 감지)"
+    else
+      log "prefix=${PREFIX} preset=${PRESET} (dry-run isolation)"
+    fi
+    printf '+ mkdir -p %s .herdr-team\n' "$canon"
+    local role src
+    for role in "${ROLES[@]}"; do
+      if [[ "$FORCE" -eq 0 ]] && printf '%s\n' "$legacy_list" | grep -qx "${PREFIX}-${role}.md"; then
+        printf '+ import(legacy): agents/%s-%s.md → agents/%s/%s-%s.md\n' "$PREFIX" "$role" "$PRESET" "$PREFIX" "$role"
+      else
+        src="$agents_src/ROLE-${role}.md"
+        [[ -n "$src" && -f "$src" ]] || src="$preset_base/ROLE-${role}.md"
+        if [[ -n "$src" && -f "$src" ]]; then
+          printf '+ seed: %s → agents/%s/%s-%s.md\n' "$src" "$PRESET" "$PREFIX" "$role"
+        else
+          printf '+ seed(내장): agents/%s/%s-%s.md\n' "$PRESET" "$PREFIX" "$role"
+        fi
+      fi
+    done
+    if [[ -n "$agents_md_src" && -f "$agents_md_src" ]]; then
+      printf '+ canonical: %s → agents/%s/AGENTS.md\n' "$agents_md_src" "$PRESET"
+    else
+      printf '+ canonical(내장): agents/%s/AGENTS.md\n' "$PRESET"
+    fi
+    if [[ -f "$root" && -n "$active" && "$active" != "$PRESET" && "$FORCE" -eq 0 ]]; then
+      printf '+ write-back: AGENTS.md → agents/%s/AGENTS.md\n' "$active"
+    fi
+    if [[ ! -f "$root" || "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
+      printf '+ activate: agents/%s/AGENTS.md → AGENTS.md\n' "$PRESET"
+    fi
+    set_active_preset "$PRESET"
+    return 0
+  fi
+
+  mkdir -p "$canon" "$CWD/.herdr-team"
+
+  # (1) 정본 role 시딩 — 누락/강제만, 기존은 보존. 레거시 평면은 복사 import(원본 불변).
+  local role
+  for role in "${ROLES[@]}"; do
+    local dst="$canon/${PREFIX}-${role}.md"
+    [[ -f "$dst" && "$FORCE" -eq 0 ]] && continue
+    if [[ "$FORCE" -eq 0 ]] && printf '%s\n' "$legacy_list" | grep -qx "${PREFIX}-${role}.md"; then
+      cp "$CWD/agents/${PREFIX}-${role}.md" "$dst"
+      log "import(legacy): agents/${PREFIX}-${role}.md → agents/${PRESET}/${PREFIX}-${role}.md (원본 보존)"
+      continue
+    fi
+    local src="$agents_src/ROLE-${role}.md"
+    [[ -n "$src" && -f "$src" ]] || src="$preset_base/ROLE-${role}.md"
+    if [[ -n "$src" && -f "$src" ]]; then
+      subst_tpl "$src" > "$dst"
+    else
+      write_builtin_role_doc "$dst" "$role"
+    fi
+  done
+
+  # (2) 정본 AGENTS.md — 레거시(미활성)면 루트에서 무손실 import, 아니면 템플릿 시딩
+  if [[ ! -f "$canon/AGENTS.md" || "$FORCE" -eq 1 ]]; then
+    if [[ -z "$active" && -f "$root" && "$FORCE" -eq 0 ]]; then
+      cp "$root" "$canon/AGENTS.md"
+      log "canonical import: AGENTS.md → agents/${PRESET}/AGENTS.md"
+    elif [[ -n "$agents_md_src" && -f "$agents_md_src" ]]; then
+      subst_tpl "$agents_md_src" > "$canon/AGENTS.md"
+    else
+      write_builtin_agents_md "$canon/AGENTS.md"
+    fi
+  fi
+
+  # (3) 루트 활성화 (write-back + activate)
+  sync_root_agents
+
+  # (4) 상태 기록 — 반드시 마지막 (실패 시 이전 ACTIVE 유지)
+  set_active_preset "$PRESET"
 }
 
 # --- 1b) opencode agent 정의 설치 (.opencode/agents/<prefix>-<role>.md) ---
-# 역할 문서(agents/*.md)와 별개로, opencode가 `--agent <prefix>-<role>`로 선택할
-# 실제 primary agent 정의를 대상 프로젝트에 설치한다. setup_templates는 기존
-# 팀 문서가 있으면 조기 반환하므로, 기존 셋업 프로젝트도 받도록 별도 함수로 분리한다.
+# 생성물(정본은 agents/<preset>/*). 전환 시 stale prune + 활성 ROLES만 재생성.
+# 같은 프리셋·비FORCE·기존 파일은 사용자 편집으로 보고 보존한다.
 setup_opencode_agents() {
   if [[ "$NO_TEMPLATE" -eq 1 ]]; then log "opencode agent 단계 생략(--no-template)"; return; fi
-  # 소스 디렉토리 해석: preset 디렉토리 > --template-dir > 번들 templates
-  local preset_base=""
+  local preset_base="" c="" oa_src=""
   preset_base="$(preset_dir "$PRESET" 2>/dev/null || true)"
-  local oa_src="" c
   for c in "$preset_base/opencode-agents" "$TEMPLATE_DIR/opencode-agents" "$SCRIPT_DIR/../templates/opencode-agents"; do
     [[ -n "$c" && -d "$c" ]] && { oa_src="$c"; break; }
   done
   if [[ -z "$oa_src" ]]; then log "opencode agent 템플릿 없음 → 설치 생략"; return; fi
   local dest_dir="$CWD/.opencode/agents"
-  log "opencode agent 설치: $oa_src → $dest_dir (prefix=${PREFIX})"
-  local role
+  local known=" orchestrator planner worker researcher reviewer "
+  local desired=() role
+  for role in "${ROLES[@]}"; do
+    [[ "$known" == *" $role "* ]] && desired+=("$role")
+  done
+  local prev="${PREV_ACTIVE:-}"
+
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    for role in "${ROLES[@]}"; do
-      [[ -f "$oa_src/ROLE-${role}.md" ]] || continue
-      printf '+ mkdir -p %s && sed {{PREFIX}}→%s %s/ROLE-%s.md > %s/%s-%s.md\n' \
-        "$dest_dir" "$PREFIX" "$oa_src" "$role" "$dest_dir" "$PREFIX" "$role"
+    log "opencode agent sync(prune+gen): $oa_src → $dest_dir (prefix=${PREFIX})"
+    local r2 want=0
+    for role in orchestrator planner worker researcher reviewer; do
+      want=0
+      if [[ ${#desired[@]} -gt 0 ]]; then
+        for r2 in "${desired[@]}"; do [[ "$r2" == "$role" ]] && want=1; done
+      fi
+      if [[ "$want" -eq 0 && -f "$dest_dir/${PREFIX}-${role}.md" ]]; then
+        printf '+ prune: rm .opencode/agents/%s-%s.md (stale)\n' "$PREFIX" "$role"
+      fi
     done
-    return
+    if [[ ${#desired[@]} -gt 0 ]]; then
+      for role in "${desired[@]}"; do
+        [[ -f "$oa_src/ROLE-${role}.md" ]] || continue
+        printf '+ gen: %s/ROLE-%s.md → .opencode/agents/%s-%s.md\n' "$oa_src" "$role" "$PREFIX" "$role"
+      done
+    fi
+    return 0
   fi
   mkdir -p "$dest_dir"
-  for role in "${ROLES[@]}"; do
-    local osrc="$oa_src/ROLE-${role}.md"
-    if [[ ! -f "$osrc" ]]; then log "경고: ROLE-${role}.md 없음 → skip"; continue; fi
-    local odst="$dest_dir/${PREFIX}-${role}.md"
-    if [[ -f "$odst" && "$FORCE" -eq 0 ]]; then
-      log "opencode agent 존재 → 생략: .opencode/agents/${PREFIX}-${role}.md"
-      continue
+  # (6) stale prune — 현재 prefix + known role 한정 (그 외 prefix/agent 불가침)
+  local r2 want=0
+  for role in orchestrator planner worker researcher reviewer; do
+    want=0
+    if [[ ${#desired[@]} -gt 0 ]]; then
+      for r2 in "${desired[@]}"; do [[ "$r2" == "$role" ]] && want=1; done
     fi
-    sed "s/{{PREFIX}}/${PREFIX}/g" "$osrc" > "$odst"
-    log "opencode agent 생성: .opencode/agents/${PREFIX}-${role}.md"
+    if [[ "$want" -eq 0 && -f "$dest_dir/${PREFIX}-${role}.md" ]]; then
+      rm -f "$dest_dir/${PREFIX}-${role}.md"
+      log "prune: .opencode/agents/${PREFIX}-${role}.md (stale)"
+    fi
   done
+  # (7) 활성 role 생성/동기화 — 같은 프리셋·비FORCE·기존 파일은 보존
+  if [[ ${#desired[@]} -gt 0 ]]; then
+    for role in "${desired[@]}"; do
+      local osrc="$oa_src/ROLE-${role}.md"
+      if [[ ! -f "$osrc" ]]; then log "경고: ROLE-${role}.md 없음 → skip"; continue; fi
+      local odst="$dest_dir/${PREFIX}-${role}.md"
+      if [[ -f "$odst" && "$FORCE" -eq 0 && "$prev" == "$PRESET" ]]; then
+        log "opencode agent 존재 → 생략: .opencode/agents/${PREFIX}-${role}.md"
+        continue
+      fi
+      subst_tpl "$osrc" > "$odst"
+      log "opencode agent 생성: .opencode/agents/${PREFIX}-${role}.md"
+    done
+  fi
 }
 
 # --- 2) Pane 분할 + 리사이즈 + 레이블 + 에이전트 시작 (preset ROLES 일반화) ---
@@ -832,6 +954,7 @@ setup_panes() {
   log "완료: prefix=${PREFIX} preset=${PRESET} (${done_list})"
 }
 
+PREV_ACTIVE="$(active_preset)"
 setup_templates
 setup_opencode_agents
 setup_panes

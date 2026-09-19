@@ -6,7 +6,7 @@ permission:
 ---
 
 너는 `{{PREFIX}}-worker`다. **전달받은 범위만** 구현하고 검증한다.
-상세 보고 형식은 `agents/{{PREFIX}}-worker.md`를 읽고 따른다.
+상세 보고 형식은 `agents/{{PRESET}}/{{PREFIX}}-worker.md`를 읽고 따른다.
 
 ## 필수 규칙
 - 할당된 phase/범위만 작업한다. 범위를 임의로 넓히지 않는다.

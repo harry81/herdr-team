@@ -241,23 +241,38 @@ STUBEOF
   for r in orchestrator planner worker reviewer; do
     if [[ -f "$TMPCWD/.opencode/agents/testteam-$r.md" ]]; then ok "생성: .opencode/agents/testteam-$r.md";
     else bad "생성: .opencode/agents/testteam-$r.md"; fi
+    if [[ -f "$TMPCWD/agents/dev/testteam-$r.md" ]]; then ok "iso_seed_agents_preset_dir: agents/dev/testteam-$r.md";
+    else bad "iso_seed_agents_preset_dir: agents/dev/testteam-$r.md"; fi
   done
+  if [[ ! -f "$TMPCWD/agents/testteam-worker.md" ]]; then ok "평면 agents/testteam-worker.md 미생성"; else bad "평면 agents/testteam-worker.md 미생성"; fi
+  if [[ "$(cat "$TMPCWD/.herdr-team/preset" 2>/dev/null)" == "dev" ]]; then ok "state: .herdr-team/preset=dev"; else bad "state: .herdr-team/preset=dev"; fi
   if [[ -f "$TMPCWD/.opencode/agents/testteam-orchestrator.md" ]]; then
     TM="$(cat "$TMPCWD/.opencode/agents/testteam-orchestrator.md")"
     assert_contains "$TM" "mode: primary" "agent frontmatter: mode primary"
     assert_contains "$TM" "testteam-planner" "agent 본문: {{PREFIX}} 치환됨"
     assert_not_contains "$TM" "{{PREFIX}}" "opencode_agent_placeholder_없음"
+    assert_not_contains "$TM" "{{PRESET}}" "iso_subst_preset_placeholder: {{PRESET}} 미치환 없음"
+  fi
+  if [[ -f "$TMPCWD/agents/dev/testteam-worker.md" ]]; then
+    CW="$(cat "$TMPCWD/agents/dev/testteam-worker.md")"
+    assert_not_contains "$CW" "{{PREFIX}}" "iso_no_unsubstituted_placeholder: {{PREFIX}}"
+    assert_not_contains "$CW" "{{PRESET}}" "iso_no_unsubstituted_placeholder: {{PRESET}}"
+    assert_contains "$CW" "testteam-worker" "iso_seed_agents_preset_dir: 역할명 치환"
   fi
   # biz: researcher agent 생성, worker agent 미생성
   PATH="$STUB:$PATH" "$BIN" testbiz --preset biz --cwd "$TMPCWD2" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1
   if [[ -f "$TMPCWD2/.opencode/agents/testbiz-researcher.md" ]]; then ok "biz: researcher agent 생성";
   else bad "biz: researcher agent 생성"; fi
+  if [[ -f "$TMPCWD2/agents/biz/testbiz-researcher.md" ]]; then ok "biz: agents/biz 정본 생성";
+  else bad "biz: agents/biz 정본 생성"; fi
   if [[ ! -f "$TMPCWD2/.opencode/agents/testbiz-worker.md" ]]; then ok "biz: worker agent 미생성";
   else bad "biz: worker agent 미생성"; fi
   # creator: worker agent 생성, researcher agent 미생성 (프리셋별 임시 CWD 격리)
   PATH="$STUB:$PATH" "$BIN" testcreator --preset creator --cwd "$TMPCWD3" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1
   if [[ -f "$TMPCWD3/.opencode/agents/testcreator-worker.md" ]]; then ok "creator: worker agent 생성";
   else bad "creator: worker agent 생성"; fi
+  if [[ -f "$TMPCWD3/agents/creator/testcreator-worker.md" ]]; then ok "creator: agents/creator 정본 생성";
+  else bad "creator: agents/creator 정본 생성"; fi
   if [[ -f "$TMPCWD3/.opencode/agents/testcreator-orchestrator.md" ]]; then
     assert_not_contains "$(cat "$TMPCWD3/.opencode/agents/testcreator-worker.md")" "{{PREFIX}}" "creator worker agent: placeholder 없음"
   fi
@@ -306,6 +321,10 @@ done
 assert_contains "$README_EN" "Select [1-5" "readme_tui_1-5"
 assert_not_contains "$README_EN" "| \`app\`" "readme_preset표_app_미노출"
 assert_contains "$README_EN" "app" "README: app→dev alias 문구"
+assert_contains "$README_EN" "agents/dev/" "readme_isolation_tree: agents/dev/"
+assert_contains "$README_EN" ".herdr-team/preset" "readme_isolation_tree: .herdr-team/preset"
+assert_contains "$README_EN" "requested preset folder" "readme_force_semantics"
+assert_contains "$README_KO" "agents/dev/" "readme_ko_isolation_tree"
 
 echo "== 20) 동적 열거: 커스텀 --template-dir preset 자동 발견 =="
 TMPT="$(mktemp -d)"
@@ -355,6 +374,191 @@ assert_exit "$SHADOW_RC" 0 "alias_shadow: app exit 0"
 assert_contains "$SHADOW_OUT" "preset=dev" "alias_shadow: app→dev 해소"
 assert_contains "$SHADOW_OUT" "deprecated" "alias_shadow: deprecation 경고"
 rm -rf "$SHADOW"
+
+echo "== 23b) 템플릿 {{PRESET}} 링크 (T7) =="
+if grep -rqF 'agents/{{PRESET}}/{{PREFIX}}-' "$REPO/templates"; then ok "templates_preset_links"; else bad "templates_preset_links"; fi
+if ! grep -rqE '(^|[^./])agents/\{\{PREFIX\}\}-' "$REPO/templates"; then ok "templates_no_flat_agent_links"; else bad "templates_no_flat_agent_links"; fi
+
+echo "== 24~35) 프리셋별 문서 격리 (agents/<preset>/) =="
+if command -v jq >/dev/null 2>&1; then
+  ISTUB="$(mktemp -d)"
+  cat > "$ISTUB/herdr" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
+STUBEOF
+  chmod +x "$ISTUB/herdr"
+  iso_run() { # $1=prefix $2=preset $3=cwd [extra...]
+    local pfx="$1" pre="$2" cwd="$3"; shift 3
+    PATH="$ISTUB:$PATH" "$BIN" "$pfx" --preset "$pre" --cwd "$cwd" --template-dir "$REPO/templates" --no-interactive --no-start "$@" >/dev/null 2>&1
+  }
+  iso_dry() { # like iso_run but captures output and appends --dry-run
+    local pfx="$1" pre="$2" cwd="$3"; shift 3
+    PATH="$ISTUB:$PATH" "$BIN" "$pfx" --preset "$pre" --cwd "$cwd" --template-dir "$REPO/templates" --no-interactive --no-start --dry-run "$@" 2>&1
+  }
+
+  # --- 24·25·26: dev→mkt→dev 무손실 왕복 / activate / write-back ---
+  I1="$(mktemp -d)"
+  iso_run iso dev "$I1"
+  echo "CUSTOM-DEV-MARKER" >> "$I1/agents/dev/iso-worker.md"
+  echo "ROOT-DEV-EDIT" >> "$I1/AGENTS.md"
+  iso_run iso mkt "$I1"
+  if grep -q "CUSTOM-DEV-MARKER" "$I1/agents/dev/iso-worker.md" 2>/dev/null; then ok "iso_roundtrip_lossless: dev 정본 마커 보존";
+  else bad "iso_roundtrip_lossless: dev 정본 마커 보존"; fi
+  if cmp -s "$I1/AGENTS.md" "$I1/agents/mkt/AGENTS.md"; then ok "iso_switch_activate_root: 루트==agents/mkt/AGENTS.md";
+  else bad "iso_switch_activate_root: 루트==agents/mkt/AGENTS.md"; fi
+  if cmp -s "$I1/AGENTS.md" "$I1/agents/mkt/AGENTS.md"; then ok "switch_activate_incoming";
+  else bad "switch_activate_incoming"; fi
+  if grep -q "ROOT-DEV-EDIT" "$I1/agents/dev/AGENTS.md" 2>/dev/null; then ok "iso_writeback_root_edit: 루트 편집→dev 정본";
+  else bad "iso_writeback_root_edit: 루트 편집→dev 정본"; fi
+  if grep -q "ROOT-DEV-EDIT" "$I1/agents/dev/AGENTS.md" 2>/dev/null; then ok "switch_writeback_outgoing";
+  else bad "switch_writeback_outgoing"; fi
+  iso_run iso dev "$I1"
+  if cmp -s "$I1/AGENTS.md" "$I1/agents/dev/AGENTS.md" && grep -q "ROOT-DEV-EDIT" "$I1/AGENTS.md"; then ok "iso_roundtrip_lossless: 루트 복원";
+  else bad "iso_roundtrip_lossless: 루트 복원"; fi
+  assert_equal "$(cat "$I1/.herdr-team/preset" 2>/dev/null)" "dev" "iso_roundtrip_lossless: state=dev"
+  rm -rf "$I1"
+
+  # --- 27: 레거시 평면 마이그레이션(복사, 원본 불변) + 루트 import ---
+  I2="$(mktemp -d)"; mkdir -p "$I2/agents"
+  printf 'ROOT-ORIG\n' > "$I2/AGENTS.md"
+  printf 'FLAT-WORKER-ORIG\n' > "$I2/agents/iso-worker.md"
+  printf 'FLAT-PLANNER-ORIG\n' > "$I2/agents/iso-planner.md"
+  iso_run iso dev "$I2"
+  assert_equal "$(cat "$I2/agents/iso-worker.md")" "FLAT-WORKER-ORIG" "migrate_flat_preserves_originals: 평면 원본 불변"
+  assert_equal "$(cat "$I2/agents/dev/iso-worker.md")" "FLAT-WORKER-ORIG" "migrate_flat_role_docs: 정본으로 복사"
+  assert_equal "$(cat "$I2/agents/dev/AGENTS.md")" "ROOT-ORIG" "migrate_root_agents_canonical: 루트→정본 import"
+  assert_equal "$(cat "$I2/AGENTS.md")" "ROOT-ORIG" "migrate_root_agents_canonical: 루트 무변경"
+  assert_equal "$(cat "$I2/.herdr-team/preset" 2>/dev/null)" "dev" "migrate: state=dev"
+  rm -rf "$I2"
+
+  # --- 28: 평면+격리 공존 시 격리 우선 ---
+  I3="$(mktemp -d)"; mkdir -p "$I3/agents/dev"
+  printf 'CANON-CONTENT\n' > "$I3/agents/dev/iso-worker.md"
+  printf 'CANON-AGENTS\n' > "$I3/agents/dev/AGENTS.md"
+  printf 'FLAT-CONTENT\n' > "$I3/agents/iso-worker.md"
+  iso_run iso dev "$I3"
+  assert_equal "$(cat "$I3/agents/dev/iso-worker.md")" "CANON-CONTENT" "coexist_priority_preset_dir: 정본 우선(평면 미적용)"
+  assert_equal "$(cat "$I3/agents/dev/iso-worker.md")" "CANON-CONTENT" "coexist_preset_dir_wins"
+  assert_equal "$(cat "$I3/agents/iso-worker.md")" "FLAT-CONTENT" "coexist_priority_preset_dir: 평면 원본 보존"
+  rm -rf "$I3"
+
+  # --- 부분 프리셋 폴더: 누락 role만 시딩, 기존 파일 무변경 (엣지 #1) ---
+  I3b="$(mktemp -d)"; mkdir -p "$I3b/agents/dev"
+  printf 'PARTIAL-WORKER\n' > "$I3b/agents/dev/iso-worker.md"
+  iso_run iso dev "$I3b"
+  assert_equal "$(cat "$I3b/agents/dev/iso-worker.md")" "PARTIAL-WORKER" "partial_preset_dir_preserve"
+  if [[ -f "$I3b/agents/dev/iso-planner.md" ]]; then ok "partial_preset_dir_seed_missing";
+  else bad "partial_preset_dir_seed_missing"; fi
+  rm -rf "$I3b"
+
+  # --- 29: opencode stale prune + 활성 role gen + 타 prefix 불가침 ---
+  I4="$(mktemp -d)"
+  iso_run iso dev "$I4"
+  iso_run iso mkt "$I4"
+  if [[ ! -f "$I4/.opencode/agents/iso-worker.md" ]]; then ok "opencode_prune_stale_role: worker prune";
+  else bad "opencode_prune_stale_role: worker prune"; fi
+  if [[ -f "$I4/.opencode/agents/iso-researcher.md" ]]; then ok "opencode_gen_active_only: researcher 생성";
+  else bad "opencode_gen_active_only: researcher 생성"; fi
+  printf 'x\n' > "$I4/.opencode/agents/other-worker.md"
+  iso_run iso mkt "$I4"
+  if [[ -f "$I4/.opencode/agents/other-worker.md" ]]; then ok "opencode_other_prefix_untouched";
+  else bad "opencode_other_prefix_untouched"; fi
+  rm -rf "$I4"
+
+  # --- 30: 같은 프리셋 재실행 시 opencode 편집 보존 ---
+  I5="$(mktemp -d)"
+  iso_run iso dev "$I5"
+  echo "USER-EDIT" >> "$I5/.opencode/agents/iso-worker.md"
+  ROOT_BEFORE="$(cat "$I5/AGENTS.md")"
+  iso_run iso dev "$I5"
+  if grep -q "USER-EDIT" "$I5/.opencode/agents/iso-worker.md"; then ok "opencode_same_preset_preserve";
+  else bad "opencode_same_preset_preserve"; fi
+  assert_equal "$(cat "$I5/AGENTS.md")" "$ROOT_BEFORE" "same_preset_root_untouched"
+  rm -rf "$I5"
+
+  # --- 31: --force 요청 프리셋만 재시딩, 타 프리셋 불가침 ---
+  I6="$(mktemp -d)"
+  iso_run iso dev "$I6"
+  echo "DEV-EDIT" >> "$I6/agents/dev/iso-worker.md"
+  iso_run iso mkt "$I6"
+  echo "MKT-EDIT" >> "$I6/agents/mkt/iso-planner.md"
+  iso_run iso mkt "$I6" --force
+  if grep -q "DEV-EDIT" "$I6/agents/dev/iso-worker.md"; then ok "force_preserve_other_presets";  else bad "force_preserve_other_presets"; fi
+  if ! grep -q "MKT-EDIT" "$I6/agents/mkt/iso-planner.md"; then ok "force_reseed_requested_only";
+  else bad "force_reseed_requested_only"; fi
+  assert_equal "$(cat "$I6/.herdr-team/preset" 2>/dev/null)" "mkt" "force_scoped_reseed: state=mkt"
+  rm -rf "$I6"
+
+  # --- 32: 상태 파일 1줄 canonical + 실패 시 이전 ACTIVE 유지 ---
+  I7="$(mktemp -d)"
+  iso_run iso dev "$I7"
+  if [[ "$(wc -l < "$I7/.herdr-team/preset")" -eq 1 && "$(cat "$I7/.herdr-team/preset")" == "dev" ]]; then ok "state_written_last: 1줄 canonical";
+  else bad "state_written_last: 1줄 canonical"; fi
+  if [[ "$(wc -l < "$I7/.herdr-team/preset")" -eq 1 && "$(cat "$I7/.herdr-team/preset")" == "dev" ]]; then ok "set_active_last_write";
+  else bad "set_active_last_write"; fi
+  printf 'blocker' > "$I7/agents/mkt"
+  iso_run iso mkt "$I7"; STATERC=$?
+  if [[ "$STATERC" -ne 0 && "$(cat "$I7/.herdr-team/preset")" == "dev" ]]; then ok "state_written_last: 실패 시 이전 ACTIVE 유지";
+  else bad "state_written_last: 실패 시 이전 ACTIVE 유지 (rc=$STATERC)"; fi
+  # 상태 손상: 알 수 없는 값 → 경고 후 요청 프리셋으로 활성화, 상태 정정 (엣지 #12)
+  printf 'weird\n' > "$I7/.herdr-team/preset"
+  iso_run iso dev "$I7"
+  assert_equal "$(cat "$I7/.herdr-team/preset")" "dev" "state_corrupt_activate_requested"
+  rm -rf "$I7"
+
+  # --- 33: --no-template 은 격리/상태 전체 생략 ---
+  I8="$(mktemp -d)"
+  iso_run iso dev "$I8" --no-template
+  if [[ ! -e "$I8/agents/dev" && ! -e "$I8/.herdr-team/preset" && ! -e "$I8/AGENTS.md" ]]; then ok "no_template_skips_isolation";
+  else bad "no_template_skips_isolation"; fi
+  rm -rf "$I8"
+
+  # --- 34: dry-run 은 쓰기 0 + 격리 계획 로그 ---
+  I9="$(mktemp -d)"
+  DOUT="$(iso_dry iso dev "$I9")"
+  assert_contains "$DOUT" ".herdr-team/preset" "dryrun_isolation_plan_logged: state 계획"
+  assert_contains "$DOUT" "agents/dev" "dryrun_isolation_plan_logged: 정본 경로"
+  assert_contains "$DOUT" "activate:" "dryrun_isolation_plan_logged: activate 계획"
+  assert_contains "$DOUT" ".opencode/agents/iso" "dryrun_isolation_plan_logged: opencode gen 계획"
+  assert_contains "$DOUT" "active=<none>" "active_preset_초기빈값"
+  if [[ ! -e "$I9/agents" && ! -e "$I9/.herdr-team" && ! -e "$I9/AGENTS.md" && ! -e "$I9/.opencode" ]]; then ok "dryrun_no_writes";
+  else bad "dryrun_no_writes"; fi
+  if [[ ! -e "$I9/.herdr-team/preset" ]]; then ok "dryrun_state_미기록";
+  else bad "dryrun_state_미기록"; fi
+  rm -rf "$I9"
+
+  # --- 35: 자기 저장소 유형(평면 agents/hts-*, 루트 링크) 무손상 ---
+  I10="$(mktemp -d)"; mkdir -p "$I10/agents"
+  printf 'ROOT LINK agents/iso-planner.md\n' > "$I10/AGENTS.md"
+  printf 'FLAT-PLANNER\n' > "$I10/agents/iso-planner.md"
+  printf 'FLAT-WORKER\n' > "$I10/agents/iso-worker.md"
+  iso_run iso dev "$I10"
+  if [[ -f "$I10/agents/iso-planner.md" && "$(cat "$I10/agents/iso-planner.md")" == "FLAT-PLANNER" ]]; then ok "legacy_self_repo: 평면 원본 무손상";
+  else bad "legacy_self_repo: 평면 원본 무손상"; fi
+  if grep -q "agents/iso-planner.md" "$I10/AGENTS.md"; then ok "legacy_self_repo: 루트 링크 유효";
+  else bad "legacy_self_repo: 루트 링크 유효"; fi
+  rm -rf "$I10"
+
+  # --- 36: 커스텀 preset 이름의 sed replacement 메타문자(&) 이스케이프 ---
+  ATPL="$(mktemp -d)"; mkdir -p "$ATPL/a&b/agents"
+  cp "$REPO/templates/dev/AGENTS.md" "$ATPL/a&b/AGENTS.md"
+  cp "$REPO/templates/agents/ROLE-planner.md" "$ATPL/a&b/agents/ROLE-planner.md"
+  printf 'PRESET_DESC="Amp"\nROLES="orchestrator planner worker reviewer"\nLAYOUT="2col"\n' > "$ATPL/a&b/preset.conf"
+  ACWD="$(mktemp -d)"
+  PATH="$ISTUB:$PATH" "$BIN" aa --template-dir "$ATPL" --cwd "$ACWD" --preset "a&b" --no-interactive --no-start >/dev/null 2>&1; A_RC=$?
+  assert_exit "$A_RC" 0 "subst_preset_ampersand_escaping: exit 0"
+  AG="$ACWD/agents/a&b/AGENTS.md"
+  if [[ -f "$AG" ]] && ! grep -qF "{{PRESET}}" "$AG" && grep -qF "agents/a&b/aa-<role>.md" "$AG"; then
+    ok "subst_preset_ampersand_escaping: 리터럴 잔존 없음 + 실제 preset 치환"
+  else
+    bad "subst_preset_ampersand_escaping: 리터럴 잔존 없음 + 실제 preset 치환"
+  fi
+  rm -rf "$ATPL" "$ACWD"
+
+  rm -rf "$ISTUB"
+else
+  echo "SKIP: jq 없음 → 프리셋 격리 테스트 생략"
+fi
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
