@@ -51,7 +51,8 @@
    - 리서치/조사 → `hts-researcher` (on-demand), 배포/인프라/비밀값 → `hts-ops` (on-demand, 승인 범위 내).
 3. **오케스트레이션 전담 (Task Manager)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 대기(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
    - ❌ `sleep` 폴링 쉘 루프 작성 절대 금지.
-   - ✅ `herdr agent prompt <TARGET> "..." --wait` 또는 `herdr agent wait <TARGET> --until idle` (또는 옵션 없이 `herdr agent wait <TARGET>`) 사용.
+   - ❌ 세미콜론(`;`), `&&`, 백그라운드(`&`)로 `herdr` 명령어를 2개 이상 한 번에 묶어서 동시/연쇄 실행 절대 금지.
+   - ✅ 반드시 1번에 1개의 `herdr agent` 명령만 단독 실행: `herdr agent prompt <TARGET> "..." --wait` 또는 `herdr agent wait <TARGET> --until idle` (또는 옵션 없이 `herdr agent wait <TARGET>`).
 4. **무방치 원칙 (Task Manager)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
 5. **Watcher와의 분업 (Task Manager)**: 실시간 멈춤(`blocked`) 감시 및 셸 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링(`sleep 20` 루프 등)을 엄격히 금지하고, `--wait` 또는 `agent wait`를 통한 완료 시점 동기화와 업무 중계에만 집중합니다.
 6. **팀원 식별 및 엔진 유연성 (Engine Agnostic 원칙)**:
