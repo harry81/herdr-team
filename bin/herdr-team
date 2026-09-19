@@ -36,6 +36,66 @@ PREFIX_ARG=""
 # Herdr 지원 에이전트 종류 목록
 SUPPORTED_KINDS="opencode claude codex agy pi gemini cursor devin cline omp mastracode copilot kimi kiro droid amp grok hermes kilo qodercli maki"
 
+# --- preset 동적 열거 (하드코딩 대신 templates/<name>/preset.conf 발견) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# 기본 노출 순서/기본값 안정용 힌트. 여기 없는 preset도 자동 발견되어 뒤에 추가된다.
+PRESET_ORDER="dev research biz mkt creator"
+# preset 디렉토리 탐색: --template-dir/<preset> 우선, 없으면 스크립트 번들 templates/<preset>
+preset_dir() {
+  local name="$1"
+  if [[ -f "$TEMPLATE_DIR/$name/preset.conf" ]]; then printf '%s' "$TEMPLATE_DIR/$name"; return 0; fi
+  if [[ -f "$SCRIPT_DIR/../templates/$name/preset.conf" ]]; then printf '%s' "$SCRIPT_DIR/../templates/$name"; return 0; fi
+  return 1
+}
+preset_desc() {
+  local name="$1" dir=""
+  dir="$(preset_dir "$name" 2>/dev/null || true)"
+  if [[ -n "$dir" ]]; then
+    grep -E '^PRESET_DESC=' "$dir/preset.conf" 2>/dev/null | sed -e 's/^PRESET_DESC=//' -e 's/^"//' -e 's/"$//' | head -n1
+  fi
+}
+discover_presets() {
+  local root dir name seen=""
+  for root in "$TEMPLATE_DIR" "$SCRIPT_DIR/../templates"; do
+    [[ -d "$root" ]] || continue
+    for dir in "$root"/*/; do
+      [[ -d "$dir" ]] || continue
+      name="$(basename "$dir")"
+      [[ -f "$dir/preset.conf" ]] || continue
+      case " $seen " in *" $name "*) continue ;; esac
+      seen="$seen $name"; printf '%s\n' "$name"
+    done
+  done
+}
+is_discovered() { [[ -n "$(preset_dir "$1" 2>/dev/null || true)" ]]; }
+ordered_presets() {
+  local n
+  for n in $PRESET_ORDER; do
+    is_alias "$n" && continue
+    is_discovered "$n" && printf '%s\n' "$n"
+  done
+  for n in $(discover_presets); do
+    is_alias "$n" && continue
+    case " $PRESET_ORDER " in *" $n "*) ;; *) printf '%s\n' "$n" ;; esac
+  done
+}
+alias_target() { case "$1" in app) printf 'dev' ;; *) printf '%s' "$1" ;; esac; }
+is_alias() { case "$1" in app) return 0 ;; *) return 1 ;; esac; }
+is_known_preset() { is_discovered "$1" || is_alias "$1"; }
+print_preset_usage() {
+  local name
+  printf 'Presets (templates/<preset>/preset.conf):\n'
+  for name in $(ordered_presets); do
+    printf '  %-8s %s\n' "$name" "$(preset_desc "$name")"
+  done
+  printf '  %-8s %s\n' "app" "alias of 'dev' (deprecated; kept for backward compatibility)"
+}
+preset_usage_list() {
+  local list
+  list="$(ordered_presets | tr '\n' ' ' | sed -e 's/ *$//')"
+  if [[ -n "$list" ]]; then printf '%s' "$list"; else printf '(없음)'; fi
+}
+
 usage() {
   cat <<'EOF'
 Usage: herdr-team [prefix] [options]
@@ -50,8 +110,8 @@ Options:
   --cwd PATH        working directory (default: $PWD)
   --template-dir D  template directory (default: ~/templates/agent-team,
                     or HERDR_TEAM_TEMPLATE_DIR)
-  --preset NAME     team preset: dev | app | biz
-                    (or HERDR_TEAM_PRESET; default: dev / TUI menu)
+  --preset NAME     team preset (see Presets below; or HERDR_TEAM_PRESET;
+                    default: dev / TUI menu)
   --layout LAYOUT   team pane layout: 2col | right-stack
                     (or HERDR_TEAM_LAYOUT; default: 2col)
   --list-presets    print available presets and exit
@@ -67,10 +127,9 @@ Options:
   Legacy alias: herdr-team-setup (deprecated, fully compatible —
                 forwards every argument to herdr-team).
 
-Presets (templates/<preset>/preset.conf):
-  dev             Software Development (default, orchestrator/planner/worker/reviewer, TDD)
-  app             Solo App & Idea Discovery (orchestrator/planner/worker/reviewer, deploy/E2E focus)
-  biz             Small Business Operations (orchestrator/planner/researcher/reviewer, research focus)
+EOF
+  print_preset_usage
+  cat <<'EOF'
 
   With no preset: the TUI menu prompts when stdin allows a choice,
   otherwise preset=dev (--no-interactive, EOF input, or timeout).
@@ -113,7 +172,7 @@ while [[ $# -gt 0 ]]; do
     --layout) LAYOUT_ARG="${2:?--layout에 값이 필요합니다 (2col|right-stack)}"; shift 2 ;;
     --cwd) CWD="${2:?--cwd에 값이 필요합니다}"; shift 2 ;;
     --template-dir) TEMPLATE_DIR="${2:?--template-dir에 값이 필요합니다}"; shift 2 ;;
-    --preset) PRESET_ARG="${2:?--preset에 값이 필요합니다 (dev|app|biz)}"; shift 2 ;;
+    --preset) PRESET_ARG="${2:?--preset에 값이 필요합니다 (목록: --list-presets)}"; shift 2 ;;
     --list-presets) LIST_PRESETS=1; shift ;;
     --no-interactive) NO_INTERACTIVE=1; shift ;;
     --*) echo "error: 알 수 없는 옵션: $1 (도움말: --help)" >&2; exit 2 ;;
@@ -158,25 +217,11 @@ PREFIX="$(printf '%s' "$PREFIX" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' 
 if [[ -z "$PREFIX" ]]; then echo "error: 유효한 prefix를 결정할 수 없습니다." >&2; exit 2; fi
 
 # --- preset 해결 (TUI 인터랙티브 메뉴 + 프리셋 지원) ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-KNOWN_PRESETS="dev app biz"
-# preset 디렉토리 탐색: --template-dir/<preset> 우선, 없으면 스크립트 번들 templates/<preset>
-preset_dir() {
-  local name="$1"
-  if [[ -f "$TEMPLATE_DIR/$name/preset.conf" ]]; then printf '%s' "$TEMPLATE_DIR/$name"; return 0; fi
-  if [[ -f "$SCRIPT_DIR/../templates/$name/preset.conf" ]]; then printf '%s' "$SCRIPT_DIR/../templates/$name"; return 0; fi
-  return 1
-}
-preset_desc() {
-  local name="$1" dir=""
-  dir="$(preset_dir "$name" 2>/dev/null || true)"
-  if [[ -n "$dir" ]]; then
-    grep -E '^PRESET_DESC=' "$dir/preset.conf" 2>/dev/null | sed -e 's/^PRESET_DESC=//' -e 's/^"//' -e 's/"$//' | head -n1
-  fi
-}
+# 헬퍼(discover_presets/ordered_presets/alias_target/preset_dir/preset_desc)는
+# --help 시점에도 쓸 수 있도록 파일 상단에 정의되어 있다.
 list_presets() {
   local name
-  for name in $KNOWN_PRESETS; do
+  for name in $(ordered_presets); do
     local dir="" desc=""
     dir="$(preset_dir "$name" 2>/dev/null || true)"
     desc="$(preset_desc "$name")"
@@ -187,32 +232,49 @@ list_presets() {
     fi
   done
 }
-is_known_preset() {
-  local name="$1" p
-  for p in $KNOWN_PRESETS; do if [[ "$p" == "$name" ]]; then return 0; fi; done
-  return 1
-}
 choose_preset_tui() {
-  # Interactive TUI preset menu (English primary + Korean).
-  # Renders to stderr and reads one line from stdin.
-  # Falls back to preset=dev on EOF/timeout/non-TTY so it never hangs.
+  # Interactive TUI preset menu (English primary + Korean), dinamically built
+  # from discovered presets. Renders to stderr and reads one line from stdin.
+  # Falls back to the first ordered preset (dev) on EOF/timeout so it never hangs.
+  local names=() n i=1 joined=""
+  while IFS= read -r n; do [[ -n "$n" ]] && names+=("$n"); done < <(ordered_presets)
+  [[ ${#names[@]} -eq 0 ]] && names=(dev)
+  local default="${names[0]}"
   {
-    printf 'Select AI team preset (1-3 or name, default: dev):\n'
-    printf '  1) dev - Software Development (개발 4인 팀, 기본값)\n'
-    printf '  2) app - Solo App & Idea Discovery (1인 앱/아이템)\n'
-    printf '  3) biz - Small Business Operations (스몰 비즈니스)\n'
-    printf 'Select [1-3/dev/app/biz] (default: dev, 10s): '
+    printf 'Select AI team preset (1-%d or name, default: %s):\n' "${#names[@]}" "$default"
+    for n in "${names[@]}"; do
+      printf '  %d) %s - %s\n' "$i" "$n" "$(preset_desc "$n")"
+      joined+="$n/"; i=$((i+1))
+    done
+    joined="${joined%/}"
+    printf 'Select [1-%d/%s] (default: %s, 10s): ' "${#names[@]}" "$joined" "$default"
   } >&2
   local ans=""
-  if IFS= read -r -t 10 ans <&0 2>/dev/null; then    ans="$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  if IFS= read -r -t 10 ans <&0 2>/dev/null; then
+    ans="$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    if [[ -z "$ans" ]]; then printf '%s' "$default"; return; fi
     case "$ans" in
-      ""|1|dev) printf 'dev' ;;
-      2|app) printf 'app' ;;
-      3|biz) printf 'biz' ;;
-      *) echo "error: 알 수 없는 preset 선택: $ans (dev|app|biz 중 선택)" >&2; exit 2 ;;
+      *[!0-9]*)
+        if is_known_preset "$ans"; then
+          local canon; canon="$(alias_target "$ans")"
+          if [[ "$canon" != "$ans" ]]; then
+            echo "[herdr-team] 경고: preset '$ans'는 deprecated입니다. '$canon'로 대체합니다. (app은 dev에 통합되었습니다)" >&2
+          fi
+          printf '%s' "$canon"
+        else
+          echo "error: 알 수 없는 preset 선택: $ans (사용 가능: $(preset_usage_list))" >&2; exit 2
+        fi
+        ;;
+      *)
+        if [[ "$ans" -ge 1 && "$ans" -le "${#names[@]}" ]]; then
+          printf '%s' "${names[$((ans-1))]}"
+        else
+          echo "error: 알 수 없는 preset 선택: $ans (1-${#names[@]} 또는 이름)" >&2; exit 2
+        fi
+        ;;
     esac
   else
-    printf 'dev'
+    printf '%s' "$default"
   fi
 }
 
@@ -259,18 +321,29 @@ if [[ "$LIST_PRESETS" -eq 1 ]]; then list_presets; exit 0; fi
 if [[ -z "$PRESET_ARG" && -n "${HERDR_TEAM_PRESET:-}" ]]; then PRESET_ARG="$HERDR_TEAM_PRESET"; fi
 if [[ -n "$PRESET_ARG" ]]; then
   if ! is_known_preset "$PRESET_ARG"; then
-    echo "error: 알 수 없는 preset: $PRESET_ARG (사용 가능: dev, app, biz. 목록: --list-presets)" >&2; exit 2
+    echo "error: 알 수 없는 preset: $PRESET_ARG (사용 가능: $(preset_usage_list). 목록: --list-presets)" >&2; exit 2
   fi
-  if [[ -z "$(preset_dir "$PRESET_ARG" 2>/dev/null || true)" ]]; then
-    echo "error: preset '$PRESET_ARG'의 preset.conf를 찾을 수 없습니다 ($TEMPLATE_DIR/$PRESET_ARG 또는 번들 templates/$PRESET_ARG)." >&2; exit 2
+  PRESET="$(alias_target "$PRESET_ARG")"
+  if [[ "$PRESET" != "$PRESET_ARG" ]]; then
+    echo "[herdr-team] 경고: preset '$PRESET_ARG'는 deprecated입니다. '$PRESET'로 대체합니다. (app은 dev에 통합되었습니다)" >&2
   fi
-  PRESET="$PRESET_ARG"
 else
   if [[ "$NO_INTERACTIVE" -eq 1 ]]; then
     PRESET="dev"
   else
     PRESET="$(choose_preset_tui)"
   fi
+fi
+
+# preset.conf 존재 검증 (CLI/ENV/TUI 공통; discovery가 비어도 원시 grep 대신 명시 에러)
+if [[ -z "$(preset_dir "$PRESET" 2>/dev/null || true)" ]]; then
+  _found="$(preset_usage_list)"
+  if [[ "$_found" == "(없음)" ]]; then
+    echo "error: preset '$PRESET'의 preset.conf를 찾을 수 없습니다. templates/<preset>/preset.conf가 필요합니다 (탐색 경로: $TEMPLATE_DIR, $SCRIPT_DIR/../templates)." >&2
+  else
+    echo "error: preset '$PRESET'의 preset.conf를 찾을 수 없습니다 (발견된 preset: $_found; 탐색 경로: $TEMPLATE_DIR, $SCRIPT_DIR/../templates)." >&2
+  fi
+  exit 2
 fi
 
 # agent kind 해결: 명시적 --kind > HERDR_TEAM_KIND > TUI 메뉴 > opencode
@@ -290,7 +363,7 @@ fi
 
 # layout 해결: 명시적 --layout > HERDR_TEAM_LAYOUT > preset.conf LAYOUT > 2col
 if [[ -z "$LAYOUT_ARG" && -n "${HERDR_TEAM_LAYOUT:-}" ]]; then LAYOUT_ARG="$HERDR_TEAM_LAYOUT"; fi
-PRESET_LAYOUT="$(grep -E '^LAYOUT=' "$(preset_dir "$PRESET")/preset.conf" 2>/dev/null | sed -e 's/^LAYOUT=//' -e 's/^"//' -e 's/"$//' | head -n1 || true)"
+PRESET_LAYOUT="$(grep -E '^LAYOUT=' "$(preset_dir "$PRESET" 2>/dev/null)/preset.conf" 2>/dev/null | sed -e 's/^LAYOUT=//' -e 's/^"//' -e 's/"$//' | head -n1 || true)"
 LAYOUT="${LAYOUT_ARG:-${PRESET_LAYOUT:-2col}}"
 case "$LAYOUT" in
   2col|right-stack) ;;
@@ -298,8 +371,8 @@ case "$LAYOUT" in
 esac
 
 # --- 역할 일반화: preset.conf의 ROLES에서 에이전트명 도출 ---
-PRESET_ROLES="$(grep -E '^ROLES=' "$(preset_dir "$PRESET")/preset.conf" | sed -e 's/^ROLES=//' -e 's/^"//' -e 's/"$//' | head -n1)"
-if [[ -z "$PRESET_ROLES" ]]; then echo "error: preset '$PRESET'의 ROLES가 비어 있습니다." >&2; exit 2; fi
+PRESET_ROLES="$(grep -E '^ROLES=' "$(preset_dir "$PRESET" 2>/dev/null)/preset.conf" 2>/dev/null | sed -e 's/^ROLES=//' -e 's/^"//' -e 's/"$//' | head -n1)"
+if [[ -z "$PRESET_ROLES" ]]; then echo "error: preset '$PRESET'의 ROLES가 없거나 비어 있습니다 ($(preset_dir "$PRESET" 2>/dev/null || printf '%s' "$PRESET")/preset.conf 확인)." >&2; exit 2; fi
 # shellcheck disable=SC2206: 의도적 워드 스플릿
 ROLES=($PRESET_ROLES)
 NUMERALS=(② ③ ④ ⑤ ⑥)

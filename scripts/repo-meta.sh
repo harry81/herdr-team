@@ -10,7 +10,7 @@ set -euo pipefail
 
 REPO_SLUG="harry81/herdr-team"
 DRY_RUN=0
-DESC="Multi-agent orchestration for AI coding agents: one-command planner/worker/reviewer crew on the herdr terminal multiplexer. TDD, solo-app, small-biz presets."
+DESC="Multi-agent orchestration for AI coding agents: one-command planner/worker/reviewer crew on the herdr terminal multiplexer. dev/research/biz/mkt/creator presets."
 TOPICS=(
   ai-agents multi-agent orchestration agent-orchestration coding-agents ai-agent
   opencode claude-code codex

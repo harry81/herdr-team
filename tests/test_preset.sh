@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/test_preset.sh — preset(dev/app/biz) + TUI 메뉴 TDD 검증
+# tests/test_preset.sh — preset(dev/research/biz/mkt/creator) + TUI 메뉴 TDD 검증
 # 실행: bash tests/test_preset.sh  (repo root에서)
 set -uo pipefail
 
@@ -34,25 +34,31 @@ assert_contains "$HELP_OUT" "--layout" "help: --layout 문서화"
 assert_contains "$HELP_OUT" "--list-presets" "help: --list-presets 문서화"
 assert_contains "$HELP_OUT" "--no-interactive" "help: --no-interactive 문서화"
 
-echo "== 2) --list-presets: dev/app/biz 나열 =="
+echo "== 2) --list-presets: 5종 나열 (app 미노출) =="
 LIST_OUT="$("$BIN" --list-presets 2>&1)"; LIST_RC=$?
-assert_exit "$LIST_RC" 0 "--list-presets exit 0"
-assert_contains "$LIST_OUT" "dev" "--list-presets에 dev"
-assert_contains "$LIST_OUT" "app" "--list-presets에 app"
-assert_contains "$LIST_OUT" "biz" "--list-presets에 biz"
+assert_exit "$LIST_RC" 0 "list_presets_5종_나열: exit 0"
+for p in dev research biz mkt creator; do
+  assert_contains "$LIST_OUT" "$p" "list_presets_5종_나열: $p"
+done
+assert_not_contains "$LIST_OUT" "app" "list_presets_app_미노출"
+if [[ "$(printf '%s\n' "$LIST_OUT" | head -n1)" == dev* ]]; then ok "list_presets_순서_dev우선"; else bad "list_presets_순서_dev우선 (first: $(printf '%s\n' "$LIST_OUT" | head -n1))"; fi
 
-echo "== 3) templates/{dev,app,biz} 프리셋 템플릿 존재 =="
-for p in dev app biz; do
-  if [[ -f "$REPO/templates/$p/preset.conf" ]]; then ok "templates/$p/preset.conf 존재";
-  else bad "templates/$p/preset.conf 존재"; fi
-  if [[ -f "$REPO/templates/$p/AGENTS.md" ]]; then ok "templates/$p/AGENTS.md 존재";
-  else bad "templates/$p/AGENTS.md 존재"; fi
+echo "== 3) templates/{dev,research,biz,mkt,creator} 프리셋 템플릿 존재 =="
+for p in dev research biz mkt creator; do
+  if [[ -f "$REPO/templates/$p/preset.conf" ]]; then ok "templates_${p}_존재: preset.conf";
+  else bad "templates_${p}_존재: preset.conf"; fi
+  if [[ -f "$REPO/templates/$p/AGENTS.md" ]]; then ok "templates_${p}_존재: AGENTS.md";
+  else bad "templates_${p}_존재: AGENTS.md"; fi
 done
 # preset.conf 역할 정의 검증
 assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "planner" "dev preset roles에 planner"
 assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "worker" "dev preset roles에 worker"
 assert_contains "$(cat "$REPO/templates/dev/preset.conf" 2>/dev/null)" "orchestrator" "dev preset roles에 orchestrator"
 assert_contains "$(cat "$REPO/templates/biz/preset.conf" 2>/dev/null)" "researcher" "biz preset roles에 researcher (역할 일반화 증거)"
+assert_contains "$(cat "$REPO/templates/biz/preset.conf" 2>/dev/null)" "소상공인" "biz_desc_갱신"
+assert_contains "$(cat "$REPO/templates/research/preset.conf" 2>/dev/null)" "researcher" "research preset roles에 researcher"
+assert_contains "$(cat "$REPO/templates/mkt/preset.conf" 2>/dev/null)" "researcher" "mkt preset roles에 researcher"
+assert_contains "$(cat "$REPO/templates/creator/preset.conf" 2>/dev/null)" "worker" "creator preset roles에 worker"
 
 echo "== 4) --preset dev --dry-run (비대화형) =="
 DEV_OUT="$("$BIN" test --preset dev --dry-run --no-template --no-interactive 2>&1)"; DEV_RC=$?
@@ -63,12 +69,13 @@ assert_contains "$DEV_OUT" "test-planner" "dev dry-run에 test-planner"
 assert_contains "$DEV_OUT" "test-worker" "dev dry-run에 test-worker"
 assert_contains "$DEV_OUT" "test-reviewer" "dev dry-run에 test-reviewer"
 
-echo "== 5) --preset app --dry-run =="
+echo "== 5) app alias → dev (deprecation 경고) =="
 APP_OUT="$("$BIN" test --preset app --dry-run --no-template --no-interactive 2>&1)"; APP_RC=$?
-assert_exit "$APP_RC" 0 "app dry-run exit 0"
-assert_contains "$APP_OUT" "preset=app" "app dry-run에 preset=app 표시"
-assert_contains "$APP_OUT" "test-orchestrator" "app dry-run에 test-orchestrator"
-assert_contains "$APP_OUT" "test-planner" "app dry-run에 test-planner"
+assert_exit "$APP_RC" 0 "preset_app_alias_dev_실행: exit 0"
+assert_contains "$APP_OUT" "preset=dev" "preset_app_alias_dev_실행: preset=dev"
+assert_contains "$APP_OUT" "deprecated" "preset_app_deprecation_경고"
+assert_contains "$APP_OUT" "test-worker" "preset_app_alias_dev_실행: dev worker 역할"
+if [[ ! -e "$REPO/templates/app" ]]; then ok "templates_app_삭제됨"; else bad "templates_app_삭제됨 (잔존)"; fi
 
 echo "== 6) --preset biz --dry-run (역할 일반화: researcher) =="
 BIZ_OUT="$("$BIN" test --preset biz --dry-run --no-template --no-interactive 2>&1)"; BIZ_RC=$?
@@ -83,17 +90,29 @@ echo "== 7) 잘못된 preset은 실패 =="
 if [[ "$BAD_RC" -ne 0 ]]; then ok "invalid preset exit != 0"; else bad "invalid preset exit != 0 (rc=0)"; fi
 BAD_OUT="$("$BIN" test --preset bogus --dry-run --no-template --no-interactive 2>&1 || true)"
 assert_contains "$BAD_OUT" "bogus" "invalid preset 에러에 입력값 표시"
+for p in dev research biz mkt creator; do
+  assert_contains "$BAD_OUT" "$p" "invalid preset 에러에 5종($p) 표시"
+done
 
 echo "== 8) --no-interactive 무프리셋은 기본값(dev)으로 비대화형 진행 =="
 DEF_OUT="$(printf '' | timeout 15 "$BIN" test --dry-run --no-template --no-interactive 2>&1)"; DEF_RC=$?
 assert_exit "$DEF_RC" 0 "--no-interactive 기본 dry-run exit 0"
 assert_contains "$DEF_OUT" "preset=dev" "--no-interactive 기본 preset=dev"
 
-echo "== 9) TUI 메뉴: stdin 선택으로 preset 결정 (비TTY 파이프) =="
-# 메뉴에서 2번(app) 선택 시뮬레이션. TUI가 stdin을 읽어야 함.
+echo "== 9) TUI 동적 메뉴 (숫자/이름/EOF/alias) =="
+# 메뉴에서 2번(research) 선택 시뮬레이션. TUI가 stdin을 읽어야 함.
 TUI_OUT="$(printf '2\n' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"; TUI_RC=$?
 assert_exit "$TUI_RC" 0 "TUI 선택 dry-run exit 0"
-assert_contains "$TUI_OUT" "preset=app" "TUI에서 2번 선택 → preset=app"
+assert_contains "$TUI_OUT" "preset=research" "TUI에서 2번 선택 → preset=research"
+TUI5_OUT="$(printf '5\n' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$TUI5_OUT" "preset=creator" "tui_5선택_creator"
+TUI_NAME_OUT="$(printf 'mkt\n' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$TUI_NAME_OUT" "preset=mkt" "tui_이름_mkt"
+TUI_EOF_OUT="$(printf '' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$TUI_EOF_OUT" "preset=dev" "tui_EOF_dev기본"
+TUI_APP_OUT="$(printf 'app\n3\n' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$TUI_APP_OUT" "preset=dev" "tui_app입력_dev경고: preset=dev"
+assert_contains "$TUI_APP_OUT" "deprecated" "tui_app입력_dev경고: 경고 출력"
 
 echo "== 10) 하위호환: 기존 옵션 조합 그대로 동작 =="
 LEGACY_OUT="$(timeout 15 "$BIN" sd --dry-run --no-interactive 2>&1)"; LEGACY_RC=$?
@@ -104,9 +123,11 @@ echo "== 11) English-primary: help/TUI/LICENSE =="
 assert_contains "$HELP_OUT" "Usage:" "help: English Usage header"
 assert_contains "$HELP_OUT" "Presets" "help: English Presets section"
 assert_contains "$HELP_OUT" "Software Development" "help: dev English label"
-assert_contains "$HELP_OUT" "Solo App" "help: app English label"
+assert_contains "$HELP_OUT" "Deep Research" "help: research English label"
 assert_contains "$HELP_OUT" "Small Business" "help: biz English label"
-assert_contains "$TUI_OUT" "Select [1-3/dev/app/biz]" "TUI: English-primary prompt"
+assert_contains "$HELP_OUT" "Local & SNS" "help: mkt English label"
+assert_contains "$HELP_OUT" "Content Creation" "help: creator English label"
+assert_contains "$TUI_OUT" "Select [1-5/dev/research/biz/mkt/creator]" "TUI: 동적 English-primary prompt"
 assert_contains "$TUI_OUT" "Software Development" "TUI: dev English label"
 if [[ -f "$REPO/LICENSE" ]]; then ok "LICENSE 존재"; else bad "LICENSE 존재"; fi
 assert_contains "$(cat "$REPO/LICENSE" 2>/dev/null)" "MIT License" "LICENSE: MIT"
@@ -159,9 +180,10 @@ assert_contains "$TUI_KIND_OUT" "preset=dev" "TUI 2단계: dev 선택"
 assert_contains "$TUI_KIND_OUT" "kind=claude" "TUI 2단계: claude 선택"
 assert_contains "$TUI_KIND_OUT" "Select agent kind" "TUI: kind 프롬프트 출력"
 
-# TUI 2단계: preset(app) + kind(3=codex) 파이프 시뮬레이션
+# TUI 2단계: preset(app→dev alias) + kind(3=codex) 파이프 시뮬레이션
 TUI_KIND_OUT2="$(printf 'app\n3\n' | timeout 15 "$BIN" test --dry-run --no-template 2>&1)"
-assert_contains "$TUI_KIND_OUT2" "preset=app" "TUI 2단계: app 선택"
+assert_contains "$TUI_KIND_OUT2" "preset=dev" "TUI 2단계: app→dev(alias) 선택"
+assert_contains "$TUI_KIND_OUT2" "deprecated" "TUI 2단계: alias deprecation 경고"
 assert_contains "$TUI_KIND_OUT2" "kind=codex" "TUI 2단계: codex 선택"
 
 # 잘못된 kind 거부
@@ -190,6 +212,12 @@ done
 # biz: researcher는 --agent, worker는 없음 (역할 일반화 + kind 게이팅)
 assert_contains "$BIZ_OUT" "-- --agent test-researcher" "biz: herdr agent start -- agent test-researcher"
 assert_not_contains "$BIZ_OUT" "-- --agent test-worker" "biz: --agent test-worker 없음"
+# creator: worker는 --agent, researcher는 없음 (창작 프리셋)
+CREATOR_OUT="$("$BIN" test --preset creator --dry-run --no-template --no-interactive 2>&1)"; CREATOR_RC=$?
+assert_exit "$CREATOR_RC" 0 "creator dry-run exit 0"
+assert_contains "$CREATOR_OUT" "preset=creator" "dryrun_creator_worker: preset=creator"
+assert_contains "$CREATOR_OUT" "-- --agent test-worker" "dryrun_creator_worker: --agent test-worker"
+assert_not_contains "$CREATOR_OUT" "-- --agent test-researcher" "dryrun_creator_researcher없음"
 # codex(미지원 kind): --agent 미사용
 assert_not_contains "$KIND_ENV_OUT" "--agent" "codex: --agent 미사용(kind 게이팅)"
 
@@ -203,7 +231,7 @@ GEN_DRY="$("$BIN" test --preset dev --dry-run --no-interactive --no-start 2>&1)"
 assert_contains "$GEN_DRY" ".opencode/agents/test-orchestrator.md" "dry-run: .opencode/agents 설치 계획"
 # 실제 생성 (herdr stub + 임시 CWD, jq 필요)
 if command -v jq >/dev/null 2>&1; then
-  STUB="$(mktemp -d)"; TMPCWD="$(mktemp -d)"; TMPCWD2="$(mktemp -d)"
+  STUB="$(mktemp -d)"; TMPCWD="$(mktemp -d)"; TMPCWD2="$(mktemp -d)"; TMPCWD3="$(mktemp -d)"
   cat > "$STUB/herdr" <<'STUBEOF'
 #!/usr/bin/env bash
 printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
@@ -218,7 +246,7 @@ STUBEOF
     TM="$(cat "$TMPCWD/.opencode/agents/testteam-orchestrator.md")"
     assert_contains "$TM" "mode: primary" "agent frontmatter: mode primary"
     assert_contains "$TM" "testteam-planner" "agent 본문: {{PREFIX}} 치환됨"
-    assert_not_contains "$TM" "{{PREFIX}}" "agent 본문: 미치환 placeholder 없음"
+    assert_not_contains "$TM" "{{PREFIX}}" "opencode_agent_placeholder_없음"
   fi
   # biz: researcher agent 생성, worker agent 미생성
   PATH="$STUB:$PATH" "$BIN" testbiz --preset biz --cwd "$TMPCWD2" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1
@@ -226,7 +254,16 @@ STUBEOF
   else bad "biz: researcher agent 생성"; fi
   if [[ ! -f "$TMPCWD2/.opencode/agents/testbiz-worker.md" ]]; then ok "biz: worker agent 미생성";
   else bad "biz: worker agent 미생성"; fi
-  rm -rf "$STUB" "$TMPCWD" "$TMPCWD2"
+  # creator: worker agent 생성, researcher agent 미생성 (프리셋별 임시 CWD 격리)
+  PATH="$STUB:$PATH" "$BIN" testcreator --preset creator --cwd "$TMPCWD3" --template-dir "$REPO/templates" --no-interactive --no-start >/dev/null 2>&1
+  if [[ -f "$TMPCWD3/.opencode/agents/testcreator-worker.md" ]]; then ok "creator: worker agent 생성";
+  else bad "creator: worker agent 생성"; fi
+  if [[ -f "$TMPCWD3/.opencode/agents/testcreator-orchestrator.md" ]]; then
+    assert_not_contains "$(cat "$TMPCWD3/.opencode/agents/testcreator-worker.md")" "{{PREFIX}}" "creator worker agent: placeholder 없음"
+  fi
+  if [[ ! -f "$TMPCWD3/.opencode/agents/testcreator-researcher.md" ]]; then ok "creator: researcher agent 미생성";
+  else bad "creator: researcher agent 미생성"; fi
+  rm -rf "$STUB" "$TMPCWD" "$TMPCWD2" "$TMPCWD3"
 else
   echo "SKIP: jq 없음 → opencode agent 생성 기능 테스트 생략"
 fi
@@ -247,6 +284,77 @@ assert_contains "$ENV_RS_OUT" "layout=right-stack" "ENV: HERDR_TEAM_LAYOUT=right
 # 잘못된 layout 에러
 BAD_LAYOUT_OUT="$("$BIN" test --layout invalid_layout --dry-run --no-template --no-interactive 2>&1 || true)"
 assert_contains "$BAD_LAYOUT_OUT" "invalid_layout" "invalid layout 에러 출력"
+
+echo "== 19b) T7 문서 일반화 (dev UX/Wireframe, role 비코드/유형별 검증) =="
+DEV_AG="$(cat "$REPO/templates/dev/AGENTS.md" 2>/dev/null)"
+assert_contains "$DEV_AG" "UX" "dev_agents_ux_wireframe: UX"
+assert_contains "$DEV_AG" "Wireframe" "dev_agents_ux_wireframe: Wireframe"
+assert_contains "$DEV_AG" "배포" "dev_agents_ux_wireframe: 배포/E2E"
+assert_contains "$(cat "$REPO/templates/agents/ROLE-worker.md" 2>/dev/null)" "비코드" "role_worker_비코드모드"
+assert_contains "$(cat "$REPO/templates/opencode-agents/ROLE-worker.md" 2>/dev/null)" "문서" "opencode ROLE-worker 일반화"
+assert_contains "$(cat "$REPO/templates/agents/ROLE-reviewer.md" 2>/dev/null)" "팩트" "role_reviewer_유형별검증: 팩트체크"
+assert_contains "$(cat "$REPO/templates/agents/ROLE-reviewer.md" 2>/dev/null)" "출처" "role_reviewer_유형별검증: 출처"
+assert_contains "$(cat "$REPO/templates/opencode-agents/ROLE-reviewer.md" 2>/dev/null)" "edit: deny" "role_reviewer_edit_deny_유지"
+
+echo "== 19c) README 2종 프리셋 표 5종 + TUI 1-5 =="
+README_EN="$(cat "$REPO/README.md" 2>/dev/null)"
+README_KO="$(cat "$REPO/README.ko.md" 2>/dev/null)"
+for p in dev research biz mkt creator; do
+  assert_contains "$README_EN" "| \`$p\`" "readme_preset표_5종: $p"
+  assert_contains "$README_KO" "| \`$p\`" "readme_ko_preset표_5종: $p"
+done
+assert_contains "$README_EN" "Select [1-5" "readme_tui_1-5"
+assert_not_contains "$README_EN" "| \`app\`" "readme_preset표_app_미노출"
+assert_contains "$README_EN" "app" "README: app→dev alias 문구"
+
+echo "== 20) 동적 열거: 커스텀 --template-dir preset 자동 발견 =="
+TMPT="$(mktemp -d)"
+mkdir -p "$TMPT/zzz"
+cat > "$TMPT/zzz/preset.conf" <<'EOF'
+PRESET_DESC="Zzz Custom (커스텀 프리셋)"
+ROLES="orchestrator planner worker reviewer"
+LAYOUT="2col"
+EOF
+LIST_CUSTOM="$("$BIN" --template-dir "$TMPT" --list-presets 2>&1)"
+assert_contains "$LIST_CUSTOM" "zzz" "list_presets_커스텀preset_자동발견"
+ZZZ_OUT="$("$BIN" test --template-dir "$TMPT" --preset zzz --dry-run --no-template --no-interactive 2>&1)"; ZZZ_RC=$?
+assert_exit "$ZZZ_RC" 0 "커스텀 preset dry-run exit 0"
+assert_contains "$ZZZ_OUT" "preset=zzz" "커스텀 preset dry-run 실행"
+rm -rf "$TMPT"
+
+echo "== 21) --help에 5종 preset 이름 모두 노출 =="
+for p in dev research biz mkt creator; do
+  assert_contains "$HELP_OUT" "$p" "help preset 노출: $p"
+done
+
+echo "== 22) 빈 discovery(dev 부재) → 명시 에러, 원시 grep 노출 없음 (엣지 #4) =="
+SIM_BIN="$(mktemp -d)"; SIM_CUSTOM="$(mktemp -d)"
+mkdir -p "$SIM_BIN/bin" "$SIM_CUSTOM/zzz"
+cp "$BIN" "$SIM_BIN/bin/herdr-team"; chmod +x "$SIM_BIN/bin/herdr-team"
+printf 'PRESET_DESC="Zzz Custom"\nROLES="orchestrator planner worker reviewer"\nLAYOUT="2col"\n' > "$SIM_CUSTOM/zzz/preset.conf"
+EMPTY_OUT="$(HERDR_TEAM_TEMPLATE_DIR="$SIM_CUSTOM" "$SIM_BIN/bin/herdr-team" zz --dry-run --no-interactive 2>&1)"; EMPTY_RC=$?
+assert_exit "$EMPTY_RC" 2 "empty_discovery_dev부재: exit 2"
+assert_contains "$EMPTY_OUT" "dev" "empty_discovery_dev부재: preset 이름 안내"
+assert_contains "$EMPTY_OUT" "preset.conf" "empty_discovery_dev부재: preset.conf 안내"
+assert_not_contains "$EMPTY_OUT" "No such file or directory" "empty_discovery_dev부재: 원시 grep 에러 없음"
+# 완전 빈 discovery(커스텀 preset도 없음) → 깨진 "사용 가능: ." 없이 안내
+SIM_EMPTY="$(mktemp -d)"
+EMPTY2_OUT="$(HERDR_TEAM_TEMPLATE_DIR="$SIM_EMPTY" "$SIM_BIN/bin/herdr-team" zz --dry-run --no-interactive 2>&1)"; EMPTY2_RC=$?
+assert_exit "$EMPTY2_RC" 2 "empty_discovery_완전빈: exit 2"
+assert_contains "$EMPTY2_OUT" "preset.conf" "empty_discovery_완전빈: 안내 문구"
+assert_not_contains "$EMPTY2_OUT" "사용 가능: ." "empty_discovery_완전빈: 깨진 문구 없음"
+rm -rf "$SIM_BIN" "$SIM_CUSTOM" "$SIM_EMPTY"
+
+echo "== 23) alias shadow: 커스텀 app/ 있어도 alias 우선 (엣지 #3) =="
+SHADOW="$(mktemp -d)"; mkdir -p "$SHADOW/app"
+printf 'PRESET_DESC="Custom App"\nROLES="orchestrator planner worker reviewer"\nLAYOUT="2col"\n' > "$SHADOW/app/preset.conf"
+SHADOW_LIST="$("$BIN" --template-dir "$SHADOW" --list-presets 2>&1)"
+assert_not_contains "$SHADOW_LIST" "app" "alias_shadow: 커스텀 app 미노출"
+SHADOW_OUT="$("$BIN" test --template-dir "$SHADOW" --preset app --dry-run --no-template --no-interactive 2>&1)"; SHADOW_RC=$?
+assert_exit "$SHADOW_RC" 0 "alias_shadow: app exit 0"
+assert_contains "$SHADOW_OUT" "preset=dev" "alias_shadow: app→dev 해소"
+assert_contains "$SHADOW_OUT" "deprecated" "alias_shadow: deprecation 경고"
+rm -rf "$SHADOW"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

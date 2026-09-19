@@ -4,6 +4,8 @@
 (`herdr-team {{PREFIX}} --preset dev` 실행 시 `{{PREFIX}}`에 실제 프로젝트 prefix가 치환됩니다.)
 
 > 전제: PM(`agy`)은 사용자 소통·상위 목표 수립만 담당하고, 파이프라인 오케스트레이션은 `{{PREFIX}}-orchestrator`가 전담합니다. 아래 가드레일(`§1.1`)을 먼저 읽으세요.
+> dev 프리셋은 기능 출시·MVP 개발팀용 TDD 품질 게이트 체제입니다:
+> planner는 필요 시 **UX/Wireframe 명세**를 포함하고, reviewer는 빌드·테스트 직접 실행에 더해 **배포/E2E 검증**까지 담당합니다.
 
 ---
 
@@ -21,13 +23,13 @@
    ▼
 [ Orchestrator ({{PREFIX}}-orchestrator) ] ── 파이프라인 실시간 중계 & 드라이브 (코드 수정 금지)
    │
-   ├─ 1) 명세 작성 지시 ──► [ {{PREFIX}}-planner ] 기획/설계 명세 + Task Breakdown
+   ├─ 1) 명세 작성 지시 ──► [ {{PREFIX}}-planner ] 기획/설계 명세 + Task Breakdown (필요 시 UX/Wireframe 명세 포함)
    │        │                    │
    │        ▼ 명세 수령        완료 즉시 다음 연결
    ├─ 2) TDD 구현 지시 ────► [ {{PREFIX}}-worker ] TDD 구현 + 단위 테스트 PASS
    │        │                    │
    │        ▼ 변경사항 전달    완료 즉시 다음 연결
-   └─ 3) 검증/리뷰 지시 ───► [ {{PREFIX}}-reviewer ] ── [APPROVE + 실행 로그] ──► Orchestrator → PM 보고
+   └─ 3) 검증/리뷰 지시 ───► [ {{PREFIX}}-reviewer ] 빌드·테스트 직접 실행 + 배포/E2E 검증 ── [APPROVE + 실행 로그] ──► Orchestrator → PM 보고
                                 │
                                 └── [REQUEST CHANGES + 재현/로그] ──► {{PREFIX}}-worker로 즉시 반송 (Orchestrator 중재)
 ```

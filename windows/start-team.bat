@@ -2,9 +2,9 @@
 rem ============================================================
 rem  herdr-team Windows one-click launcher (for everyone)
 rem  Windows 원클릭 런처 (일반 사용자용)
-rem  Usage / 사용법: double-click (더블클릭), or start-team.bat [prefix] [--preset dev|app|biz] [options]
+rem  Usage / 사용법: double-click (더블클릭), or start-team.bat [prefix] [--preset dev|research|biz|mkt|creator] [options]
 rem  Env vars / 환경변수: HERDR_TEAM_REPO (repo path override / 저장소 경로 재지정),
-rem             HERDR_TEAM_PRESET (dev|app|biz, skip menu / 메뉴 생략),
+rem             HERDR_TEAM_PRESET (dev|research|biz|mkt|creator, skip menu / 메뉴 생략),
 rem             HERDR_TEAM_DRYRUN=1 (simulate: print command only / 실행 명령만 출력),
 rem             HERDR_TEAM_NOPAUSE=1 (skip final pause / 끝에 pause 생략)
 rem ============================================================
@@ -55,12 +55,16 @@ set "PRESET_ARG="
 if "%~1"=="" (
   if not defined HERDR_TEAM_PRESET (
     echo Select AI team preset / AI 팀 프리셋 선택:
-    echo   1^) dev - Software Development (개발 4인 팀, 기본값)
-    echo   2^) app - Solo App ^& Idea Discovery (1인 앱/아이템)
-    echo   3^) biz - Small Business Operations (스몰 비즈니스)
-    choice /c 123 /t 10 /d 1 /n /m "Select [1-3] (default 1 after 10s / 10초 후 기본값 1): "
+    echo   1^) dev     - Software Development (소프트웨어 개발·MVP, 기본값)
+    echo   2^) research - Deep Research ^& Knowledge Discovery (심층 조사·지식 탐색)
+    echo   3^) biz     - Small Business Operations (소상공인 사업 운영)
+    echo   4^) mkt     - Local ^& SNS Marketing (로컬·SNS 마케팅)
+    echo   5^) creator - Content Creation ^& Publishing (콘텐츠 창작·출판)
+    choice /c 12345 /t 10 /d 1 /n /m "Select [1-5] (default 1 after 10s / 10초 후 기본값 1): "
+    if errorlevel 5 set "PRESET_ARG=--preset creator"
+    if errorlevel 4 set "PRESET_ARG=--preset mkt"
     if errorlevel 3 set "PRESET_ARG=--preset biz"
-    if errorlevel 2 set "PRESET_ARG=--preset app"
+    if errorlevel 2 set "PRESET_ARG=--preset research"
     if "%PRESET_ARG%"=="" set "PRESET_ARG=--preset dev"
   ) else (
     set "PRESET_ARG=--preset %HERDR_TEAM_PRESET%"

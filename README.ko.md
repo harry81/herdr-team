@@ -39,12 +39,17 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 
 ## 왜 herdr-team인가요?
 
-- **dev — 소프트웨어 개발 TDD:** 코드를 출시하는 개발팀을 위한 — 모든 기능이 planner 설계 →
-  worker TDD 구현 → reviewer 실행 로그 첨부 검증으로 이어지는 품질 게이트.
-- **app — 1인 앱 개발 & 아이템 발굴:** 혼자 만드는 사람을 위한 — 주말 아이디어를 만들 수 있는
-  작업으로 나눠 코드와 배포·E2E 점검까지, 컨텍스트 스위칭 없이 완성.
-- **biz — 스몰 비즈니스 운용:** 코딩 없는 운영자를 위한 — 출처가 붙은 업체·가격·옵션 비교를
-  조사 중심 팀이 뽑아주므로 직원을 뽑지 않고 결정만 하면 됩니다.
+- **dev — 소프트웨어 개발 TDD:** 코드를 출시하는 개발팀을 위한 — 모든 기능이 planner 설계
+  (필요 시 UX/와이어프레임 포함) → worker TDD 구현 → reviewer 실행 로그 첨부 검증(+배포/E2E)으로
+  이어지는 품질 게이트.
+- **research — 심층 조사·지식 탐색:** 근거 기반으로 조사해야 하는 사용자를 위한 — 질문을 평가축·가설로
+  나누고, 출처가 붙은 비교표와 검증된 종합 리포트를 만듭니다.
+- **biz — 소상공인 사업 운영:** 코딩 없는 운영자를 위한 — 정부지원사업·정책·사례를 출처와 함께 비교하고
+  (행정·CS 매뉴얼·운영 자동화), 직원을 뽑지 않고 결정만 하면 됩니다.
+- **mkt — 로컬·SNS 마케팅:** 자영업/1인 마케터를 위한 — 키워드·상권·경쟁 분석과 캠페인 캘린더,
+  광고 규정을 지킨 카피·포스팅을 만듭니다.
+- **creator — 콘텐츠 창작·출판:** 창작자를 위한 — 목차 → 초안 → 교정 파이프라인(전자책/블로그/뉴스레터)으로,
+  worker가 집필하고 reviewer가 팩트체크합니다.
 
 ## 30초 빠른 시작
 
@@ -67,7 +72,7 @@ hts --help
 cd <target-project>
 hts                    # prefix 자동 결정, TUI 프리셋 메뉴, 분할+시작
 htw &                  # (권장) 백그라운드 Watcher 실행: 셸 권한 팝업 자동 승인 및 멈춤 방지
-hts myproj --preset app
+hts myproj --preset research
 hts sd --dry-run       # 실행 없이 계획만 출력
 ```
 
@@ -75,9 +80,13 @@ hts sd --dry-run       # 실행 없이 계획만 출력
 
 | 프리셋 | 누구를 위한 것인가 | 팀 구성 | 초점 |
 |--------|--------------------|---------|------|
-| `dev` (기본) | 코드를 출시하는 개발팀 | orchestrator, planner, worker, reviewer | 소프트웨어 개발, TDD 품질 게이트 |
-| `app` | 아이디어를 검증하는 1인 개발자 | orchestrator, planner, worker, reviewer | 1인 앱/아이템 발굴, 배포·E2E 강조 |
-| `biz` | 코딩 없는 소규모 운영자 | orchestrator, planner, researcher, reviewer | 출처 붙은 조사 중심 의사결정 (worker 없음) |
+| `dev` (기본) | 코드를 출시하는 개발팀 | orchestrator, planner, worker, reviewer | 소프트웨어 개발, TDD 품질 게이트 (+ UX/와이어프레임, 배포/E2E) |
+| `research` | 근거 기반 조사가 필요한 사용자 | orchestrator, planner, researcher, reviewer | 심층 조사·지식 탐색, 출처 비교표 + 검증 리포트 |
+| `biz` | 코딩 없는 소규모 운영자 | orchestrator, planner, researcher, reviewer | 소상공인 사업 운영: 지원사업·CS 매뉴얼·운영 자동화 (worker 없음) |
+| `mkt` | 자영업/1인 마케터 | orchestrator, planner, researcher, reviewer | 로컬·SNS 마케팅, 키워드·경쟁 분석, 규정 준수 카피 |
+| `creator` | 창작자·출판 | orchestrator, planner, worker, reviewer | 콘텐츠 창작·출판, 목차 → 초안 → 교정 |
+
+> `app`은 `dev`에 흡수되었습니다. `--preset app`은 계속 동작하지만 deprecated alias(경고)입니다.
 
 <details>
 <summary><b>고급 — 전체 참고 자료 (저장소 구조, 동작 순서, TUI, 프리셋, Windows, CLI 옵션, 요구사항, 팀 모델, 테스트)</b></summary>
@@ -109,7 +118,7 @@ herdr-team/
 │   │   ├── ROLE-planner.md     # {{PREFIX}}-planner 역할 템플릿
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker 역할 템플릿
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer 역할 템플릿
-│   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher 역할 템플릿 (biz 프리셋)
+│   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher 역할 템플릿 (research/biz/mkt 프리셋)
 │   ├── opencode-agents/        # opencode primary agent 정의 (--agent <prefix>-<role>, 권한 강제)
 │   │   ├── ROLE-orchestrator.md
 │   │   ├── ROLE-planner.md
@@ -117,8 +126,10 @@ herdr-team/
 │   │   ├── ROLE-reviewer.md
 │   │   └── ROLE-researcher.md
 │   ├── dev/                    # 프리셋: 개발 4인 팀
-│   ├── app/                    # 프리셋: 1인 앱/아이템 발굴
-│   └── biz/                    # 프리셋: 스몰 비즈니스 운영
+│   ├── research/               # 프리셋: 심층 조사·지식 탐색
+│   ├── biz/                    # 프리셋: 소상공인 사업 운영
+│   ├── mkt/                    # 프리셋: 로컬·SNS 마케팅
+│   └── creator/                # 프리셋: 콘텐츠 창작·출판
 ├── tests/
 │   ├── test_preset.sh          # 프리셋 + TUI 테스트 (정본 + 레거시 래퍼)
 │   ├── test_install.sh         # 설치 + 배포 zip 테스트
@@ -133,7 +144,7 @@ herdr-team/
 
 1. **prefix 결정** — `$1` 우선, 없으면 git root 디렉토리명(없으면 폴더명)에서 자동 추출.
    `try2`→`try2`, `my-project`→`mp`, `scandimension`→`sc` 형태의 2~4글자 축약 또는 폴더명 그대로.
-2. **프리셋 결정** — `--preset dev|app|biz`, 환경변수 `HERDR_TEAM_PRESET`, 또는 TUI 메뉴 (기본값: `dev`).
+2. **프리셋 결정** — `--preset dev|research|biz|mkt|creator`, 환경변수 `HERDR_TEAM_PRESET`, 또는 TUI 메뉴 (기본값: `dev`). `app`은 `dev`의 deprecated alias입니다.
 3. **템플릿 준비** — `AGENTS.md`·`agents/<prefix>-*.md`가 없으면 `~/templates/agent-team`에서 복사
    (파일 내 `{{PREFIX}}` 치환). 이미 있으면 생략(멱등).
    opencode 역할 agent도 `.opencode/agents/<prefix>-*.md`로 설치(파일별 멱등).
@@ -166,11 +177,13 @@ herdr-team/
 `--preset` 지정이 없으면(환경변수·`--no-interactive`도 없을 때) 프리셋 메뉴가 표시됩니다. 영어 기본 + 한국어 병기:
 
 ```
-Select AI team preset (1-3 or name, default: dev):
-  1) dev - Software Development (개발 4인 팀, 기본값)
-  2) app - Solo App & Idea Discovery (1인 앱/아이템)
-  3) biz - Small Business Operations (스몰 비즈니스)
-Select [1-3/dev/app/biz] (default: dev, 10s):
+Select AI team preset (1-5 or name, default: dev):
+  1) dev - Software Development (소프트웨어 개발·MVP, 4인 팀, orchestrator/planner/worker/reviewer)
+  2) research - Deep Research & Knowledge Discovery (...)
+  3) biz - Small Business Operations (소상공인 사업 운영, ...)
+  4) mkt - Local & SNS Marketing (로컬·SNS 마케팅, ...)
+  5) creator - Content Creation & Publishing (콘텐츠 창작·출판, ...)
+Select [1-5/dev/research/biz/mkt/creator] (default: dev, 10s):
 ```
 
 참고:
@@ -179,17 +192,21 @@ Select [1-3/dev/app/biz] (default: dev, 10s):
 - `--no-interactive`는 묻지 않고 `dev`로 진행.
 - `--list-presets`는 프리셋 목록 출력 후 종료.
 
-### 프리셋 (dev, app, biz)
+### 프리셋 (dev, research, biz, mkt, creator)
 
 | 프리셋 | 역할 | 용도 |
 |--------|------|------|
-| `dev` (기본) | orchestrator, planner, worker, reviewer | 개발 4인 팀, TDD 개발용 |
-| `app` | orchestrator, planner, worker, reviewer | 1인 앱/아이템 발굴, 배포·E2E 강조 |
-| `biz` | orchestrator, planner, researcher, reviewer | 스몰 비즈니스 운영, 조사 중심 (worker 없음) |
+| `dev` (기본) | orchestrator, planner, worker, reviewer | 개발 4인 팀, TDD (+ UX/와이어프레임, 배포/E2E) |
+| `research` | orchestrator, planner, researcher, reviewer | 심층 조사·지식 탐색, 출처 비교표 + 검증 리포트 |
+| `biz` | orchestrator, planner, researcher, reviewer | 소상공인 사업 운영: 지원사업·CS·운영 자동화 (worker 없음) |
+| `mkt` | orchestrator, planner, researcher, reviewer | 로컬·SNS 마케팅, 키워드·경쟁 분석, 규정 준수 카피 (worker on-demand) |
+| `creator` | orchestrator, planner, worker, reviewer | 콘텐츠 창작·출판, 목차 → 초안 → 교정 (researcher on-demand) |
 
 각 프리셋은 `templates/<preset>/` (`preset.conf` + `AGENTS.md`)에 정의됩니다.
 역할은 일반화되어 있어 프리셋의 `ROLES`에서 에이전트명(`<prefix>-<role>`)을 도출하므로,
 새 프리셋 추가는 디렉토리 추가만으로 가능합니다 (새 역할이면 `ROLE-<role>.md`도 함께).
+프리셋은 `--template-dir`와 번들 `templates/`에서 동적으로 발견되므로, 사용자 `<name>/preset.conf`를
+추가하면 `--list-presets`와 TUI에 자동 노출됩니다. `app`은 `dev`의 deprecated alias로 예약되어 있습니다.
 
 ### Windows 원클릭 상세
 
@@ -216,7 +233,7 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 | `--layout LAYOUT` | 팀 pane 레이아웃: `2col` (기본값, PM 하단에 TM) \| `right-stack` (또는 `HERDR_TEAM_LAYOUT`) |
 | `--cwd PATH` | 작업 디렉토리 (기본값: `$PWD`) |
 | `--template-dir D` | 템플릿 디렉토리 (기본값: `~/templates/agent-team`, 또는 `HERDR_TEAM_TEMPLATE_DIR`) |
-| `--preset NAME` | 팀 프리셋: `dev` \| `app` \| `biz` (또는 `HERDR_TEAM_PRESET`, 기본값: `dev` / TUI) |
+| `--preset NAME` | 팀 프리셋: `dev` \| `research` \| `biz` \| `mkt` \| `creator` (`app` = `dev`의 deprecated alias, 또는 `HERDR_TEAM_PRESET`, 기본값: `dev` / TUI) |
 | `--list-presets` | 프리셋 목록 출력 후 종료 |
 | `--no-interactive` | 묻지 않고 기본값으로 진행 (`preset=dev`, `kind=opencode`) |
 | `--no-template` | 템플릿 복사/생성 생략 |

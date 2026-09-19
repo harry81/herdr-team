@@ -39,11 +39,17 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 ## Why herdr-team?
 
 - **dev — Software Development (TDD):** for development teams that want every feature
-  planner-designed, TDD-built, and reviewer-gate-checked with attached execution logs.
-- **app — Solo App & Idea Discovery:** for solo builders — turn a weekend idea into
-  buildable tasks, shipped code, and deploy/E2E checks without juggling context.
+  planner-designed (UX/Wireframe when needed), TDD-built, and reviewer-gate-checked with
+  attached execution logs and deploy/E2E checks.
+- **research — Deep Research:** for evidence-driven investigation — a research-first team
+  turns a question into evaluation axes, sourced comparison tables, and a verified report.
 - **biz — Small Business Operations:** for non-coders — a research-first team compares
-  vendors, prices, and options with sources, so you decide without hiring anyone.
+  applications, policies, and options with sources (administrative/support programs, CS
+  manuals, operations automation), so you decide without hiring anyone.
+- **mkt — Local & SNS Marketing:** for shop owners and solo marketers — keyword/location
+  analysis, campaign calendars, and compliant copy/posts with expression review.
+- **creator — Content Creation & Publishing:** for authors — an outline → draft → proofread
+  pipeline (ebooks, blogs, newsletters), with the worker writing and the reviewer fact-checking.
 
 ## Quick Start
 
@@ -66,7 +72,7 @@ Then, inside an empty shell pane of a Herdr session:
 cd <target-project>
 hts                    # auto-detect prefix, TUI preset menu, split + start
 htw &                  # (recommended) run background watcher to auto-unblock permission prompts
-hts myproj --preset app
+hts myproj --preset research
 hts sd --dry-run       # print plan only, no changes
 ```
 
@@ -74,9 +80,13 @@ hts sd --dry-run       # print plan only, no changes
 
 | Preset | Who it's for | Team | Focus |
 |--------|--------------|------|-------|
-| `dev` (default) | development teams shipping code | orchestrator, planner, worker, reviewer | Software Development, TDD quality gate |
-| `app` | solo builders validating an idea | orchestrator, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
-| `biz` | small business operators, no code | orchestrator, planner, researcher, reviewer | research-first vendor/option research with sources (no worker) |
+| `dev` (default) | development teams shipping code | orchestrator, planner, worker, reviewer | Software Development, TDD quality gate (+ UX/Wireframe, deploy/E2E) |
+| `research` | evidence-driven investigation | orchestrator, planner, researcher, reviewer | Deep Research, sourced comparison & verified report |
+| `biz` | small business operators, no code | orchestrator, planner, researcher, reviewer | Small Business Operations: support programs, CS manuals, ops automation (no worker) |
+| `mkt` | shop owners / solo marketers | orchestrator, planner, researcher, reviewer | Local & SNS Marketing, keyword/competitor analysis, compliant copy |
+| `creator` | authors & content creators | orchestrator, planner, worker, reviewer | Content Creation & Publishing, outline → draft → proofread |
+
+> `app` was merged into `dev`; `--preset app` still works as a deprecated alias for `dev`.
 
 <details>
 <summary><b>Advanced — full reference (repository layout, how it works, TUI, presets, Windows, CLI options, requirements, team model, tests)</b></summary>
@@ -108,7 +118,7 @@ herdr-team/
 │   │   ├── ROLE-planner.md     # {{PREFIX}}-planner role template
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker role template
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer role template
-│   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher role template (biz preset)
+│   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher role template (research/biz/mkt presets)
 │   ├── opencode-agents/        # opencode primary agent defs (--agent <prefix>-<role>, permission-enforced)
 │   │   ├── ROLE-orchestrator.md
 │   │   ├── ROLE-planner.md
@@ -116,8 +126,10 @@ herdr-team/
 │   │   ├── ROLE-reviewer.md
 │   │   └── ROLE-researcher.md
 │   ├── dev/                    # Preset: Software Development
-│   ├── app/                    # Preset: Solo App & Idea Discovery
-│   └── biz/                    # Preset: Small Business Operations
+│   ├── research/               # Preset: Deep Research & Knowledge Discovery
+│   ├── biz/                    # Preset: Small Business Operations
+│   ├── mkt/                    # Preset: Local & SNS Marketing
+│   └── creator/                # Preset: Content Creation & Publishing
 ├── tests/
 │   ├── test_preset.sh          # Preset + TUI tests (canonical + legacy wrapper)
 │   ├── test_install.sh         # Installer + release zip tests
@@ -132,7 +144,7 @@ herdr-team/
 
 1. **Prefix** — `$1` wins; otherwise derived from the git root (or folder) name.
    `try2`→`try2`, `my-project`→`mp`, `scandimension`→`sc` (2–4 letter abbreviation or full name).
-2. **Preset** — `--preset dev|app|biz`, `HERDR_TEAM_PRESET`, or the interactive TUI menu (default: `dev`).
+2. **Preset** — `--preset dev|research|biz|mkt|creator`, `HERDR_TEAM_PRESET`, or the interactive TUI menu (default: `dev`). `app` is a deprecated alias for `dev`.
 3. **Templates** — copies `AGENTS.md` + `agents/<prefix>-*.md` from `~/templates/agent-team`
    (with `{{PREFIX}}` substitution). Skipped if team docs already exist (idempotent).
    Also installs opencode role agents to `.opencode/agents/<prefix>-*.md` (per-file idempotent).
@@ -166,11 +178,13 @@ herdr-team/
 With no `--preset` (and no `HERDR_TEAM_PRESET` / `--no-interactive`), a preset menu is shown:
 
 ```
-Select AI team preset (1-3 or name, default: dev):
-  1) dev - Software Development (개발 4인 팀, 기본값)
-  2) app - Solo App & Idea Discovery (1인 앱/아이템)
-  3) biz - Small Business Operations (스몰 비즈니스)
-Select [1-3/dev/app/biz] (default: dev, 10s):
+Select AI team preset (1-5 or name, default: dev):
+  1) dev - Software Development (소프트웨어 개발·MVP, 4인 팀, orchestrator/planner/worker/reviewer)
+  2) research - Deep Research & Knowledge Discovery (...)
+  3) biz - Small Business Operations (소상공인 사업 운영, ...)
+  4) mkt - Local & SNS Marketing (로컬·SNS 마케팅, ...)
+  5) creator - Content Creation & Publishing (콘텐츠 창작·출판, ...)
+Select [1-5/dev/research/biz/mkt/creator] (default: dev, 10s):
 ```
 
 Notes:
@@ -179,17 +193,22 @@ Notes:
 - `--no-interactive` never prompts and defaults to `dev`.
 - `--list-presets` prints available presets and exits.
 
-### Presets (dev, app, biz)
+### Presets (dev, research, biz, mkt, creator)
 
 | Preset | Roles | Focus |
 |--------|-------|-------|
-| `dev` (default) | orchestrator, planner, worker, reviewer | Software Development, TDD |
-| `app` | orchestrator, planner, worker, reviewer | Solo App & Idea Discovery, deploy/E2E emphasis |
-| `biz` | orchestrator, planner, researcher, reviewer | Small Business Operations, research-first (no worker) |
+| `dev` (default) | orchestrator, planner, worker, reviewer | Software Development, TDD (+ UX/Wireframe, deploy/E2E) |
+| `research` | orchestrator, planner, researcher, reviewer | Deep Research, sourced comparison & verified report |
+| `biz` | orchestrator, planner, researcher, reviewer | Small Business Operations: support programs, CS, ops automation (no worker) |
+| `mkt` | orchestrator, planner, researcher, reviewer | Local & SNS Marketing, keyword/competitor analysis, compliant copy (worker on-demand) |
+| `creator` | orchestrator, planner, worker, reviewer | Content Creation & Publishing, outline → draft → proofread (researcher on-demand) |
 
 Each preset lives in `templates/<preset>/` (`preset.conf` + `AGENTS.md`).
 Roles are generalized: the script derives agent names (`<prefix>-<role>`) from the preset's `ROLES`,
 so adding a preset is just adding a directory (+ `ROLE-<role>.md` if it uses a new role).
+Presets are discovered dynamically from `--template-dir` and the bundled `templates/`, so a custom
+`<name>/preset.conf` shows up in `--list-presets` and the TUI automatically.
+`app` is reserved as a deprecated alias of `dev` (a user-supplied `app/` directory is ignored).
 
 ### Windows one-click details
 
@@ -216,7 +235,7 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 | `--layout LAYOUT` | Team pane layout: `2col` (default, TM below PM) \| `right-stack` (or `HERDR_TEAM_LAYOUT`) |
 | `--cwd PATH` | Working directory (default: `$PWD`) |
 | `--template-dir D` | Template directory (default: `~/templates/agent-team`, or `HERDR_TEAM_TEMPLATE_DIR`) |
-| `--preset NAME` | Team preset: `dev` \| `app` \| `biz` (or `HERDR_TEAM_PRESET`; default: `dev` / TUI) |
+| `--preset NAME` | Team preset: `dev` \| `research` \| `biz` \| `mkt` \| `creator` (`app` = deprecated alias of `dev`; or `HERDR_TEAM_PRESET`; default: `dev` / TUI) |
 | `--list-presets` | Print available presets and exit |
 | `--no-interactive` | Never prompt; default `preset=dev`, `kind=opencode` |
 | `--no-template` | Skip template copy/generate step |

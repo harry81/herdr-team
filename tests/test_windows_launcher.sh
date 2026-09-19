@@ -84,16 +84,27 @@ assert_contains "$SIM_OUT" "wintest-researcher" "sim: biz 역할 토큰"
 SIM2_OUT="$(printf '' | "$BIN" wintest --dry-run --no-template --no-interactive 2>&1)"; SIM2_RC=$?
 assert_exit "$SIM2_RC" 0 "sim: 기본 preset dry-run exit 0"
 assert_contains "$SIM2_OUT" "preset=dev" "sim: 기본 preset=dev"
+SIM_MKT_OUT="$("$BIN" wintest --preset mkt --dry-run --no-template --no-interactive 2>&1)"; SIM_MKT_RC=$?
+assert_exit "$SIM_MKT_RC" 0 "sim: mkt dry-run exit 0"
+assert_contains "$SIM_MKT_OUT" "preset=mkt" "sim: preset=mkt 전달"
+SIM_CREATOR_OUT="$("$BIN" wintest --preset creator --dry-run --no-template --no-interactive 2>&1)"; SIM_CREATOR_RC=$?
+assert_exit "$SIM_CREATOR_RC" 0 "sim: creator dry-run exit 0"
+assert_contains "$SIM_CREATOR_OUT" "wintest-worker" "sim: creator worker 역할 토큰"
 WRAP_OUT="$(printf '' | "$WRAP" wintest --preset biz --dry-run --no-template --no-interactive 2>&1)"; WRAP_RC=$?
 assert_exit "$WRAP_RC" 0 "sim: 레거시 래퍼 exit 0"
 if [[ "$WRAP_OUT" == "$SIM_OUT" ]]; then ok "sim: 래퍼 출력 == 정본 출력"; else bad "sim: 래퍼 출력 == 정본 출력"; fi
 assert_contains "$CORE_TXT" "bin/herdr-team" "core: 정본 브릿지 (bin/herdr-team)"
 
 echo "== 7) English-primary: bat 메뉴/프롬프트 =="
-assert_contains "$CORE_TXT" "Software Development" "core: dev English label"
-assert_contains "$CORE_TXT" "Solo App" "core: app English label"
-assert_contains "$CORE_TXT" "Small Business" "core: biz English label"
-assert_contains "$CORE_TXT" "Select [1-3" "core: English-primary prompt"
+assert_contains "$CORE_TXT" "Software Development" "win_core_English_label_5종: dev"
+assert_contains "$CORE_TXT" "Deep Research" "win_core_English_label_5종: research"
+assert_contains "$CORE_TXT" "Small Business" "win_core_English_label_5종: biz"
+assert_contains "$CORE_TXT" "Local ^& SNS" "win_core_English_label_5종: mkt"
+assert_contains "$CORE_TXT" "Content Creation" "win_core_English_label_5종: creator"
+assert_contains "$CORE_TXT" "Select [1-5" "win_core_select_1-5"
+assert_contains "$CORE_TXT" "choice /c 12345" "win_core_choice_12345"
+assert_contains "$CORE_TXT" "errorlevel 5" "win_core_errorlevel_creator: errorlevel 5"
+assert_contains "$CORE_TXT" "--preset creator" "win_core_errorlevel_creator: --preset creator"
 
 echo "== 8) 의존성 점검 위저드 (Git/WSL 부재 시) =="
 assert_contains "$CORE_TXT" "winget" "core: winget 설치 유도"
