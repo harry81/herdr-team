@@ -41,8 +41,10 @@ case "${1:-}" in
       read)
         n=0; [ -f "$FIX/read_count" ] && n=$(cat "$FIX/read_count"); n=$((n+1)); echo "$n" > "$FIX/read_count"
         case "$(cat "$FIX/screen_mode" 2>/dev/null || echo none)" in
-          popup) echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm" ;;
-          once)  if [ -f "$FIX/send.log" ]; then echo "normal"; else echo "Permission required"; echo "Allow once"; fi ;;
+          popup_bottom)      echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm" ;;
+          transcript)        echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm"; echo "이후 대화 기록 계속"; echo "normal" ;;
+          transcript_bottom) echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm"; echo "이후 대화 기록 계속"; echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm" ;;
+          once)  if [ -f "$FIX/send.log" ]; then echo "normal"; else echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm"; fi ;;
           *)     echo "normal" ;;
         esac ;;
     esac ;;
@@ -69,7 +71,7 @@ run_watch_case 1
 assert_equal "$(send_lines)" "0" "watcher_a_팝업없음_stray0"
 
 echo "== b) 팝업 확인 → enter 1회 승인, tab 미포함 =="
-reset_fix; set_screen popup
+reset_fix; set_screen popup_bottom
 run_watch_case 1
 SEND_B="$(cat "$FIX/send.log" 2>/dev/null || true)"
 assert_equal "$(send_lines)" "1" "watcher_b_승인1회"
@@ -82,19 +84,19 @@ run_watch_case 5
 assert_equal "$(send_lines)" "1" "watcher_c_1회만"
 
 echo "== d) 팝업 유지 + --fallback-keys 옵트인 → max-attempts 2, 2번째는 fallback(tab enter) =="
-reset_fix; set_screen popup
+reset_fix; set_screen popup_bottom
 run_watch_case 5 --retry-after 0 --max-attempts 2 --fallback-keys "tab enter"
 assert_equal "$(send_lines)" "2" "watcher_d_최대2회"
 SECOND="$(awk 'NR==2' "$FIX/send.log" 2>/dev/null || true)"
 assert_contains "$SECOND" "tab enter" "watcher_d_2번째_fallback"
 
 echo "== e) --no-auto-allow → 미전송 =="
-reset_fix; set_screen popup
+reset_fix; set_screen popup_bottom
 run_watch_case 2 --no-auto-allow
 assert_equal "$(send_lines)" "0" "watcher_e_no_auto_allow_미전송"
 
 echo "== f) --approve-keys 커스텀(right enter) → 키 시퀀스 반영 =="
-reset_fix; set_screen popup
+reset_fix; set_screen popup_bottom
 run_watch_case 1 --approve-keys "right enter"
 SEND_F="$(cat "$FIX/send.log" 2>/dev/null || true)"
 assert_equal "$(send_lines)" "1" "watcher_f_1회"
@@ -105,17 +107,33 @@ reset_fix; set_screen none
 run_watch_case 1 --allow-on-blocked
 assert_equal "$(send_lines)" "1" "watcher_g_allow_on_blocked"
 
-echo "== h) status=working + 화면 마커(오탐) → 전송 0건 (라이브 장애 직접 재현) =="
-reset_fix; set_status working; set_screen popup
+echo "== h) status=working + 화면 마커가 중간에만(transcript, 오탐) → 전송 0건 (오탐 차단) =="
+reset_fix; set_status working; set_screen transcript
 run_watch_case 5
 assert_equal "$(send_lines)" "0" "watcher_h_working_오탐_전송0"
 
 echo "== i) blocked + popup(유지) + 기본 fallback → enter 만, tab 0건 (fail-closed) =="
-reset_fix; set_status blocked; set_screen popup
+reset_fix; set_status blocked; set_screen popup_bottom
 run_watch_case 5 --retry-after 0
 SEND_I="$(cat "$FIX/send.log" 2>/dev/null || true)"
 assert_equal "$(send_lines)" "1" "watcher_i_enter만1회"
 assert_not_contains "$SEND_I" "tab" "watcher_i_기본fallback_tab0"
+
+echo "== j) status=idle + 화면 맨 아래 진짜 팝업(popup_bottom) → 승인 1회 (상태신호 사망 시에도 동작) =="
+reset_fix; set_status idle; set_screen popup_bottom
+run_watch_case 5
+SEND_J="$(cat "$FIX/send.log" 2>/dev/null || true)"
+assert_equal "$(send_lines)" "1" "watcher_j_idle_팝업승인1회"
+assert_contains "$SEND_J" "enter" "watcher_j_enter포함"
+assert_not_contains "$SEND_J" "tab" "watcher_j_tab미포함"
+
+echo "== k) transcript 중간 마커 + 맨 아래 진짜 팝업 동시 → 정확히 1회, enter 만 =="
+reset_fix; set_status idle; set_screen transcript_bottom
+run_watch_case 5
+SEND_K="$(cat "$FIX/send.log" 2>/dev/null || true)"
+assert_equal "$(send_lines)" "1" "watcher_k_정확히1회"
+assert_contains "$SEND_K" "enter" "watcher_k_enter포함"
+assert_not_contains "$SEND_K" "tab" "watcher_k_tab미포함"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

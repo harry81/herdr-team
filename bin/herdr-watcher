@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Herdr Multi-Agent Team Watcher (herdr-watcher / htw)
-Monitors herdr agents, detects state transitions (idle, working, blocked),
-and automatically unblocks agents waiting on permission approvals.
+Monitors herdr agents and automatically unblocks agents waiting on permission
+approvals. 승인 트리거는 herdr 상태 신호가 아니라 화면 하단 팝업 시그니처다
+(구버전 상태 플러그인이 blocked 를 idle 로 잘못 보고해도 자동승인이 죽지 않도록).
 """
 
 import argparse
@@ -80,16 +81,29 @@ def get_agents(prefix=None, cwd_filter=None):
         return {}
 
 
-def check_permission_screen(name):
+def detect_permission_popup(name):
+    """화면 최하단 오버레이 팝업 시그니처로 진짜 권한 팝업을 판별한다.
+
+    - 마지막 비어있지 않은 줄 = 팝업 푸터("enter confirm" 포함)
+    - 그 위 어딘가에 팝업 헤더/선택지("Permission required" 또는 Allow once/always/Reject)
+    트랜스크립트에 같은 단어가 섞여도 뒤에 다른 내용이 이어지면 마커가 마지막 줄이
+    아니게 되어 오탐되지 않는다. herdr 상태 신호(blocked)에 의존하지 않는다.
+    """
     try:
         out = subprocess.check_output(
             ["herdr", "agent", "read", name, "--source", "visible"],
             stderr=subprocess.DEVNULL,
             timeout=2,
         ).decode("utf-8", errors="ignore")
-        return "Permission required" in out or "Allow once" in out
     except Exception:
         return False
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    if not lines:
+        return False
+    if "enter confirm" not in lines[-1]:
+        return False
+    head = "\n".join(lines[:-1])
+    return any(m in head for m in ("Permission required", "Allow once", "Allow always", "Reject"))
 
 
 def send_keys(pane_id, keys):
@@ -118,16 +132,19 @@ def unblock_agent(pane_id, name, keys):
 def handle_permission(name, pane_id, sent_state, *, status, auto_allow,
                       approve_keys, fallback_keys, retry_after, max_attempts,
                       allow_on_blocked, now=None):
-    """승인 조건: herdr status == "blocked" AND 화면 팝업 확인 (AND 게이트).
-    팝업 감지 -> blocked 확인 -> 쿨다운/엣지 트리거 -> 전송 직전 재확인 -> 전송 -> 사후 확인.
+    """승인 트리거: 화면 하단 팝업 시그니처(detect_permission_popup) 단독.
+    herdr status(blocked)는 트리거에서 제외한다 — 구버전 상태 플러그인처럼 status 가
+    idle 로 잘못 보고되어도 자동승인이 죽지 않도록 하기 위함이다. status 는 화면을 못
+    읽는 엔진 전용 --allow-on-blocked 레거시 경로에서만 사용한다.
+    팝업 감지 -> 쿨다운/엣지 트리거 -> 전송 직전 재확인 -> 전송 -> 사후 확인.
     반환: 이번 호출에서 실제 전송했으면 True.
     """
     if not auto_allow:
         return False
     now = time.time() if now is None else now
 
-    popup = check_permission_screen(name)          # 1) 화면 감지(부분문자열 -> 오탐 가능)
-    blocked = (status == "blocked")                # 2) herdr 실제 상태(진짜 팝업일 때만 blocked)
+    popup = detect_permission_popup(name)           # 1) 화면 하단 팝업 시그니처
+    blocked = (status == "blocked")                 # 2) 레거시 옵트인 경로 전용
     st = sent_state.get(name)
 
     if not popup:
@@ -145,12 +162,6 @@ def handle_permission(name, pane_id, sent_state, *, status, auto_allow,
             st["attempts"] = 0                      # episode 종료 (last 는 보존)
         return False
 
-    # 화면에 마커가 있어도 status 가 blocked 가 아니면 오탐(트랜스크립트 텍스트 등) -> 트리거 금지
-    if not blocked:
-        if st is not None:
-            st["attempts"] = 0
-        return False
-
     if st is None:
         st = sent_state[name] = {"attempts": 0, "last": 0.0}
 
@@ -164,7 +175,7 @@ def handle_permission(name, pane_id, sent_state, *, status, auto_allow,
     else:
         return False
 
-    if not check_permission_screen(name):           # 3) 전송 직전 재확인(race 제거)
+    if not detect_permission_popup(name):           # 3) 전송 직전 재확인(race 제거)
         # NOTE: attempts=0 리셋은 팝업 유지 중 진행하던 fallback 1회를 다음 루프에서
         # 1차(approve)로 1루프 되돌리는 quirk 가 있다. 기능 보존을 위해 동작은 유지한다.
         st["attempts"] = 0
@@ -174,7 +185,7 @@ def handle_permission(name, pane_id, sent_state, *, status, auto_allow,
     st["attempts"] += 1
     st["last"] = now
 
-    if not check_permission_screen(name):           # 5) 사후 확인
+    if not detect_permission_popup(name):           # 5) 사후 확인
         st["attempts"] = 0
     return True
 
@@ -265,9 +276,9 @@ def main():
     parser.add_argument("--max-iterations", type=int, default=None, help="Maximum loop iterations (for testing)")
     parser.add_argument("--no-auto-allow", action="store_true", help="Disable automatic permission approval")
     parser.add_argument("--approve-keys", type=str, default="enter",
-                        help="팝업 승인 키 시퀀스 (기본: enter, 빈 값이면 enter 로 대체). 승인 조건은 herdr status==blocked AND 화면 팝업 확인. enter 는 '팝업 기본 선택=Allow once' 가정에 기반하며 아직 라이브 검증되지 않음")
+                        help="팝업 승인 키 시퀀스 (기본: enter, 빈 값이면 enter 로 대체). 트리거는 화면 하단 팝업 시그니처(마지막 줄 'enter confirm' + 헤더/선택지)이며 herdr status 에 의존하지 않음. enter 는 팝업 기본 선택=Allow once 승인. 'Allow always' 가 필요하면 right 를 쓸 수 있음(tab 금지: opencode 권한 팝업이 tab 을 소비하지 않고 primary agent 프로필을 순환시킴)")
     parser.add_argument("--fallback-keys", type=str, default="",
-                        help="1차 키 실패(팝업 유지) 시 대체 키 (기본: 빈 값=비활성). tab 은 opencode primary agent 를 순환시키므로 'tab enter' 는 명시 옵트인 시에만 사용")
+                        help="1차 키 실패(팝업 유지) 시 대체 키 (기본: 빈 값=비활성). ⚠️ tab 은 opencode 권한 팝업이 소비하지 않고 primary agent 프로필을 순환시키므로 자동 경로에서 절대 사용 금지. 'Allow always' 는 right 로 선택")
     parser.add_argument("--retry-after", type=float, default=10.0,
                         help="동일 팝업 재전송/대체키 전환 최소 대기 초 (기본: 10)")
     parser.add_argument("--max-attempts", type=int, default=2,

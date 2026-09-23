@@ -711,7 +711,7 @@ for d in "${NRW_DOCS[@]}"; do
   assert_contains "$NRW_TXT" '상태 **하나만** 받는다' "nrw_until단일값주장_문안: $d"
   assert_contains "$NRW_TXT" '--until idle --until done' "nrw_until대안_플래그반복: $d"
   assert_contains "$NRW_TXT" 'idle/done/blocked 매칭' "nrw_until대안_생략기본매칭: $d"
-  NRW_COMMA="$(grep -nE -- '--until[[:space:]]+[a-z]+,[[:space:]]*[a-z]+' "$REPO/$d" | grep -vF -- "$NRW_WARN_MARK")"
+  NRW_COMMA="$(grep -E -- '--until[[:space:]]+[a-z]+,[[:space:]]*[a-z]+' "$REPO/$d" | grep -vE -- '^[[:space:]]*- ⚠️')"
   if [[ -z "$NRW_COMMA" ]]; then ok "nrw_until콤마나열_금지: $d"; else bad "nrw_until콤마나열_금지: $d ($NRW_COMMA)"; fi
 done
 
