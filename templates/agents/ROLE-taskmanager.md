@@ -32,21 +32,25 @@
 
 1. **절대 코드를 직접 수정하지 않는다**: 파일 편집, 빌드/테스트 실행, `git commit/push`는 금지. 코드를 직접 수정하는 것은 `{{PREFIX}}-worker`뿐입니다.
 2. **역할 위임 고정**: 기획/설계 → `{{PREFIX}}-planner`, 구현/버그수정 → `{{PREFIX}}-worker`, 실행 검증 겸 코드 리뷰(최종 게이트) → `{{PREFIX}}-reviewer`.
-3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 대기(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
+3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 동기화(`herdr agent prompt ... --wait`) 후 산출물 확인(`herdr agent read`), 산출물 중계, 결과 종합 보고.
 4. **무방치 원칙**: 각 에이전트가 작업 완료 후 idle로 남지 않도록 즉시 다음 단계를 연결합니다.
 5. **Team 간 직접 협업 금지**: worker ↔ reviewer는 서로 직접 prompt하지 않습니다. 모든 반송/승인은 Task Manager(필요 시 PM)를 경유합니다.
 6. **대기 방식 엄격 준수 (Anti-Pattern 금지 & Watcher 협업)**:
    - 실시간 멈춤(`blocked`) 감시 및 셸 실행 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다.
    - ❌ **`sleep 20`, `while/for` 쉘 폴링 루프 작성 절대 금지** (공백 지연 및 프로세스 낭비).
-   - ✅ 프롬프트 전송과 완료 대기는 반드시 `--wait` 플래그 사용: `herdr agent prompt <TARGET> "..." --wait --timeout 600000`
-   - ✅ 비동기 실행 후 상태 대기는 반드시 소켓 이벤트 명령어 사용: `herdr agent wait <TARGET> --until idle --timeout 600000` (또는 옵션 없이 `herdr agent wait <TARGET>`).
+   - ❌ **`herdr` 명령 뒤에 `| tail`, `| head`, `| grep` 등 파이프라인 필터 절대 금지** (표준입력 EOF 누수로 서브쉘 무한 Hang 발생).
+   - ⚠️ **절대 한 줄에 여러 명령어 실행 금지**: 세미콜론(`;`), `&&`, `||`, 파이프(`|`), 백그라운드(`&`)로 `herdr`를 다른 명령어와 엮지 말고 반드시 **한 줄에 오직 하나의 단독 명령어**로만 실행.
+   - ✅ 반드시 1번에 1개의 `herdr` 명령만 단독 실행: `herdr agent prompt <TARGET> "..." --wait` (완료 동기화) 또는 `herdr agent wait <TARGET> --until idle` (비동기 프롬프트 전용, 예외 경로).
+   - 🔁 **중복 대기 금지 (No Redundant Wait)**: `herdr agent prompt <TARGET> "..." --wait` 는 대상이 settle(idle/done/blocked)될 때까지 블로킹하는 완료 동기화다(반환 시점에 대상은 이미 settle). 그 직후 `herdr agent wait <TARGET> --until idle` 을 절대 호출하지 말고, 반환 즉시 `herdr agent read <TARGET> --lines <N>` 으로 산출물을 읽는다.
+   - ✅ `herdr agent wait` 는 `--wait` 없이 보낸 비동기(fire-and-forget) 프롬프트에만 사용한다(예외 경로 전용). `--wait` 가 타임아웃으로 반환된 경우에도 `wait` 재호출 금지 — `herdr agent read` 로 현재 상태·원인을 확인한 뒤 재지시/중계한다.
+   - ℹ️ 중복 대기 금지는 "절대 한 줄에 여러 명령어 실행 금지"(단일 명령 불변식)와 별개의 독립 규칙이며, 기존 규칙을 대체하지 않는다.
 
 ---
 
 ## 4. 주요 업무 절차 (Workflow)
 
 1. **태스크 수령**: PM으로부터 목표/요구사항 수신.
-2. **Planner 지시**: 기획/설계 명세 작성을 지시하고 완료 대기 (`herdr agent prompt` + `wait`).
+2. **Planner 지시**: 기획/설계 명세 작성을 지시하고 완료 동기화 (`herdr agent prompt ... --wait` → 반환 즉시 `herdr agent read`).
 3. **명세 중계**: Planner 산출물(문서/파일)을 확인하고 Worker에게 전달.
 4. **Worker 지시**: TDD 구현을 지시하고 완료(테스트 그린) 대기.
 5. **Reviewer 지시**: 변경사항을 전달하고 실행 검증 + 코드 리뷰를 지시.

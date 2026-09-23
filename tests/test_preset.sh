@@ -607,6 +607,98 @@ STUBEOF
   rm -rf "$RSTUB" "$RCWD" "$RCWD2"
 fi
 
+echo "== 37) 중복 대기 금지 (No Redundant Wait) 정본 반영 =="
+NRW_DOCS=(
+  "AGENTS.md"
+  "agents/dev/AGENTS.md"
+  "templates/AGENTS.md"
+  "templates/dev/AGENTS.md"
+  "templates/mkt/AGENTS.md"
+  "templates/biz/AGENTS.md"
+  "templates/creator/AGENTS.md"
+  "templates/research/AGENTS.md"
+  "templates/agents/ROLE-taskmanager.md"
+  "templates/opencode-agents/ROLE-orchestrator.md"
+  "agents/hts-taskmanager.md"
+)
+for d in "${NRW_DOCS[@]}"; do
+  if [[ ! -f "$REPO/$d" ]]; then
+    echo "SKIP: $d 부재(untracked) -> §37 해당 항목 건너뜀"
+    continue
+  fi
+  NRW_TXT="$(cat "$REPO/$d")"
+  assert_contains "$NRW_TXT" "중복 대기 금지" "nrw_중복대기금지문구: $d"
+  assert_contains "$NRW_TXT" "No Redundant Wait" "nrw_NoRedundantWait문구: $d"
+  assert_not_contains "$NRW_TXT" '장시간 작업은 `wait` + `read`로 폴링' "nrw_폴링유도문구_제거: $d"
+done
+# (c) 기존 유도용 예시 wait 라인 제거
+assert_not_contains "$(cat "$REPO/AGENTS.md" 2>/dev/null)" "herdr agent wait hts-worker --timeout 600000" "nrw_레거시wait예시_제거: AGENTS.md"
+if [[ -f "$REPO/agents/dev/AGENTS.md" ]]; then
+  assert_not_contains "$(cat "$REPO/agents/dev/AGENTS.md")" "herdr agent wait hts-worker --timeout 600000" "nrw_레거시wait예시_제거: agents/dev/AGENTS.md"
+else
+  echo "SKIP: agents/dev/AGENTS.md 부재(untracked) -> §37 해당 항목 건너뜀"
+fi
+assert_not_contains "$(cat "$REPO/templates/AGENTS.md" 2>/dev/null)" "herdr agent wait {{PREFIX}}-worker --timeout 600000" "nrw_레거시wait예시_제거: templates/AGENTS.md"
+# (d) 펜스 내 prompt --wait 직후 agent wait 재호출 탐지 (POSIX awk, grep -P 미사용)
+for d in "AGENTS.md" "agents/dev/AGENTS.md" "templates/AGENTS.md"; do
+  if [[ ! -f "$REPO/$d" ]]; then
+    echo "SKIP: $d 부재(untracked) -> §37 해당 항목 건너뜀"
+    continue
+  fi
+  NRW_VIOL="$(awk '
+    /^```/ { f = !f; pw = 0; next }
+    !f { next }
+    /herdr agent prompt/ && /--wait/ {
+      if ($0 ~ /herdr agent wait/ && $0 !~ /비동기/) print NR": "$0
+      pw = 1; next
+    }
+    pw && /herdr agent wait/ {
+      if ($0 ~ /비동기/) { pw = 0; next }
+      print NR": "$0
+    }
+  ' "$REPO/$d")"
+  if [[ -z "$NRW_VIOL" ]]; then ok "nrw_중복대기_펜스검출: $d"; else bad "nrw_중복대기_펜스검출: $d ($NRW_VIOL)"; fi
+done
+# (e) 성공/타임아웃/비동기 경로 문서화
+assert_contains "$(cat "$REPO/AGENTS.md" 2>/dev/null)" "herdr agent read" "nrw_read경로_문서화: AGENTS.md"
+assert_contains "$(cat "$REPO/AGENTS.md" 2>/dev/null)" "타임아웃" "nrw_타임아웃경로_문서화: AGENTS.md"
+assert_contains "$(cat "$REPO/AGENTS.md" 2>/dev/null)" "비동기 경로" "nrw_비동기경로_문서화: AGENTS.md"
+assert_contains "$(cat "$REPO/templates/AGENTS.md" 2>/dev/null)" "herdr agent read" "nrw_read경로_문서화: templates/AGENTS.md"
+assert_contains "$(cat "$REPO/templates/AGENTS.md" 2>/dev/null)" "타임아웃" "nrw_타임아웃경로_문서화: templates/AGENTS.md"
+assert_contains "$(cat "$REPO/templates/AGENTS.md" 2>/dev/null)" "비동기 경로" "nrw_비동기경로_문서화: templates/AGENTS.md"
+# (f) Block A 4줄 문자 단위 동일성 (md5; md5sum → md5 -q → openssl md5 폴백, 전무 시 SKIP)
+NRW_BA_FILES=(
+  "AGENTS.md"
+  "agents/dev/AGENTS.md"
+  "templates/AGENTS.md"
+  "templates/dev/AGENTS.md"
+  "templates/mkt/AGENTS.md"
+  "templates/biz/AGENTS.md"
+  "templates/creator/AGENTS.md"
+  "templates/research/AGENTS.md"
+  "templates/agents/ROLE-taskmanager.md"
+  "agents/hts-taskmanager.md"
+)
+NRW_BA_EXPECT="275ab1dc6d92263da9dbe6676af0082d"
+nrw_md5() {
+  if command -v md5sum >/dev/null 2>&1; then md5sum | awk '{print $1}'
+  elif command -v md5 >/dev/null 2>&1; then md5 -q
+  elif command -v openssl >/dev/null 2>&1; then openssl md5 | awk '{print $NF}'
+  else :; fi
+}
+if ! command -v md5sum >/dev/null 2>&1 && ! command -v md5 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then
+  echo "SKIP: md5 도구(md5sum/md5/openssl) 부재 -> §37 Block A 동일성 검사 건너뜀"
+else
+  for d in "${NRW_BA_FILES[@]}"; do
+    if [[ ! -f "$REPO/$d" ]]; then
+      echo "SKIP: $d 부재(untracked) -> §37 Block A 동일성 검사 건너뜀"
+      continue
+    fi
+    NRW_BA_HASH="$(awk '/반드시 1번에 1개의 `herdr` 명령만 단독 실행/{c=4} c{print; c--}' "$REPO/$d" | nrw_md5)"
+    if [[ "$NRW_BA_HASH" == "$NRW_BA_EXPECT" ]]; then ok "nrw_BlockA_동일성: $d"; else bad "nrw_BlockA_동일성: $d (hash=$NRW_BA_HASH)"; fi
+  done
+fi
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

@@ -46,9 +46,14 @@
 2. **역할 위임 고정**:
    - 기획/설계 → `{{PREFIX}}-planner`, 구현/버그수정 → `{{PREFIX}}-worker`, 실행 검증 겸 코드 리뷰(최종 게이트) → `{{PREFIX}}-reviewer`.
    - 리서치/조사 → `{{PREFIX}}-researcher` (on-demand), 배포/인프라/비밀값 → `{{PREFIX}}-ops` (on-demand, 승인 범위 내).
-3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 상태 모니터링(`herdr agent wait/read`), 결과 종합 보고.
+3. **오케스트레이션 전담**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 상태 확인(`herdr agent read`), 결과 종합 보고.
    - ❌ `sleep` 폴링 쉘 루프 작성 절대 금지.
-   - ✅ `herdr agent prompt <TARGET> "..." --wait` 또는 `herdr agent wait <TARGET> --until idle` (또는 옵션 없이 `herdr agent wait <TARGET>`) 사용.
+   - ❌ `herdr` 명령 뒤에 `| tail`, `| head`, `| grep` 등 파이프라인 필터 절대 금지 (표준입력 EOF 누수로 서브쉘 무한 Hang 발생).
+   - ⚠️ **절대 한 줄에 여러 명령어 실행 금지**: 세미콜론(`;`), `&&`, `||`, 파이프(`|`), 백그라운드(`&`)로 `herdr`를 엮지 말고 반드시 **한 줄에 오직 하나의 단독 명령어**로만 실행.
+   - ✅ 반드시 1번에 1개의 `herdr` 명령만 단독 실행: `herdr agent prompt <TARGET> "..." --wait` (완료 동기화) 또는 `herdr agent wait <TARGET> --until idle` (비동기 프롬프트 전용, 예외 경로).
+   - 🔁 **중복 대기 금지 (No Redundant Wait)**: `herdr agent prompt <TARGET> "..." --wait` 는 대상이 settle(idle/done/blocked)될 때까지 블로킹하는 완료 동기화다(반환 시점에 대상은 이미 settle). 그 직후 `herdr agent wait <TARGET> --until idle` 을 절대 호출하지 말고, 반환 즉시 `herdr agent read <TARGET> --lines <N>` 으로 산출물을 읽는다.
+   - ✅ `herdr agent wait` 는 `--wait` 없이 보낸 비동기(fire-and-forget) 프롬프트에만 사용한다(예외 경로 전용). `--wait` 가 타임아웃으로 반환된 경우에도 `wait` 재호출 금지 — `herdr agent read` 로 현재 상태·원인을 확인한 뒤 재지시/중계한다.
+   - ℹ️ 중복 대기 금지는 "절대 한 줄에 여러 명령어 실행 금지"(단일 명령 불변식)와 별개의 독립 규칙이며, 기존 규칙을 대체하지 않는다.
 
 ---
 
@@ -120,22 +125,30 @@ herdr agent rename {{PREFIX}}-worker "{{PREFIX}}-worker"
 - worker: `--timeout 600000` (구현 분량에 따라 연장)
 - reviewer (실행 검증 포함): `--timeout 600000`
 
-`--wait`는 상태 변화를 한 번만 감지하므로, 장시간 작업은 `wait` + `read`로 폴링합니다.
+`--wait`는 대상이 settle(idle/done/blocked)될 때까지 블로킹하는 완료 동기화다. 반환 즉시 `herdr agent read`로 산출물을 읽고, `herdr agent wait`는 `--wait` 없이 보낸 비동기 프롬프트에만 사용한다. (`prompt --wait` 직후 `agent wait` 재호출 금지 = 중복 대기 금지)
 
 ```bash
-# 작업 지시 (역할 문서 주입을 첫 줄에 포함)
+# 성공 경로: prompt --wait (완료 동기화) → 반환 즉시 read (중복 wait 금지)
 herdr agent prompt {{PREFIX}}-planner "agents/{{PRESET}}/{{PREFIX}}-planner.md를 읽고 그 산출물 형식을 따르라. ..." --wait --timeout 180000
+herdr agent read {{PREFIX}}-planner --lines 100
 herdr agent prompt {{PREFIX}}-worker "agents/{{PRESET}}/{{PREFIX}}-worker.md를 따르라. TDD Red→Green→Refactor, ... " --wait --timeout 600000
-herdr agent prompt {{PREFIX}}-reviewer "agents/{{PRESET}}/{{PREFIX}}-reviewer.md를 따르라. [APPROVE]/[REQUEST CHANGES]로 판정, ..." --wait --timeout 600000
-
-# 상태 확인 / 출력 읽기 / 대기
-herdr agent list
 herdr agent read {{PREFIX}}-worker --lines 100
-herdr agent wait {{PREFIX}}-worker --timeout 600000
+herdr agent prompt {{PREFIX}}-reviewer "agents/{{PRESET}}/{{PREFIX}}-reviewer.md를 따르라. [APPROVE]/[REQUEST CHANGES]로 판정, ..." --wait --timeout 600000
+herdr agent read {{PREFIX}}-reviewer --lines 100
+```
 
-# 실패 시 패턴 (timeout / blocked)
-herdr agent read {{PREFIX}}-worker --lines 200   # 원인 확인 후
+```bash
+# 타임아웃·실패 경로: --wait 타임아웃 시 read로 상태/원인 확인 후 재지시 (wait 재호출 금지)
+herdr agent read {{PREFIX}}-worker --lines 200   # --wait 타임아웃 시 현재 상태/원인 확인
 herdr agent prompt {{PREFIX}}-worker "이어서 계속하라. ..." --wait --timeout 600000
+herdr agent read {{PREFIX}}-worker --lines 100
+```
+
+```bash
+# 비동기 경로: --wait 없이 프롬프트 전송 후 agent wait (예외 경로 전용)
+herdr agent prompt {{PREFIX}}-worker "대기 없이 지시만 보낸다. ..."
+herdr agent wait {{PREFIX}}-worker --until idle --timeout 600000
+herdr agent read {{PREFIX}}-worker --lines 100
 ```
 
 프롬프트 템플릿 (PM → Team 공통; 역할은 `--agent`로 이미 강제되며 아래는 산출물 형식 지정용):

@@ -49,12 +49,16 @@
 2. **역할 위임 고정**:
    - 기획/설계 → `hts-planner`, 구현/버그수정 → `hts-worker`, 실행 검증 겸 코드 리뷰(최종 게이트) → `hts-reviewer`.
    - 리서치/조사 → `hts-researcher` (on-demand), 배포/인프라/비밀값 → `hts-ops` (on-demand, 승인 범위 내).
-3. **오케스트레이션 전담 (Task Manager)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 대기(`herdr agent wait/read`), 산출물 중계, 결과 종합 보고.
+3. **오케스트레이션 전담 (Task Manager)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 완료 동기화(`herdr agent prompt ... --wait`) 후 산출물 확인(`herdr agent read`), 산출물 중계, 결과 종합 보고.
    - ❌ `sleep` 폴링 쉘 루프 작성 절대 금지.
-   - ❌ 세미콜론(`;`), `&&`, 백그라운드(`&`)로 `herdr` 명령어를 2개 이상 한 번에 묶어서 동시/연쇄 실행 절대 금지.
-   - ✅ 반드시 1번에 1개의 `herdr agent` 명령만 단독 실행: `herdr agent prompt <TARGET> "..." --wait` 또는 `herdr agent wait <TARGET> --until idle` (또는 옵션 없이 `herdr agent wait <TARGET>`).
+   - ❌ `herdr` 명령 뒤에 `| tail`, `| head`, `| grep` 등 파이프라인 필터 절대 금지 (표준입력 EOF 누수로 서브쉘 무한 Hang 발생).
+   - ⚠️ **절대 한 줄에 여러 명령어 실행 금지**: 세미콜론(`;`), `&&`, `||`, 파이프(`|`), 백그라운드(`&`)로 `herdr`를 다른 명령어와 엮지 말고 반드시 **한 줄에 오직 하나의 단독 명령어**로만 실행.
+   - ✅ 반드시 1번에 1개의 `herdr` 명령만 단독 실행: `herdr agent prompt <TARGET> "..." --wait` (완료 동기화) 또는 `herdr agent wait <TARGET> --until idle` (비동기 프롬프트 전용, 예외 경로).
+   - 🔁 **중복 대기 금지 (No Redundant Wait)**: `herdr agent prompt <TARGET> "..." --wait` 는 대상이 settle(idle/done/blocked)될 때까지 블로킹하는 완료 동기화다(반환 시점에 대상은 이미 settle). 그 직후 `herdr agent wait <TARGET> --until idle` 을 절대 호출하지 말고, 반환 즉시 `herdr agent read <TARGET> --lines <N>` 으로 산출물을 읽는다.
+   - ✅ `herdr agent wait` 는 `--wait` 없이 보낸 비동기(fire-and-forget) 프롬프트에만 사용한다(예외 경로 전용). `--wait` 가 타임아웃으로 반환된 경우에도 `wait` 재호출 금지 — `herdr agent read` 로 현재 상태·원인을 확인한 뒤 재지시/중계한다.
+   - ℹ️ 중복 대기 금지는 "절대 한 줄에 여러 명령어 실행 금지"(단일 명령 불변식)와 별개의 독립 규칙이며, 기존 규칙을 대체하지 않는다.
 4. **무방치 원칙 (Task Manager)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
-5. **Watcher와의 분업 (Task Manager)**: 실시간 멈춤(`blocked`) 감시 및 셸 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링(`sleep 20` 루프 등)을 엄격히 금지하고, `--wait` 또는 `agent wait`를 통한 완료 시점 동기화와 업무 중계에만 집중합니다.
+5. **Watcher와의 분업 (Task Manager)**: 실시간 멈춤(`blocked`) 감시 및 셸 권한 승인(`Permission required` 팝업)은 백그라운드 데몬인 `herdr-watcher` (`htw`)가 전담합니다. Task Manager는 불필요한 반복 상태 폴링(`sleep 20` 루프 등)을 엄격히 금지하고, `--wait`(동기화) 또는 비동기 프롬프트에 대한 `agent wait`(예외 경로)를 통한 완료 시점 동기화와 업무 중계에만 집중합니다.
 6. **팀원 식별 및 엔진 유연성 (Engine Agnostic 원칙)**:
    - **식별 기준**: `herdr agent list` 단독 조회 대신 반드시 `herdr pane list`의 페인 라벨(Label, 예: `hts-planner`, `hts-worker` 등)을 1차 기준으로 팀원을 식별합니다.
    - **엔진 전환 대응**: 팀원의 실행 엔진이 `opencode`에서 `agy` 등으로 변경되더라도 페인 라벨을 최우선 신뢰하며, 각 엔진의 인터페이스(TUI 큐, 프롬프트 입력창 등)에 맞추어 작업을 지시합니다.
@@ -140,25 +144,35 @@ herdr agent rename hts-reviewer "hts-reviewer"
 - worker: `--timeout 600000` (구현 분량에 따라 연장)
 - reviewer (실행 검증 포함): `--timeout 600000`
 
-`--wait`는 상태 변화를 한 번만 감지하므로, 장시간 작업은 `wait` + `read`로 폴링합니다.
+`--wait`는 대상이 settle(idle/done/blocked)될 때까지 블로킹하는 완료 동기화다. 반환 즉시 `herdr agent read`로 산출물을 읽고, `herdr agent wait`는 `--wait` 없이 보낸 비동기 프롬프트에만 사용한다. (`prompt --wait` 직후 `agent wait` 재호출 금지 = 중복 대기 금지)
 
 ```bash
 # 0. 백그라운드 Watcher 가동 (권장: 에이전트 셸 권한 승인 자동화 및 멈춤 방지)
 htw --prefix hts- &
+```
 
-# 1. 작업 지시 (역할 문서 주입을 첫 줄에 포함)
+```bash
+# 성공 경로: prompt --wait (완료 동기화) → 반환 즉시 read (중복 wait 금지)
 herdr agent prompt hts-planner "agents/hts-planner.md를 읽고 그 산출물 형식을 따르라. ..." --wait --timeout 180000
+herdr agent read hts-planner --lines 100
 herdr agent prompt hts-worker "agents/hts-worker.md를 따르라. TDD Red→Green→Refactor, ... " --wait --timeout 600000
-herdr agent prompt hts-reviewer "agents/hts-reviewer.md를 따르라. [APPROVE]/[REQUEST CHANGES]로 판정, ..." --wait --timeout 600000
-
-# 상태 확인 / 출력 읽기 / 대기
-herdr agent list
 herdr agent read hts-worker --lines 100
-herdr agent wait hts-worker --timeout 600000
+herdr agent prompt hts-reviewer "agents/hts-reviewer.md를 따르라. [APPROVE]/[REQUEST CHANGES]로 판정, ..." --wait --timeout 600000
+herdr agent read hts-reviewer --lines 100
+```
 
-# 실패 시 패턴 (timeout / blocked)
-herdr agent read hts-worker --lines 200   # 원인 확인 후
+```bash
+# 타임아웃·실패 경로: --wait 타임아웃 시 read로 상태/원인 확인 후 재지시 (wait 재호출 금지)
+herdr agent read hts-worker --lines 200   # --wait 타임아웃 시 현재 상태/원인 확인
 herdr agent prompt hts-worker "이어서 계속하라. ..." --wait --timeout 600000
+herdr agent read hts-worker --lines 100
+```
+
+```bash
+# 비동기 경로: --wait 없이 프롬프트 전송 후 agent wait (예외 경로 전용)
+herdr agent prompt hts-worker "대기 없이 지시만 보낸다. ..."
+herdr agent wait hts-worker --until idle --timeout 600000
+herdr agent read hts-worker --lines 100
 ```
 
 프롬프트 템플릿 (Task Manager → Team 공통):
