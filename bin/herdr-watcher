@@ -92,13 +92,91 @@ def check_permission_screen(name):
         return False
 
 
-def unblock_agent(pane_id, name):
-    print(f"[{time.strftime('%H:%M:%S')}] [AUTO-ALLOW] {name} ({pane_id}) Permission 대기 감지 -> 승인 키(tab+enter) 전송")
-    subprocess.run(
-        ["herdr", "pane", "send-keys", pane_id, "tab", "enter"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+def send_keys(pane_id, keys):
+    """herdr pane send-keys 로 키 시퀀스 전송(단일 명령, 파이프/체인 금지)."""
+    try:
+        subprocess.run(
+            ["herdr", "pane", "send-keys", pane_id, *keys],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def unblock_agent(pane_id, name, keys):
+    keys_str = " ".join(keys)
+    if send_keys(pane_id, keys):
+        print(f"[{time.strftime('%H:%M:%S')}] [AUTO-ALLOW] {name} ({pane_id}) 팝업 확인 -> 승인 키({keys_str}) 전송")
+        return True
+    return False
+
+
+def handle_permission(name, pane_id, sent_state, *, status, auto_allow,
+                      approve_keys, fallback_keys, retry_after, max_attempts,
+                      allow_on_blocked, now=None):
+    """승인 조건: herdr status == "blocked" AND 화면 팝업 확인 (AND 게이트).
+    팝업 감지 -> blocked 확인 -> 쿨다운/엣지 트리거 -> 전송 직전 재확인 -> 전송 -> 사후 확인.
+    반환: 이번 호출에서 실제 전송했으면 True.
+    """
+    if not auto_allow:
+        return False
+    now = time.time() if now is None else now
+
+    popup = check_permission_screen(name)          # 1) 화면 감지(부분문자열 -> 오탐 가능)
+    blocked = (status == "blocked")                # 2) herdr 실제 상태(진짜 팝업일 때만 blocked)
+    st = sent_state.get(name)
+
+    if not popup:
+        # 화면을 못 읽는 엔진 전용 레거시 옵트인 (팝업 미확인 + blocked 만으로 승인)
+        if blocked and allow_on_blocked:
+            if st is None:
+                st = sent_state[name] = {"attempts": 0, "last": 0.0}
+            if now - st["last"] >= retry_after and st["attempts"] < max_attempts:
+                if unblock_agent(pane_id, name, list(approve_keys)):
+                    st["attempts"] += 1
+                    st["last"] = now
+                    return True
+            return False
+        if st is not None:
+            st["attempts"] = 0                      # episode 종료 (last 는 보존)
+        return False
+
+    # 화면에 마커가 있어도 status 가 blocked 가 아니면 오탐(트랜스크립트 텍스트 등) -> 트리거 금지
+    if not blocked:
+        if st is not None:
+            st["attempts"] = 0
+        return False
+
+    if st is None:
+        st = sent_state[name] = {"attempts": 0, "last": 0.0}
+
+    if now - st["last"] < retry_after:              # 4) 쿨다운(반복 발사/flapping 억제)
+        return False
+
+    if st["attempts"] == 0:
+        keys = list(approve_keys)                   # 1차(기본 enter)
+    elif fallback_keys and st["attempts"] < max_attempts:
+        keys = list(fallback_keys)                  # 1차 실패 시에만 fallback(기본 비활성)
+    else:
+        return False
+
+    if not check_permission_screen(name):           # 3) 전송 직전 재확인(race 제거)
+        # NOTE: attempts=0 리셋은 팝업 유지 중 진행하던 fallback 1회를 다음 루프에서
+        # 1차(approve)로 1루프 되돌리는 quirk 가 있다. 기능 보존을 위해 동작은 유지한다.
+        st["attempts"] = 0
+        return False
+
+    unblock_agent(pane_id, name, keys)
+    st["attempts"] += 1
+    st["last"] = now
+
+    if not check_permission_screen(name):           # 5) 사후 확인
+        st["attempts"] = 0
+    return True
 
 
 def clean_stuck_waits(current_agents):
@@ -119,8 +197,13 @@ def clean_stuck_waits(current_agents):
         pass
 
 
-def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True):
+def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True,
+              approve_keys=None, fallback_keys=None, retry_after=10.0,
+              max_attempts=2, allow_on_blocked=False):
+    approve_keys = list(approve_keys) if approve_keys else ["enter"]
+    fallback_keys = list(fallback_keys) if fallback_keys is not None else []
     prev_states = {}
+    sent_state = {}
     iteration = 0
     print(f"=== Herdr Agent Watcher 가동 (인터벌: {interval}초, 접두사: {prefix or '전체'}) ===")
     sys.stdout.flush()
@@ -144,13 +227,16 @@ def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True):
             elif prev["status"] != curr_status:
                 changes.append(f"[{name}] 상태 전이: {prev['status']} -> {curr_status}")
 
-            is_blocked = (curr_status == "blocked")
-            if not is_blocked and auto_allow:
-                # OpenCode 내부 상태가 working으로 유지되더라도 화면 팝업 검사로 보완
-                is_blocked = check_permission_screen(name)
-
-            if is_blocked and auto_allow:
-                unblock_agent(pane_id, name)
+            handle_permission(
+                name, pane_id, sent_state,
+                status=curr_status,
+                auto_allow=auto_allow,
+                approve_keys=approve_keys,
+                fallback_keys=fallback_keys,
+                retry_after=retry_after,
+                max_attempts=max_attempts,
+                allow_on_blocked=allow_on_blocked,
+            )
 
         prev_states = current_agents
 
@@ -178,6 +264,16 @@ def main():
     parser.add_argument("--interval", type=int, default=5, help="Polling interval in seconds (default: 5)")
     parser.add_argument("--max-iterations", type=int, default=None, help="Maximum loop iterations (for testing)")
     parser.add_argument("--no-auto-allow", action="store_true", help="Disable automatic permission approval")
+    parser.add_argument("--approve-keys", type=str, default="enter",
+                        help="팝업 승인 키 시퀀스 (기본: enter, 빈 값이면 enter 로 대체). 승인 조건은 herdr status==blocked AND 화면 팝업 확인. enter 는 '팝업 기본 선택=Allow once' 가정에 기반하며 아직 라이브 검증되지 않음")
+    parser.add_argument("--fallback-keys", type=str, default="",
+                        help="1차 키 실패(팝업 유지) 시 대체 키 (기본: 빈 값=비활성). tab 은 opencode primary agent 를 순환시키므로 'tab enter' 는 명시 옵트인 시에만 사용")
+    parser.add_argument("--retry-after", type=float, default=10.0,
+                        help="동일 팝업 재전송/대체키 전환 최소 대기 초 (기본: 10)")
+    parser.add_argument("--max-attempts", type=int, default=2,
+                        help="팝업 1건당 최대 전송 횟수 (기본: 2)")
+    parser.add_argument("--allow-on-blocked", action="store_true",
+                        help="화면 확인 불가 엔진 전용 레거시: status==blocked 만으로 승인 (위험, 기본 off)")
     args = parser.parse_args()
 
     if args.all:
@@ -193,6 +289,11 @@ def main():
         interval=args.interval,
         max_iterations=args.max_iterations,
         auto_allow=not args.no_auto_allow,
+        approve_keys=args.approve_keys.split(),
+        fallback_keys=args.fallback_keys.split(),
+        retry_after=args.retry_after,
+        max_attempts=args.max_attempts,
+        allow_on_blocked=args.allow_on_blocked,
     )
 
 
