@@ -698,6 +698,22 @@ else
     if [[ "$NRW_BA_HASH" == "$NRW_BA_EXPECT" ]]; then ok "nrw_BlockA_동일성: $d"; else bad "nrw_BlockA_동일성: $d (hash=$NRW_BA_HASH)"; fi
   done
 fi
+# (g) `--until` 단일 상태값 경고(Canonical WARN) 정본 반영 + 콤마 나열 금지
+NRW_WARN_MARK='⚠️ **`--until` 단일 상태값**'
+for d in "${NRW_DOCS[@]}"; do
+  if [[ ! -f "$REPO/$d" ]]; then
+    echo "SKIP: $d 부재(untracked) -> §37 해당 항목 건너뜀"
+    continue
+  fi
+  NRW_TXT="$(cat "$REPO/$d")"
+  assert_contains "$NRW_TXT" "$NRW_WARN_MARK" "nrw_until단일상태값_경고: $d"
+  assert_contains "$NRW_TXT" "invalid agent status" "nrw_until에러문구_문서화: $d"
+  assert_contains "$NRW_TXT" '상태 **하나만** 받는다' "nrw_until단일값주장_문안: $d"
+  assert_contains "$NRW_TXT" '--until idle --until done' "nrw_until대안_플래그반복: $d"
+  assert_contains "$NRW_TXT" 'idle/done/blocked 매칭' "nrw_until대안_생략기본매칭: $d"
+  NRW_COMMA="$(grep -nE -- '--until[[:space:]]+[a-z]+,[[:space:]]*[a-z]+' "$REPO/$d" | grep -vF -- "$NRW_WARN_MARK")"
+  if [[ -z "$NRW_COMMA" ]]; then ok "nrw_until콤마나열_금지: $d"; else bad "nrw_until콤마나열_금지: $d ($NRW_COMMA)"; fi
+done
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

@@ -46,10 +46,10 @@ herdr agent prompt {{PREFIX}}-planner "기획 명세 작성" --wait --timeout 60
 - 프롬프트 전달 후 상태가 `idle`/`done`으로 전환될 때까지 블로킹 대기.
 - 별도의 대기 루프나 스크립트 작성이 완전히 불필요함.
 
-### ✅ 패턴 2: 소켓 이벤트 기반 상태 대기 (`herdr agent wait`)
+### ⚠️(교정됨) 패턴 2: 소켓 이벤트 기반 상태 대기 (`herdr agent wait`)
 비동기로 작업을 지시했거나 이미 실행 중인 에이전트를 대기할 때:
 ```bash
-herdr agent wait {{PREFIX}}-planner --until idle,done --timeout 600000
+herdr agent wait {{PREFIX}}-planner --until idle,done --timeout 600000  # (2026-09-19 교정: --until 은 단일 상태값만 허용. 콤마 나열은 invalid agent status 에러)
 ```
 - Herdr 데몬 소켓에서 에이전트 상태 변화를 푸시(Push) 방식으로 수신하여 **0ms 즉시 반환**.
 - CPU 자원 소모 0, 고정 슬립 딜레이 0.
