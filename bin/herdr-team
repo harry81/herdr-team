@@ -21,6 +21,7 @@ set -euo pipefail
 KIND_ARG=""
 KIND=""
 DRY_RUN=0
+TEMPLATES_ONLY=0
 NO_RESIZE=0
 NO_START=0
 NO_TEMPLATE=0
@@ -146,6 +147,7 @@ Options:
   --no-resize       split without --ratio equalization (no separate resize
                     step; flag kept for compatibility)
   --no-start        skip agent start (split + label only)
+  --templates-only  install templates/agents only (skip pane split)
   --force           reseed only the requested preset folder from templates
                     (agents/<preset>/) and force-activate root AGENTS.md;
                     other presets are left untouched
@@ -196,6 +198,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --no-resize) NO_RESIZE=1; shift ;;
     --no-start) NO_START=1; shift ;;
+    --templates-only) TEMPLATES_ONLY=1; shift ;;
     --no-template) NO_TEMPLATE=1; shift ;;
     --force) FORCE=1; shift ;;
     --kind) KIND_ARG="${2:?--kind에 값이 필요합니다}"; shift 2 ;;
@@ -986,4 +989,8 @@ printf 'herdr-team v%s\n' "$VERSION"
 PREV_ACTIVE="$(active_preset)"
 setup_templates
 setup_opencode_agents
+if [[ "$TEMPLATES_ONLY" -eq 1 ]]; then
+  log "templates-only: 템플릿 설치 완료 (pane 분할 생략)"
+  exit 0
+fi
 setup_panes
