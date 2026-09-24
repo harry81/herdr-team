@@ -15,6 +15,28 @@ import sys
 import time
 
 
+def read_version():
+    """VERSION 단일 정본(<script dir>/../VERSION) 읽기. 실패/빈값이면 'unknown'."""
+    try:
+        base = os.path.dirname(os.path.realpath(__file__))
+        with open(os.path.join(base, "..", "VERSION"), "r", encoding="utf-8") as fh:
+            v = fh.read().strip()
+        return v or "unknown"
+    except Exception:
+        return "unknown"
+
+
+VERSION = read_version()
+
+
+class _VersionedHelpParser(argparse.ArgumentParser):
+    """--help 출력 맨 위에 버전 라인을 노출한다(옵션 목록/종료코드 0 유지)."""
+
+    def print_help(self, file=None):
+        print(f"herdr-watcher v{VERSION}", file=file or sys.stdout)
+        super().print_help(file)
+
+
 def auto_prefix(cwd=None):
     if cwd is None:
         cwd = os.getcwd()
@@ -216,6 +238,7 @@ def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True,
     prev_states = {}
     sent_state = {}
     iteration = 0
+    print(f"herdr-watcher v{VERSION}")
     print(f"=== Herdr Agent Watcher 가동 (인터벌: {interval}초, 접두사: {prefix or '전체'}) ===")
     sys.stdout.flush()
 
@@ -268,7 +291,8 @@ def run_watch(prefix=None, interval=5, max_iterations=None, auto_allow=True,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Herdr Multi-Agent Team Watcher (herdr-watcher / htw)")
+    parser = _VersionedHelpParser(description=f"Herdr Multi-Agent Team Watcher (herdr-watcher / htw) v{VERSION}")
+    parser.add_argument("-v", "--version", action="version", version=f"herdr-watcher v{VERSION}")
     parser.add_argument("--prefix", type=str, default=None, help="Agent name prefix to filter (e.g. ht-, fa-)")
     parser.add_argument("--all", action="store_true", help="Monitor all agents without prefix filtering")
     parser.add_argument("--cwd", type=str, default=None, help="Working directory for auto prefix detection")

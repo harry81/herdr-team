@@ -270,6 +270,7 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 | `--no-start` | Skip agent start (split + label only) |
 | `--force` | Reseed **only the requested preset folder** (`agents/<preset>/`) from templates and force-activate root `AGENTS.md`; other presets untouched |
 | `--dry-run` | Print planned commands without executing |
+| `-v, --version` | Print version and exit |
 | `-h, --help` | Print help |
 
 ### Requirements

@@ -6,13 +6,54 @@ permission:
   task: deny
   bash:
     "*": ask
-    "herdr *": allow
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "rg *": allow
+    "pwd": allow
+    "ls": allow
     "ls *": allow
+    "tree *": allow
+    "find *": allow
     "cat *": allow
+    "head *": allow
+    "tail *": allow
+    "file *": allow
+    "stat *": allow
+    "diff *": allow
+    "which *": allow
+    "echo *": allow
+    "grep *": allow
+    "rg *": allow
+    "wc *": allow
+    "sort *": allow
+    "uniq *": allow
+    "jq *": allow
+    "git status*": allow
+    "git log*": allow
+    "git diff*": allow
+    "git branch*": allow
+    "git show*": allow
+    "git tag*": allow
+    "git remote*": allow
+    "git rev-parse*": allow
+    "uname *": allow
+    "whoami": allow
+    "date": allow
+    "uptime": allow
+    "df *": allow
+    "free *": allow
+    "ps *": allow
+    "ss *": allow
+    "lsof *": allow
+    "env": allow
+    "node -v*": allow
+    "npm -v*": allow
+    "npm list*": allow
+    "pnpm -v*": allow
+    "pnpm list*": allow
+    "python* --version*": allow
+    "python* -V*": allow
+    "pip list*": allow
+    "pip show*": allow
+    "uv --version*": allow
+    "herdr *": allow
 ---
 
 너는 `{{PREFIX}}-orchestrator`다. 구현자가 아니라 **파이프라인 오케스트레이터**다.

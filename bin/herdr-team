@@ -38,6 +38,31 @@ SUPPORTED_KINDS="opencode claude codex agy pi gemini cursor devin cline omp mast
 
 # --- preset 동적 열거 (하드코딩 대신 templates/<name>/preset.conf 발견) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# --- 버전 단일 정본 (VERSION) ---
+# 심볼릭 실행(~/bin/herdr-team -> repo/bin/herdr-team) 시 BASH_SOURCE[0] 는 심볼릭
+# 경로이므로 실제 스크립트 경로를 해석한다. readlink -f 미지원(BSD/macOS) 시
+# realpath → python3 realpath 순서로 폴백하고, 모두 실패하면 원 경로를 쓴다.
+# VERSION 경로는 <real script dir>/../VERSION.
+version_file() {
+  local src="${BASH_SOURCE[0]:-$0}" real=""
+  real="$(readlink -f "$src" 2>/dev/null || true)"
+  if [[ -z "$real" ]]; then real="$(realpath "$src" 2>/dev/null || true)"; fi
+  if [[ -z "$real" ]]; then
+    real="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$src" 2>/dev/null || true)"
+  fi
+  [[ -n "$real" ]] || real="$src"
+  printf '%s/../VERSION' "$(cd "$(dirname "$real")" && pwd)"
+}
+read_version() {
+  local f v
+  f="$(version_file)"
+  if [[ -f "$f" ]]; then
+    v="$(head -n1 "$f" | tr -d '[:space:]')"
+    if [[ -n "$v" ]]; then printf '%s' "$v"; return 0; fi
+  fi
+  printf 'unknown'
+}
+VERSION="$(read_version)"
 # 기본 노출 순서/기본값 안정용 힌트. 여기 없는 preset도 자동 발견되어 뒤에 추가된다.
 PRESET_ORDER="dev research biz mkt creator"
 # preset 디렉토리 탐색: --template-dir/<preset> 우선, 없으면 스크립트 번들 templates/<preset>
@@ -97,6 +122,7 @@ preset_usage_list() {
 }
 
 usage() {
+  printf 'herdr-team v%s\n\n' "$VERSION"
   cat <<'EOF'
 Usage: herdr-team [prefix] [options]
 
@@ -124,6 +150,7 @@ Options:
                     (agents/<preset>/) and force-activate root AGENTS.md;
                     other presets are left untouched
   --dry-run         print planned commands without executing
+  -v, --version     print version and exit
   -h, --help        print this help
 
   Legacy alias: herdr-team-setup (deprecated, fully compatible —
@@ -165,6 +192,7 @@ LAYOUT_ARG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
+    -v|--version) printf 'herdr-team v%s\n' "$VERSION"; exit 0 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --no-resize) NO_RESIZE=1; shift ;;
     --no-start) NO_START=1; shift ;;
@@ -954,6 +982,7 @@ setup_panes() {
   log "완료: prefix=${PREFIX} preset=${PRESET} (${done_list})"
 }
 
+printf 'herdr-team v%s\n' "$VERSION"
 PREV_ACTIVE="$(active_preset)"
 setup_templates
 setup_opencode_agents

@@ -715,6 +715,55 @@ for d in "${NRW_DOCS[@]}"; do
   if [[ -z "$NRW_COMMA" ]]; then ok "nrw_until콤마나열_금지: $d"; else bad "nrw_until콤마나열_금지: $d ($NRW_COMMA)"; fi
 done
 
+echo "== 38) 읽기전용 agent 파일 bash 권한 보강 (템플릿 정본 + 로컬 생성물) =="
+# 커밋 대상 정본 2개는 항상 단언한다. .opencode/agents/* 는 .gitignore 생성물이라
+# 클린 체크아웃에 존재하지 않으므로, 있을 때만(로컬) 추가 검증하고 없으면 SKIP 한다.
+PERM_FILES=(
+  "templates/opencode-agents/ROLE-planner.md"
+  "templates/opencode-agents/ROLE-orchestrator.md"
+)
+for f in ".opencode/agents/ht-planner.md" ".opencode/agents/ht-orchestrator.md"; do
+  if [[ -f "$REPO/$f" ]]; then PERM_FILES+=("$f"); else echo "SKIP: $f 부재(.opencode 생성물) -> §38 검증 제외"; fi
+done
+# frontmatter에서 bash 권한 키 라인만 정규화 추출 (집합/순서 동일성 비교용)
+perm_key_lines() {
+  awk '
+    /^permission:/ { p = 1; next }
+    !p { next }
+    /^---/ { exit }
+    /^[[:space:]]+"[^"]+":/ { gsub(/^[[:space:]]+/, ""); print }
+  ' "$1"
+}
+PERM_REF=""
+for f in "${PERM_FILES[@]}"; do
+  if [[ ! -f "$REPO/$f" ]]; then bad "perm_파일_존재: $f"; continue; fi
+  ok "perm_파일_존재: $f"
+  TXT="$(cat "$REPO/$f")"
+  assert_contains "$TXT" '"*": ask' "perm_ask_존재: $f"
+  assert_contains "$TXT" 'edit: deny' "perm_edit_deny: $f"
+  assert_contains "$TXT" 'task: deny' "perm_task_deny: $f"
+  assert_contains "$TXT" '"ls *": allow' "perm_ls_allow: $f"
+  assert_contains "$TXT" '"git status*": allow' "perm_git_status_allow: $f"
+  assert_contains "$TXT" '"herdr *": allow' "perm_herdr_allow: $f"
+  assert_contains "$TXT" '"rg *": allow' "perm_rg_allow: $f"
+  assert_contains "$TXT" '"python* --version*": allow' "perm_python_allow: $f"
+  ASK_LN="$(grep -nF '"*": ask' "$REPO/$f" | head -n1 | cut -d: -f1)"
+  FIRST_ALLOW_LN="$(grep -nE '^[[:space:]]+"[^"]+": allow' "$REPO/$f" | head -n1 | cut -d: -f1)"
+  if [[ -n "$ASK_LN" && -n "$FIRST_ALLOW_LN" && "$ASK_LN" -lt "$FIRST_ALLOW_LN" ]]; then
+    ok "perm_ask_선행순서: $f (ask=$ASK_LN < first_allow=$FIRST_ALLOW_LN)"
+  else
+    bad "perm_ask_선행순서: $f (ask=$ASK_LN first_allow=$FIRST_ALLOW_LN)"
+  fi
+  KEYS="$(perm_key_lines "$REPO/$f")"
+  if [[ -z "$PERM_REF" ]]; then
+    PERM_REF="$KEYS"
+  elif [[ "$KEYS" == "$PERM_REF" ]]; then
+    ok "perm_키집합_순서_동일: $f"
+  else
+    bad "perm_키집합_순서_동일: $f (다름)"
+  fi
+done
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
