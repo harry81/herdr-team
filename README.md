@@ -54,8 +54,10 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 ## Quick Start
 
 **Windows — zero terminal.** Download the release zip (`herdr-team-YYYYMMDD.zip`) from GitHub Releases,
-unzip, and double-click **`start-team.bat`** (and optionally **`start-watcher.bat`** for auto-unblocking).
-Pick a preset from the menu. That's it — no terminal opened, ever.
+unzip, and double-click **`install.bat`** once — it creates `hts` / `htw` shortcuts and registers them on
+your User PATH. Then double-click **`start-team.bat`** (and optionally **`start-watcher.bat`** for
+auto-unblocking). Pick a preset from the menu. That's it — no terminal opened, ever.
+`herdr` must already be installed; the launchers check for it and print install guidance otherwise.
 
 **Linux / macOS — one line, then `hts` works everywhere:**
 
@@ -104,9 +106,13 @@ herdr-team/
 │   ├── herdr-watcher     # Team watcher script (auto-unblocks permission prompts, htw)
 │   └── herdr-team-setup  # Legacy wrapper (100% compatible, forwards to herdr-team)
 ├── windows/
+│   ├── install.bat             # Windows one-click installer (creates hts/htw shims + PATH)
 │   ├── start-team.bat          # Windows one-click team launcher (double-click this)
 │   ├── start-watcher.bat       # Windows one-click watcher launcher (double-click this)
 │   └── create-shortcut.bat     # Desktop shortcut creator ("Start AI Team")
+├── install.bat                 # Root wrapper → windows\install.bat
+├── hts.bat                     # Root shortcut → windows\start-team.bat
+├── htw.bat                     # Root shortcut → windows\start-watcher.bat
 ├── start-team.bat              # Root wrapper → windows\start-team.bat
 ├── start-watcher.bat           # Root wrapper → windows\start-watcher.bat
 ├── scripts/
@@ -133,7 +139,8 @@ herdr-team/
 ├── tests/
 │   ├── test_preset.sh          # Preset + TUI tests (canonical + legacy wrapper)
 │   ├── test_install.sh         # Installer + release zip tests
-│   └── test_windows_launcher.sh# Windows launcher tests
+│   ├── test_windows_launcher.sh # Windows launcher tests
+│   └── test_herdr_precheck.sh  # herdr precheck tests (fail-fast / skip / dry-run)
 ├── install.sh                  # Symlink installer (~/bin + ~/templates)
 ├── LICENSE                     # MIT License
 ├── README.md                   # This file (English, primary)
@@ -241,17 +248,27 @@ Presets are discovered dynamically from `--template-dir` and the bundled `templa
 
 For non-technical users on Windows — double-click, no terminal knowledge required:
 
-1. Double-click **`start-team.bat`** (repo root, or from the release zip).
-2. Double-click **`start-watcher.bat`** (recommended: auto-allows command approval prompts in background).
-3. Pick a preset from the menu (English primary + Korean, 10s default: dev).
-4. A desktop shortcut ("Start AI Team") can be created with `windows\create-shortcut.bat`.
+1. Double-click **`install.bat`** once (repo root, or from the release zip). It creates
+   `hts.cmd` / `htw.cmd` / `ht.cmd` / `herdr-team.cmd` / `herdr-team-setup.cmd` in
+   `%HERDR_TEAM_BIN_DIR%` (default `%USERPROFILE%\bin`) and adds that dir to your User PATH.
+   Re-running is idempotent (unchanged files are skipped; PATH is added only if missing).
+2. Double-click **`start-team.bat`** (repo root, or from the release zip).
+3. Double-click **`start-watcher.bat`** (recommended: auto-allows command approval prompts in background).
+4. Pick a preset from the menu (English primary + Korean, 10s default: dev).
+5. A desktop shortcut ("Start AI Team") can be created with `windows\create-shortcut.bat`.
+
+`herdr` is a prerequisite (herdr-team runs on top of it). The installer and launchers call
+`bin/herdr-team --precheck`; if `herdr` is missing they print install guidance
+(`curl -fsSL https://herdr.dev/install.sh | sh`, or on Windows
+`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`) and exit.
 
 The launcher runs the repo script via WSL (fallback: Git-Bash), converting paths with
 `wsl wslpath`, forwarding all args (`--preset`, `--dry-run`, ...).
-Simulation without side effects: `HERDR_TEAM_DRYRUN=1`.
+Simulation without side effects: `HERDR_TEAM_DRYRUN=1` (installer prints the plan only, no writes).
 Skip the final pause (automation): `HERDR_TEAM_NOPAUSE=1`.
 Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 `wsl --install` (`HERDR_TEAM_SKIP_CHECK=1` bypasses the check).
+Custom install dir: `HERDR_TEAM_BIN_DIR`. Missing `herdr`: `HERDR_TEAM_SKIP_CHECK=1` bypasses the precheck.
 
 ### CLI options reference
 
@@ -264,6 +281,7 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 | `--template-dir D` | Template directory (default: `~/templates/agent-team`, or `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | Team preset: `dev` \| `research` \| `biz` \| `mkt` \| `creator` (`app` = deprecated alias of `dev`; or `HERDR_TEAM_PRESET`; default: `dev` / TUI) |
 | `--list-presets` | Print available presets and exit |
+| `--precheck` | Check `herdr` CLI presence and exit (`0` present / `127` missing; `HERDR_TEAM_SKIP_CHECK=1` bypasses) |
 | `--no-interactive` | Never prompt; default `preset=dev`, `kind=opencode` |
 | `--no-template` | Skip template copy/generate step |
 | `--no-resize` | Split without `--ratio` equalization (no separate resize step) |
@@ -275,7 +293,9 @@ Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 
 ### Requirements
 
-- `herdr` CLI (run inside a Herdr session)
+- `herdr` CLI (run inside a Herdr session) — install: `curl -fsSL https://herdr.dev/install.sh | sh`
+  (Windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`).
+  `herdr-team --precheck` exits `127` if missing; `HERDR_TEAM_SKIP_CHECK=1` bypasses.
 - `jq` (parses `herdr pane current/split` JSON responses)
 - Windows launcher: WSL (preferred) or Git-Bash
 
@@ -298,6 +318,7 @@ User → PM(agy) → task manager → planner → worker → reviewer ─[APPROV
 bash tests/test_preset.sh            # preset + TUI (canonical + legacy wrapper)
 bash tests/test_install.sh           # installer + release zip
 bash tests/test_windows_launcher.sh  # launcher structure + forwarded-command simulation
+bash tests/test_herdr_precheck.sh    # herdr precheck (127 missing / 0 present / skip / dry-run)
 ```
 
 </details>

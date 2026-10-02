@@ -54,8 +54,9 @@ User → ① PM → task manager → ② Planner → ③ Worker → ④ Reviewer
 ## 30초 빠른 시작
 
 **Windows — 터미널 0회.** GitHub Releases에서 배포 zip(`herdr-team-YYYYMMDD.zip`)을 받아
-압축을 풀고 **`start-team.bat`**(및 권한 자동승인용 **`start-watcher.bat`**)을 더블클릭하세요. 메뉴에서 프리셋 선택.
-끝입니다. 터미널은 한 번도 안 엽니다.
+압축을 풀고 **`install.bat`**을 한 번 더블클릭하세요 — `hts`/`htw` 바로가기를 만들고 User PATH에 등록합니다.
+이후 **`start-team.bat`**(및 권한 자동승인용 **`start-watcher.bat`**)을 더블클릭하세요. 메뉴에서 프리셋 선택.
+끝입니다. 터미널은 한 번도 안 엽니다. `herdr`가 이미 설치되어 있어야 하며, 없으면 런처가 설치 안내를 출력합니다.
 
 **Linux / macOS — 한 줄이면 어디서든 `hts`:**
 
@@ -104,9 +105,13 @@ herdr-team/
 │   ├── herdr-watcher     # 팀 워처 스크립트 (셸 권한 팝업 자동 승인, htw)
 │   └── herdr-team-setup  # 레거시 래퍼 (100% 호환, herdr-team으로 전달)
 ├── windows/
+│   ├── install.bat             # Windows 원클릭 설치기 (hts/htw shim 생성 + PATH 등록)
 │   ├── start-team.bat          # Windows 팀 원클릭 런처 (더블클릭 실행)
 │   ├── start-watcher.bat       # Windows 워처 원클릭 런처 (더블클릭 실행)
 │   └── create-shortcut.bat     # 바탕화면 바로가기 생성기 ("Start AI Team")
+├── install.bat                 # 루트 래퍼 → windows\install.bat
+├── hts.bat                     # 루트 바로가기 → windows\start-team.bat
+├── htw.bat                     # 루트 바로가기 → windows\start-watcher.bat
 ├── start-team.bat              # 루트 래퍼 → windows\start-team.bat
 ├── start-watcher.bat           # 루트 래퍼 → windows\start-watcher.bat
 ├── scripts/
@@ -133,7 +138,8 @@ herdr-team/
 ├── tests/
 │   ├── test_preset.sh          # 프리셋 + TUI 테스트 (정본 + 레거시 래퍼)
 │   ├── test_install.sh         # 설치 + 배포 zip 테스트
-│   └── test_windows_launcher.sh# Windows 런처 테스트
+│   ├── test_windows_launcher.sh # Windows 런처 테스트
+│   └── test_herdr_precheck.sh  # herdr 사전 점검 테스트 (fail-fast / skip / dry-run)
 ├── install.sh                  # ~/bin + ~/templates 심볼릭 링크 설치
 ├── LICENSE                     # MIT 라이선스
 ├── README.md                   # 영문 기본 문서 (Primary)
@@ -235,17 +241,25 @@ Select [1-5/dev/research/biz/mkt/creator] (default: dev, 10s):
 
 Windows 일반 사용자용 — 더블클릭만으로 실행, 터미널 지식 불필요:
 
-1. 저장소 루트(또는 배포 zip)의 **`start-team.bat`** 더블클릭.
-2. 백그라운드 워처 실행을 원할 시 **`start-watcher.bat`** 더블클릭 (권장: 셸 실행 승인 팝업 자동 처리).
-3. 메뉴에서 프리셋 선택 (영어 기본 + 한국어 병기, 10초 무입력 시 dev).
-4. `windows\create-shortcut.bat` 실행 시 바탕화면 바로가기("Start AI Team") 생성.
+1. 저장소 루트(또는 배포 zip)의 **`install.bat`**을 한 번 더블클릭. `%HERDR_TEAM_BIN_DIR%`
+   (기본 `%USERPROFILE%\bin`)에 `hts.cmd`/`htw.cmd`/`ht.cmd`/`herdr-team.cmd`/`herdr-team-setup.cmd`를
+   만들고 User PATH에 등록합니다. 재실행은 멱등(내용 동일 시 스킵, PATH는 미존재 시에만 추가).
+2. **`start-team.bat`** 더블클릭.
+3. 백그라운드 워처 실행을 원할 시 **`start-watcher.bat`** 더블클릭 (권장: 셸 실행 승인 팝업 자동 처리).
+4. 메뉴에서 프리셋 선택 (영어 기본 + 한국어 병기, 10초 무입력 시 dev).
+5. `windows\create-shortcut.bat` 실행 시 바탕화면 바로가기("Start AI Team") 생성.
+
+`herdr`는 전제 조건입니다(herdr-team는 herdr 위에서 동작). 설치기와 런처는
+`bin/herdr-team --precheck`를 호출하며, `herdr`가 없으면 설치 안내
+(`curl -fsSL https://herdr.dev/install.sh | sh`, Windows는
+`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`)를 출력하고 종료합니다.
 
 런처는 WSL(없으면 Git-Bash) 경유로 저장소 스크립트를 실행하며,
 `wsl wslpath`로 경로 변환, 모든 인자(`--preset`, `--dry-run` 등)를 그대로 전달합니다.
-부작용 없는 시뮬레이션: `HERDR_TEAM_DRYRUN=1`.
+부작용 없는 시뮬레이션: `HERDR_TEAM_DRYRUN=1` (설치기는 계획만 출력, 쓰기 0).
 마지막 pause 생략(자동화): `HERDR_TEAM_NOPAUSE=1`.
 Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 뜹니다
-(`HERDR_TEAM_SKIP_CHECK=1`로 점검 생략 가능).
+(`HERDR_TEAM_SKIP_CHECK=1`로 점검 생략 가능). 설치 경로 지정: `HERDR_TEAM_BIN_DIR`.
 
 ### CLI 옵션표
 
@@ -258,6 +272,7 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 | `--template-dir D` | 템플릿 디렉토리 (기본값: `~/templates/agent-team`, 또는 `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | 팀 프리셋: `dev` \| `research` \| `biz` \| `mkt` \| `creator` (`app` = `dev`의 deprecated alias, 또는 `HERDR_TEAM_PRESET`, 기본값: `dev` / TUI) |
 | `--list-presets` | 프리셋 목록 출력 후 종료 |
+| `--precheck` | `herdr` CLI 존재 여부만 점검 후 종료 (`0` 있음 / `127` 없음; `HERDR_TEAM_SKIP_CHECK=1` 우회) |
 | `--no-interactive` | 묻지 않고 기본값으로 진행 (`preset=dev`, `kind=opencode`) |
 | `--no-template` | 템플릿 복사/생성 생략 |
 | `--no-resize` | `--ratio` 균등화 없이 분할 (별도 resize 단계 없음) |
@@ -268,7 +283,9 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 
 ### 요구사항
 
-- `herdr` CLI (Herdr 세션 안에서 실행)
+- `herdr` CLI (Herdr 세션 안에서 실행) — 설치: `curl -fsSL https://herdr.dev/install.sh | sh`
+  (Windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`).
+  없으면 `herdr-team --precheck`가 `127`로 종료, `HERDR_TEAM_SKIP_CHECK=1`로 우회.
 - `jq` (pane ID 파싱용 — `herdr pane current/split`의 JSON 응답 해석)
 - Windows 런처: WSL (권장) 또는 Git-Bash
 
@@ -290,6 +307,7 @@ User → PM(agy) → task manager → planner → worker → reviewer ─[APPROV
 bash tests/test_preset.sh            # 프리셋 + TUI (정본 + 레거시 래퍼)
 bash tests/test_install.sh           # 설치 + 배포 zip
 bash tests/test_windows_launcher.sh  # 런처 구조 + 전달 명령 시뮬레이션
+bash tests/test_herdr_precheck.sh    # herdr 사전 점검 (127 없음 / 0 있음 / skip / dry-run)
 ```
 
 </details>

@@ -52,6 +52,32 @@ if not errorlevel 1 (
 )
 )
 
+rem --- herdr precheck (herdr-team runs on top of herdr) / herdr 사전 점검 ---
+rem --- Fail fast when herdr is missing; set HERDR_TEAM_SKIP_CHECK=1 to bypass ---
+if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
+  echo [WARN] Skipping herdr precheck (HERDR_TEAM_SKIP_CHECK=1) / herdr 사전 점검 생략
+) else (
+  if not "%HERDR_TEAM_DRYRUN%"=="1" (
+    if "%BACKEND%"=="wsl" (
+      for /f "delims=" %%p in ('wsl wslpath -u "%REPO%"') do set "WSL_REPO=%%p"
+      wsl bash "%WSL_REPO%/bin/herdr-team" --precheck
+    ) else (
+      set "MSYS_REPO=%REPO:\=/%"
+      "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --precheck
+    )
+    if errorlevel 1 (
+      echo [ERROR] herdr CLI not found - herdr-team runs on top of herdr.
+      echo [오류] herdr CLI 를 찾을 수 없습니다. herdr-team는 herdr 위에서 동작합니다.
+      echo   Install / 설치: curl -fsSL https://herdr.dev/install.sh ^| sh
+      echo   Windows: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 ^| iex"
+      echo   Verify / 확인: herdr --version
+      echo   Bypass / 우회: set HERDR_TEAM_SKIP_CHECK=1
+      pause
+      exit /b 127
+    )
+  )
+)
+
 rem --- Preset menu only when no args and no env (defaults to dev after 10s) ---
 rem --- 프리셋 메뉴: 인자도 env도 없을 때만 (10초 무입력 시 dev) ---
 set "PRESET_ARG="

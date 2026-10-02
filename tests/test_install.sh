@@ -89,6 +89,9 @@ assert_contains "$ZIP_LIST" "bin/herdr-team-setup" "zip: 레거시 래퍼 포함
 assert_contains "$ZIP_LIST" "windows/start-team.bat" "zip: Windows 팀 런처 포함"
 assert_contains "$ZIP_LIST" "windows/start-watcher.bat" "zip: Windows watcher 런처 포함"
 assert_contains "$ZIP_LIST" "start-watcher.bat" "zip: 루트 start-watcher.bat 포함"
+assert_contains "$ZIP_LIST" "windows/install.bat" "zip: Windows 설치기 포함"
+assert_contains "$ZIP_LIST" "hts.bat" "zip: 루트 hts.bat 포함"
+assert_contains "$ZIP_LIST" "htw.bat" "zip: 루트 htw.bat 포함"
 assert_contains "$ZIP_LIST" "README.md" "zip: README 포함"
 assert_contains "$ZIP_LIST" "LICENSE" "zip: LICENSE 포함"
 if printf '%s' "$ZIP_LIST" | grep -qE '(^|/)\.git/'; then bad "zip: .git 제외"; else ok "zip: .git 제외"; fi

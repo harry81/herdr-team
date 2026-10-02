@@ -16,6 +16,8 @@ jobs:
         run: bash tests/test_install.sh
       - name: Windows launcher suite
         run: bash tests/test_windows_launcher.sh
+      - name: herdr precheck suite
+        run: bash tests/test_herdr_precheck.sh
       - name: Watcher suite
         run: bash tests/test_watcher.sh
       - name: Version suite
