@@ -26,10 +26,10 @@
    ├─ 1) 명세 작성 지시 ──► [ {{PREFIX}}-planner ] 기획/설계 명세 + Task Breakdown (필요 시 UX/Wireframe 명세 포함)
    │        │                    │
    │        ▼ 명세 수령        완료 즉시 다음 연결
-   ├─ 2) TDD 구현 지시 ────► [ {{PREFIX}}-worker ] TDD 구현 + 단위 테스트 PASS
+   ├─ 2) TDD 구현 지시 ────► [ {{PREFIX}}-worker ] TDD 구현 + 단위 테스트 PASS (전체 회귀 1회)
    │        │                    │
    │        ▼ 변경사항 전달    완료 즉시 다음 연결
-   └─ 3) 검증/리뷰 지시 ───► [ {{PREFIX}}-reviewer ] 빌드·테스트 직접 실행 + 배포/E2E 검증 ── [APPROVE + 실행 로그] ──► Orchestrator → PM 보고
+   └─ 3) 검증/리뷰 지시 ───► [ {{PREFIX}}-reviewer ] 빌드·테스트 직접 실행 + 배포/E2E 검증 (단위 재실행 금지) ── [APPROVE + 실행 로그] ──► Orchestrator → PM 보고
                                 │
                                 └── [REQUEST CHANGES + 재현/로그] ──► {{PREFIX}}-worker로 즉시 반송 (Orchestrator 중재)
 ```
@@ -58,3 +58,4 @@
    - ℹ️ 중복 대기 금지는 "절대 한 줄에 여러 명령어 실행 금지"(단일 명령 불변식)와 별개의 독립 규칙이며, 기존 규칙을 대체하지 않는다.
    - ⚠️ **`--until` 단일 상태값**: `--until` 은 상태 **하나만** 받는다. `--until idle,done` 처럼 콤마로 나열하면 `invalid agent status` 에러다. 여러 상태를 기다리려면 플래그를 반복(`--until idle --until done`)하거나 `--until` 을 생략한 `herdr agent wait <TARGET>`(기본: idle/done/blocked 매칭)을 쓴다.
 4. **무방치 원칙 (Orchestrator)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
+5. **TDD 중복 방지 및 Fast-Track 원칙**: worker는 작업 대상 파일 전용 단위 테스트로 TDD 루프를 반복하고 전체 회귀는 완료 직전 1회만 실행해 [full-regression] 결과를 고지한다. reviewer는 단위 테스트 작성·중복 실행을 금지하며, git diff 리뷰 + 전체 회귀 1회 + DoD 대조로 즉시 승인 판정한다(예외 실행은 사유 명시). orchestrator는 규약 외 테스트 재실행을 지시하지 않는다.
