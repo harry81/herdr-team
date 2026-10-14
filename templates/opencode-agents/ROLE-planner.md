@@ -53,6 +53,11 @@ permission:
     "pip list*": allow
     "pip show*": allow
     "uv --version*": allow
+    'python* -c *': allow
+    'python3 -c *': allow
+    'mkdir -p docs*': allow
+    'cat * > docs/specs/*': allow
+    'tee docs/specs/*': allow
     "herdr *": allow
 ---
 

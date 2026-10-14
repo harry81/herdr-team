@@ -53,6 +53,8 @@ permission:
     "pip list*": allow
     "pip show*": allow
     "uv --version*": allow
+    'python* -c *': allow
+    'python3 -c *': allow
     "herdr *": allow
 ---
 
