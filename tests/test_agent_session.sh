@@ -110,6 +110,29 @@ if [[ ! -f "$D6/opencode.log" ]]; then ok "session_kind_gate: opencode 미호출
 assert_not_contains "$(cat "$D6/out")" "api post /api/session" "session_kind_gate: 세션 계획 미출력"
 rm -rf "$D6" "$CWD_CASE"
 
+echo "== g) 실모드 planner payload: model 지정 =="
+D7="$(mktemp -d)"; run_case ok "$D7"
+assert_exit "$RC" 0 "model_payload: exit 0"
+LOG7="$(cat "$D7/opencode.log" 2>/dev/null)"
+assert_contains "$(printf '%s' "$LOG7" | grep -F 't-planner')" \
+  '"model":{"providerID":"opencode-go","id":"glm-5.3-flash"}' "model_payload: planner model 지정"
+rm -rf "$D7" "$CWD_CASE"
+
+echo "== h) 실모드 비플래너 payload: model 키 생략 =="
+D8="$(mktemp -d)"; run_case ok "$D8"
+LOG8="$(cat "$D8/opencode.log" 2>/dev/null)"
+for _r in worker reviewer orchestrator; do
+  assert_not_contains "$(printf '%s' "$LOG8" | grep -F "t-$_r")" '"model"' "model_payload: t-$_r 무지정"
+done
+rm -rf "$D8" "$CWD_CASE"
+
+echo "== i) dry-run 계획: planner 모델 표시, 비플래너 미표시 =="
+D9="$(mktemp -d)"; run_case fail "$D9" --dry-run
+OUT9="$(cat "$D9/out")"
+assert_contains "$(printf '%s' "$OUT9" | grep -F 'SID_PLANNER')" "glm-5.3-flash" "model_dryrun: planner 모델 표시"
+assert_not_contains "$(printf '%s' "$OUT9" | grep -F 'SID_WORKER')" "glm-5.3-flash" "model_dryrun: worker 모델 미표시"
+rm -rf "$D9" "$CWD_CASE"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

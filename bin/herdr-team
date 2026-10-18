@@ -538,15 +538,29 @@ need_cmd() {
 # 역할 agent 로 고정된 opencode 세션을 미리 만들고 session id를 stdout으로 돌려준다.
 # dry-run에서는 계획 라인만 출력하고 값을 반환하지 않는다(--dry-run 면제, R6).
 # location 미지정 시 $HOME에 귀속되므로(E19) 반드시 location.directory를 명시한다.
+# 역할별 세션 모델: 값이 비면 opencode 기본 모델 상속(무지정).
+# 근거: docs/specs/role-model-config.md (agent md frontmatter 의 model 은 v2 세션에 반영되지 않음)
+# shortcut: "provider/model#variant" 미지원, 필요해지면 split("#") 확장
+role_model() {
+  case "$1" in
+    planner) printf 'opencode-go/glm-5.3-flash' ;;
+    *) printf '' ;;
+  esac
+}
+
 opencode_session_for() {
-  local agent="$1" var payload out sid
+  local agent="$1" var payload out sid m mp
   var="SID_$(printf '%s' "${agent#"$PREFIX"-}" | tr '[:lower:]' '[:upper:]')"
+  m="$(role_model "${agent#"$PREFIX"-}")"
+  mp=""
+  [[ -n "$m" ]] && mp=",model:{providerID:\"${m%%/*}\",id:\"${m#*/}\"}"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '+ %s=$(opencode api post /api/session -d "$(jq -nc --arg a %s --arg d %q %s)" | jq -r .data.id)\n' \
-      "$var" "$agent" "$CWD" "'{agent:\$a,title:\$a,location:{directory:\$d}}'"
+      "$var" "$agent" "$CWD" "'{agent:\$a,title:\$a${mp},location:{directory:\$d}}'"
     return 0
   fi
-  if ! payload="$(jq -nc --arg a "$agent" --arg d "$CWD" '{agent:$a,title:$a,location:{directory:$d}}')"; then
+  if ! payload="$(jq -nc --arg a "$agent" --arg d "$CWD" --arg m "$m" \
+      '{agent:$a,title:$a,location:{directory:$d}} + (if $m=="" then {} else {model:($m|split("/")|{providerID:.[0],id:.[1]})} end)')"; then
     echo "error: 세션 요청 JSON 생성 실패 ($agent)" >&2
     return 1
   fi

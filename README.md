@@ -321,6 +321,7 @@ User → PM(agy) → task manager → planner → worker → reviewer ─[APPROV
   communication & top-level goals.
 - Only worker edits code. Reviewer runs static review + build/unit/integration·E2E·regression, then judges only.
 - On-demand: researcher (research), ops (deploy/infra) — started by PM when needed.
+- Per-role model: planner runs on `opencode-go/glm-5.3-flash`; other roles leave the model unspecified and inherit the project default. (kind=opencode sessions)
 - See template `AGENTS.md` + role docs for the full protocol.
 
 ### Tests

@@ -26,10 +26,10 @@
    ├─ 1) 명세 작성 지시 ──► [ ht-planner ] 기획/설계 명세 + Task Breakdown (필요 시 UX/Wireframe 명세 포함)
    │        │                    │
    │        ▼ 명세 수령        완료 즉시 다음 연결
-   ├─ 2) TDD 구현 지시 ────► [ ht-worker ] TDD 구현 + 단위 테스트 PASS
+   ├─ 2) TDD 구현 지시 ────► [ ht-worker ] TDD 구현 + 단위 테스트 PASS (전체 회귀 1회)
    │        │                    │
    │        ▼ 변경사항 전달    완료 즉시 다음 연결
-   └─ 3) 검증/리뷰 지시 ───► [ ht-reviewer ] 빌드·테스트 직접 실행 + 배포/E2E 검증 ── [APPROVE + 실행 로그] ──► Orchestrator → PM 보고
+   └─ 3) 검증/리뷰 지시 ───► [ ht-reviewer ] 빌드·테스트 직접 실행 + 배포/E2E 검증 (단위 재실행 금지) ── [APPROVE + 실행 로그] ──► Orchestrator → PM 보고
                                 │
                                 └── [REQUEST CHANGES + 재현/로그] ──► ht-worker로 즉시 반송 (Orchestrator 중재)
 ```
@@ -37,8 +37,10 @@
 - **On-Demand 에이전트**: 상시 팀이 아니며 PM이 필요 시에만 기동합니다.
   - `ht-researcher`: 외부 리서치, 기술 조사 전담 (읽기·보고만, 코드 수정 금지).
   - `ht-ops`: 배포, 인프라, 비밀값·환경 변수 운영 대행 (PM 승인 범위 내에서만 실행).
-- **Team 간 직접 협업 금지**: worker ↔ reviewer는 서로 직접 prompt하지 않습니다. 모든 반송/승인은 Orchestrator(필요 시 PM)를 경유합니다.
-- **수정 권한**: 코드를 직접 수정하는 것은 `ht-worker`뿐입니다.
+- **역할별 쓰기 권한 범위 (Scoped Permissions)**:
+  - `ht-planner`: **문서 전용 쓰기 허용 (`docs/specs/*.md`)**. 긴 명세는 TUI 화면에 출력하지 않고 반드시 마크다운 파일로 기록. 프로덕션 코드/테스트 직접 수정은 금지.
+  - `ht-worker`: **구현/테스트 전용 쓰기**. 프로덕션 코드 및 TDD 테스트 코드를 직접 수정하는 유일한 에이전트.
+  - `ht-reviewer`: **검증 실행 전용 임시 쓰기 허용 (`tmp_path`, 테스트 산출물/로그)**. 프로덕션 코드/테스트 수정은 금지(발견 즉시 REQUEST CHANGES로 반송).
 - **역할 강제**: 각 역할 pane은 `.opencode/agents/ht-<role>.md` agent 설정을 기반으로 시작되어 규칙·권한이 시스템 프롬프트로 고정됩니다. 상세 지침 정본은 `agents/dev/ht-<role>.md`.
 
 ### 1.1 ⚠️ 가드레일 (Strict Guardrails for PM & Orchestrator)
@@ -46,9 +48,18 @@
 1. **쓰기 금지, 읽기 허용**:
    - ❌ 금지(쓰기): 파일 편집, `pytest`/`npm test`/`playwright`/빌드 실행, `git commit/push`, 에이전트 pane에서의 직접 코딩.
    - ✅ 허용(읽기): `herdr agent list/read`, `herdr pane list/read`, `git status/diff/log`, 테스트 결과 로그 취합, 사용자 보고.
-2. **역할 위임 고정**:
-   - 기획/설계 → `ht-planner`, 구현/버그수정 → `ht-worker`, 실행 검증 겸 코드 리뷰(최종 게이트) → `ht-reviewer`.
+2. **역할 위임 고정 및 파일 기반 계약**:
+   - 기획/설계 → `ht-planner` (산출물은 반드시 `docs/specs/<명세명>.md` 파일로 작성 후 "경로 + 1줄 요약"만 회신).
+   - 구현/버그수정 → `ht-worker` (명세 파일 참조하여 TDD 구현).
+   - 실행 검증 겸 코드 리뷰(최종 게이트) → `ht-reviewer` (실행 로그 첨부 검증).
 3. **오케스트레이션 전담 (Orchestrator)**: 요구사항 분석, 프롬프트 전송(`herdr agent prompt`), 상태 확인(`herdr agent read`), 산출물 중계, 결과 종합 보고.
+   - 🛡️ **프롬프트 쉘 이스케이프(Shell Escape) 안전 수칙**:
+     - `herdr agent prompt` 본문에 백틱(`` ` ``), 큰따옴표(`"`), 달러(`$`), 괄호(`()`)를 날것으로 쓰지 않는다(서브쉘 치환/명령어 실행 방지).
+     - 긴 명세나 지시는 터미널 인라인 대신 `docs/specs/<명세파일>.md` 경로를 참조하도록 프롬프트를 구성한다.
+   - 🛡️ **상태 감지 및 블로킹 해제**:
+     - 대상이 `blocked` 상태일 때는 `read --lines`를 호출하지 말고 `--source visible`로 확인한다.
+     - 대화형 승인(`Allow once` 등) 대기로 블로킹된 경우 확인 후 `herdr pane send-keys <PANE> Enter`로 해제한다.
+     - ⚠️ 단, 파괴적 위험 명령(`rm -rf`, 캐시 전역 삭제 등)은 자동 승인하지 말고 반드시 사용자에게 확인한다.
    - ❌ `sleep` 폴링 쉘 루프 작성 절대 금지.
    - ❌ `herdr` 명령 뒤에 `| tail`, `| head`, `| grep` 등 파이프라인 필터 절대 금지 (표준입력 EOF 누수로 서브쉘 무한 Hang 발생).
    - ⚠️ **절대 한 줄에 여러 명령어 실행 금지**: 세미콜론(`;`), `&&`, `||`, 파이프(`|`), 백그라운드(`&`)로 `herdr`를 다른 명령어와 엮지 말고 반드시 **한 줄에 오직 하나의 단독 명령어**로만 실행.
@@ -58,3 +69,4 @@
    - ℹ️ 중복 대기 금지는 "절대 한 줄에 여러 명령어 실행 금지"(단일 명령 불변식)와 별개의 독립 규칙이며, 기존 규칙을 대체하지 않는다.
    - ⚠️ **`--until` 단일 상태값**: `--until` 은 상태 **하나만** 받는다. `--until idle,done` 처럼 콤마로 나열하면 `invalid agent status` 에러다. 여러 상태를 기다리려면 플래그를 반복(`--until idle --until done`)하거나 `--until` 을 생략한 `herdr agent wait <TARGET>`(기본: idle/done/blocked 매칭)을 쓴다.
 4. **무방치 원칙 (Orchestrator)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
+5. **TDD 중복 방지 및 Fast-Track 원칙**: worker는 작업 대상 파일 전용 단위 테스트로 TDD 루프를 반복하고 전체 회귀는 완료 직전 1회만 실행해 [full-regression] 결과를 고지한다. reviewer는 단위 테스트 작성·중복 실행을 금지하며, git diff 리뷰 + 전체 회귀 1회 + DoD 대조로 즉시 승인 판정한다(예외 실행은 사유 명시). orchestrator는 규약 외 테스트 재실행을 지시하지 않는다.

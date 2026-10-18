@@ -309,6 +309,7 @@ User → PM(agy) → task manager → planner → worker → reviewer ─[APPROV
 - task manager가 순차 파이프라인을 중계(코드 수정 금지). PM은 사용자 소통·상위 목표 수립만.
 - 수정 권한은 worker만. reviewer는 정적 리뷰 + 빌드/단위/통합·E2E·회귀 직접 실행 후 판정만.
 - on-demand: researcher(조사), ops(배포·인프라) — PM이 필요 시 기동.
+- 역할별 모델: planner(기획)는 `opencode-go/glm-5.3-flash`, 나머지 역할은 모델 미지정 → 프로젝트 opencode 기본 모델. (kind=opencode 세션에 적용)
 - 상세 규율은 템플릿 `AGENTS.md` + 역할 문서를 참조.
 
 ### 테스트
