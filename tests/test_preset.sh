@@ -204,20 +204,14 @@ assert_not_contains "$DEV_OUT" "균등화 best-effort" "dry-run: 기존 resize b
 # help Layout도 설명 포함
 assert_contains "$HELP_OUT" "--layout" "help: Layout 옵션 설명"
 
-echo "== 17) opencode --agent 적용 (역할별 agent 강제) =="
-# dev(4역할): herdr agent start ... -- --agent <prefix>-<role>
-for r in orchestrator planner worker reviewer; do
-  assert_contains "$DEV_OUT" "-- --agent test-$r" "dev: herdr agent start -- agent test-$r"
-done
-# biz: researcher는 --agent, worker는 없음 (역할 일반화 + kind 게이팅)
-assert_contains "$BIZ_OUT" "-- --agent test-researcher" "biz: herdr agent start -- agent test-researcher"
-assert_not_contains "$BIZ_OUT" "-- --agent test-worker" "biz: --agent test-worker 없음"
-# creator: worker는 --agent, researcher는 없음 (창작 프리셋)
+echo "== 17) opencode 시작 형식 (불필요한 --agent 플래그 배제) =="
+# opencode 포함 모든 kind에서 불필요한 --agent 플래그 없이 herdr agent start <name> --kind <kind> --pane <pane> 형식 유지
+assert_not_contains "$DEV_OUT" "-- --agent" "dev: herdr agent start에 --agent 플래그 미사용"
+assert_not_contains "$BIZ_OUT" "-- --agent" "biz: herdr agent start에 --agent 플래그 미사용"
 CREATOR_OUT="$("$BIN" test --preset creator --dry-run --no-template --no-interactive 2>&1)"; CREATOR_RC=$?
 assert_exit "$CREATOR_RC" 0 "creator dry-run exit 0"
 assert_contains "$CREATOR_OUT" "preset=creator" "dryrun_creator_worker: preset=creator"
-assert_contains "$CREATOR_OUT" "-- --agent test-worker" "dryrun_creator_worker: --agent test-worker"
-assert_not_contains "$CREATOR_OUT" "-- --agent test-researcher" "dryrun_creator_researcher없음"
+assert_not_contains "$CREATOR_OUT" "-- --agent" "creator: herdr agent start에 --agent 플래그 미사용"
 # codex(미지원 kind): --agent 미사용
 assert_not_contains "$KIND_ENV_OUT" "--agent" "codex: --agent 미사용(kind 게이팅)"
 

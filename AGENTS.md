@@ -82,7 +82,7 @@
 
 > `hts-qa.md`는 삭제됨. 통합/E2E/회귀 검증은 `hts-reviewer`의 실행 검증 의무로 통합.
 
-> 역할 강제: 각 역할 pane은 `.opencode/agents/hts-<role>.md` (opencode primary agent)로 시작합니다 (`herdr agent start ... -- --agent hts-<role>`). 역할 규칙·권한이 시스템 프롬프트로 고정되며, 첫 prompt의 역할 문서 주입은 보조 수단입니다. 상세 프로토콜 정본은 `agents/hts-<role>.md`.
+> 역할 강제: 각 역할 pane은 `.opencode/agents/hts-<role>.md` (opencode primary agent) 정의를 기반으로 시작합니다 (`herdr agent start <agent> --kind opencode --pane <pane>`). 역할 규칙·권한이 프로젝트 에이전트 설정으로 연동되며, 첫 prompt의 역할 문서 주입은 보조 수단입니다. 상세 프로토콜 정본은 `agents/hts-<role>.md`.
 
 > 작업 디렉토리 주의: 4인 체제라도 동일 `$PWD`에 동시 쓰기를 두면 파일 충돌·테스트 간섭이 발생합니다. 기본은 **순차 실행**(한 번에 1명만 쓰기)으로 운용하고, 병렬이 필요하면 `herdr worktree create`로 분리합니다.
 
@@ -118,11 +118,10 @@ P_REVIEWER=$(herdr pane split $P_WORKER --direction down --ratio 0.5 --cwd "$PWD
 
 # 3. 빈 pane에만 에이전트 시작 (멱등: list에 있으면 start 생략)
 #    역할 agent는 herdr-team 실행 시 .opencode/agents/hts-<role>.md 로 자동 설치됩니다.
-#    (수동 셋업이면 이 파일이 있어야 --agent가 동작합니다.)
-herdr agent list | grep -q hts-taskmanager || herdr agent start hts-taskmanager --kind opencode --pane "$P_TASK" -- --agent hts-taskmanager
-herdr agent list | grep -q hts-planner || herdr agent start hts-planner --kind opencode --pane "$P_PLANNER" -- --agent hts-planner
-herdr agent list | grep -q hts-worker || herdr agent start hts-worker --kind opencode --pane "$P_WORKER" -- --agent hts-worker
-herdr agent list | grep -q hts-reviewer || herdr agent start hts-reviewer --kind opencode --pane "$P_REVIEWER" -- --agent hts-reviewer
+herdr agent list | grep -q hts-taskmanager || herdr agent start hts-taskmanager --kind opencode --pane "$P_TASK"
+herdr agent list | grep -q hts-planner || herdr agent start hts-planner --kind opencode --pane "$P_PLANNER"
+herdr agent list | grep -q hts-worker || herdr agent start hts-worker --kind opencode --pane "$P_WORKER"
+herdr agent list | grep -q hts-reviewer || herdr agent start hts-reviewer --kind opencode --pane "$P_REVIEWER"
 # on-demand(researcher/ops)도 필요 시점에 동일 패턴으로 시작
 
 # 4. 표시용 라벨 (pane label과 agent 이름은 별개)

@@ -879,9 +879,7 @@ setup_panes() {
       for _role in "${ROLES[@]}"; do
         _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
         _agent="$(role_agent "$_role")"
-        # opencode만 --agent(<prefix>-<role>)를 지원한다. claude/agy는 별도 형식, codex/gemini는 미지원.
-        if [[ "$KIND" == "opencode" ]]; then _agent_flag=" -- --agent $_agent"; else _agent_flag=""; fi
-        printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"%s\n' "$_agent" "$_agent" "$KIND" "$_var" "$_agent_flag"
+        printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var"
       done
     fi
     return
@@ -995,11 +993,7 @@ setup_panes() {
     for role in "${ROLES[@]}"; do
       agent="$(role_agent "$role")"
       if ! herdr agent list 2>/dev/null | grep -q -- "$agent"; then
-        if [[ "$KIND" == "opencode" ]]; then
-          run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}" -- --agent "$agent"
-        else
-          run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
-        fi
+        run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
       else log "$agent 이미 존재 → 시작 생략"; fi
       i=$((i+1))
     done

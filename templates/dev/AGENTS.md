@@ -41,7 +41,7 @@
   - `{{PREFIX}}-planner`: **문서 전용 쓰기 허용 (`docs/specs/*.md`)**. 긴 명세는 TUI 화면에 출력하지 않고 반드시 마크다운 파일로 기록. 프로덕션 코드/테스트 직접 수정은 금지.
   - `{{PREFIX}}-worker`: **구현/테스트 전용 쓰기**. 프로덕션 코드 및 TDD 테스트 코드를 직접 수정하는 유일한 에이전트.
   - `{{PREFIX}}-reviewer`: **검증 실행 전용 임시 쓰기 허용 (`tmp_path`, 테스트 산출물/로그)**. 프로덕션 코드/테스트 수정은 금지(발견 즉시 REQUEST CHANGES로 반송).
-- **역할 강제**: 각 역할 pane은 `.opencode/agents/{{PREFIX}}-<role>.md` agent(`--agent {{PREFIX}}-<role>`)로 시작되어 규칙·권한이 시스템 프롬프트로 고정됩니다. 상세 지침 정본은 `agents/{{PRESET}}/{{PREFIX}}-<role>.md`.
+- **역할 강제**: 각 역할 pane은 `.opencode/agents/{{PREFIX}}-<role>.md` agent 설정을 기반으로 시작되어 규칙·권한이 시스템 프롬프트로 고정됩니다. 상세 지침 정본은 `agents/{{PRESET}}/{{PREFIX}}-<role>.md`.
 
 ### 1.1 ⚠️ 가드레일 (Strict Guardrails for PM & Orchestrator)
 

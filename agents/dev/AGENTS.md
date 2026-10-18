@@ -39,7 +39,7 @@
   - `ht-ops`: 배포, 인프라, 비밀값·환경 변수 운영 대행 (PM 승인 범위 내에서만 실행).
 - **Team 간 직접 협업 금지**: worker ↔ reviewer는 서로 직접 prompt하지 않습니다. 모든 반송/승인은 Orchestrator(필요 시 PM)를 경유합니다.
 - **수정 권한**: 코드를 직접 수정하는 것은 `ht-worker`뿐입니다.
-- **역할 강제**: 각 역할 pane은 `.opencode/agents/ht-<role>.md` agent(`--agent ht-<role>`)로 시작되어 규칙·권한이 시스템 프롬프트로 고정됩니다. 상세 지침 정본은 `agents/dev/ht-<role>.md`.
+- **역할 강제**: 각 역할 pane은 `.opencode/agents/ht-<role>.md` agent 설정을 기반으로 시작되어 규칙·권한이 시스템 프롬프트로 고정됩니다. 상세 지침 정본은 `agents/dev/ht-<role>.md`.
 
 ### 1.1 ⚠️ 가드레일 (Strict Guardrails for PM & Orchestrator)
 

@@ -161,8 +161,8 @@ herdr-team/
    (기존 단일 우측 스택을 원할 경우 `--layout right-stack` 사용).
 5. **균등화** — 각 down 분할 시 `--ratio 1/(N-k+1)` (및 PM/TM 0.5)을 전달하므로 별도 resize 없이 정확히 균등해집니다.
 6. **레이블 + 시작** — ① PM / ② Task Manager / ③④⑤ 역할 로 변경 후
-   `herdr agent start <prefix>-<role> --kind opencode -- --agent <prefix>-<role>`
-   (opencode 역할 강제; 이미 있으면 생략).
+   `herdr agent start <prefix>-<role> --kind opencode --pane <pane>`
+   (이미 실행 중이면 생략).
 
 `install.sh`는 아래 심볼릭 링크를 만들고,
 `~/.bashrc`·`~/.zshrc`에 `~/bin` PATH 등록을 수행합니다 (marker 주석, 멱등):

@@ -73,7 +73,7 @@
 
 > `{{PREFIX}}-qa.md`는 삭제됨. 통합/E2E/회귀 검증은 `{{PREFIX}}-reviewer`의 실행 검증 의무로 통합.
 
-> 역할 강제: 각 역할 pane은 프로젝트에 설치된 `.opencode/agents/{{PREFIX}}-<role>.md` (opencode primary agent)로 시작합니다 (`herdr agent start ... -- --agent {{PREFIX}}-<role>`). 역할 규칙·권한이 시스템 프롬프트로 고정되므로, 첫 prompt의 역할 문서 주입은 보조 수단입니다. 상세 프로토콜의 정본은 `agents/{{PRESET}}/{{PREFIX}}-<role>.md`입니다.
+> 역할 강제: 각 역할 pane은 프로젝트에 설치된 `.opencode/agents/{{PREFIX}}-<role>.md` (opencode primary agent) 설정을 기반으로 시작합니다 (`herdr agent start <agent> --kind opencode --pane <pane>`). 역할 규칙·권한이 프로젝트 에이전트 설정으로 연동되므로, 첫 prompt의 역할 문서 주입은 보조 수단입니다. 상세 프로토콜의 정본은 `agents/{{PRESET}}/{{PREFIX}}-<role>.md`입니다.
 
 > 작업 디렉토리 주의: 3인 체제라도 동일 `$PWD`에 동시 쓰기를 두면 파일 충돌·테스트 간섭이 발생합니다. 기본은 **순차 실행**(한 번에 1명만 쓰기)으로 운용하고, 병렬이 필요하면 `herdr worktree create`로 분리합니다.
 
@@ -105,9 +105,8 @@ P_WORKER=$(herdr pane split $P_PLANNER --direction right --cwd "$PWD" --no-focus
 
 # 3. 빈 pane에만 에이전트 시작 (멱등: list에 있으면 start 생략)
 #    역할 agent는 herdr-team 실행 시 대상 프로젝트 .opencode/agents/{{PREFIX}}-<role>.md 로 자동 설치됩니다.
-#    (수동 셋업이면 이 파일이 있어야 --agent가 동작합니다.)
-herdr agent list | grep -q {{PREFIX}}-planner || herdr agent start {{PREFIX}}-planner --kind opencode --pane "$P_PLANNER" -- --agent {{PREFIX}}-planner
-herdr agent list | grep -q {{PREFIX}}-worker || herdr agent start {{PREFIX}}-worker --kind opencode --pane "$P_WORKER" -- --agent {{PREFIX}}-worker
+herdr agent list | grep -q {{PREFIX}}-planner || herdr agent start {{PREFIX}}-planner --kind opencode --pane "$P_PLANNER"
+herdr agent list | grep -q {{PREFIX}}-worker || herdr agent start {{PREFIX}}-worker --kind opencode --pane "$P_WORKER"
 # reviewer/on-demand도 필요 시점에 동일 패턴으로 시작
 
 # 4. 표시용 라벨 (pane label과 agent 이름은 별개)
@@ -152,7 +151,7 @@ herdr agent wait {{PREFIX}}-worker --until idle --timeout 600000
 herdr agent read {{PREFIX}}-worker --lines 100
 ```
 
-프롬프트 템플릿 (PM → Team 공통; 역할은 `--agent`로 이미 강제되며 아래는 산출물 형식 지정용):
+프롬프트 템플릿 (PM → Team 공통; 역할은 사전 구성된 에이전트 설정으로 적용되며 아래는 산출물 형식 지정용):
 
 ```
 agents/{{PRESET}}/<role>.md를 읽고 그 역할·산출물 형식을 따르라.

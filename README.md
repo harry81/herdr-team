@@ -165,8 +165,8 @@ herdr-team/
 5. **Equalize** — down splits pass `--ratio 1/(N-k+1)` (and `0.5` for PM/TM), so panes are exactly
    equalized without manual resize.
 6. **Label + start** — renames to ① PM / ② Task Manager / ③④⑤ roles and runs
-   `herdr agent start <prefix>-<role> --kind opencode -- --agent <prefix>-<role>`
-   (opencode role enforcement; skips existing agents).
+   `herdr agent start <prefix>-<role> --kind opencode --pane <pane>`
+   (skips existing agents).
 
 `install.sh` creates these symlinks (plus `~/bin` PATH registration in
 `~/.bashrc`/`~/.zshrc`, marker comment, idempotent):
