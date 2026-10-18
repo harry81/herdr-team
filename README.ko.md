@@ -124,7 +124,7 @@ herdr-team/
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker 역할 템플릿
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer 역할 템플릿
 │   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher 역할 템플릿 (research/biz/mkt 프리셋)
-│   ├── opencode-agents/        # opencode primary agent 정의 (--agent <prefix>-<role>, 권한 강제)
+│   ├── opencode-agents/        # opencode primary agent 정의 (pane별 세션 바인딩, 권한 강제)
 │   │   ├── ROLE-orchestrator.md
 │   │   ├── ROLE-planner.md
 │   │   ├── ROLE-worker.md
@@ -160,9 +160,19 @@ herdr-team/
    - 우측 열: [Role 2 (상단)] / [Role 3 (중단)] / [Role 4 (하단)]
    (기존 단일 우측 스택을 원할 경우 `--layout right-stack` 사용).
 5. **균등화** — 각 down 분할 시 `--ratio 1/(N-k+1)` (및 PM/TM 0.5)을 전달하므로 별도 resize 없이 정확히 균등해집니다.
-6. **레이블 + 시작** — ① PM / ② Task Manager / ③④⑤ 역할 로 변경 후
-   `herdr agent start <prefix>-<role> --kind opencode --pane <pane>`
-   (이미 실행 중이면 생략).
+6. **레이블 + 시작** — ① PM / ② Task Manager / ③④⑤ 역할 로 변경 후, kind가 `opencode`이면
+   역할별 primary agent로 세션을 미리 생성(`opencode api post /api/session`, `location.directory` 명시)해
+   pane에 바인딩합니다: `herdr agent start <prefix>-<role> --kind opencode --pane <pane> -- --session <sid>`.
+   키 주입 없음, 프로젝트 설정 파일 무수정. 세션 생성에 실패하면 기본 Build agent로 조용히 폴백하지 않고
+   즉시 중단합니다(이미 실행 중인 agent는 생략).
+
+   `--dry-run`은 역할별 세션 계획 라인을 출력합니다:
+   ```text
+   + SID_PLANNER=$(opencode api post /api/session -d "$(jq -nc --arg a <prefix>-planner --arg d <cwd> '{agent:$a,title:$a,location:{directory:$d}}')" | jq -r .data.id)
+   + herdr agent list | grep -q <prefix>-planner || herdr agent start <prefix>-planner --kind opencode --pane "$P_PLANNER" -- --session "$SID_PLANNER"
+   ```
+
+   opencode가 아닌 kind는 기존 `herdr agent start <prefix>-<role> --kind <kind> --pane <pane>` 형식을 유지합니다.
 
 `install.sh`는 아래 심볼릭 링크를 만들고,
 `~/.bashrc`·`~/.zshrc`에 `~/bin` PATH 등록을 수행합니다 (marker 주석, 멱등):

@@ -20,5 +20,7 @@ jobs:
         run: bash tests/test_herdr_precheck.sh
       - name: Watcher suite
         run: bash tests/test_watcher.sh
+      - name: Agent session suite
+        run: bash tests/test_agent_session.sh
       - name: Version suite
         run: bash tests/test_version.sh

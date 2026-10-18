@@ -125,7 +125,7 @@ herdr-team/
 │   │   ├── ROLE-worker.md      # {{PREFIX}}-worker role template
 │   │   ├── ROLE-reviewer.md    # {{PREFIX}}-reviewer role template
 │   │   └── ROLE-researcher.md  # {{PREFIX}}-researcher role template (research/biz/mkt presets)
-│   ├── opencode-agents/        # opencode primary agent defs (--agent <prefix>-<role>, permission-enforced)
+│   ├── opencode-agents/        # opencode primary agent defs (session-bound per pane, permission-enforced)
 │   │   ├── ROLE-orchestrator.md
 │   │   ├── ROLE-planner.md
 │   │   ├── ROLE-worker.md
@@ -164,9 +164,20 @@ herdr-team/
    (Use `--layout right-stack` if you prefer the single right-column stack layout).
 5. **Equalize** — down splits pass `--ratio 1/(N-k+1)` (and `0.5` for PM/TM), so panes are exactly
    equalized without manual resize.
-6. **Label + start** — renames to ① PM / ② Task Manager / ③④⑤ roles and runs
-   `herdr agent start <prefix>-<role> --kind opencode --pane <pane>`
-   (skips existing agents).
+6. **Label + start** — renames to ① PM / ② Task Manager / ③④⑤ roles. For kind `opencode`,
+   one session per role is pre-created with that role's primary agent
+   (`opencode api post /api/session` with `location.directory`) and bound to the pane:
+   `herdr agent start <prefix>-<role> --kind opencode --pane <pane> -- --session <sid>`.
+   No key injection and no project config edits; if session creation fails the launch aborts
+   instead of silently falling back to the default Build agent (existing agents are skipped).
+
+   `--dry-run` prints one session plan line per role:
+   ```text
+   + SID_PLANNER=$(opencode api post /api/session -d "$(jq -nc --arg a <prefix>-planner --arg d <cwd> '{agent:$a,title:$a,location:{directory:$d}}')" | jq -r .data.id)
+   + herdr agent list | grep -q <prefix>-planner || herdr agent start <prefix>-planner --kind opencode --pane "$P_PLANNER" -- --session "$SID_PLANNER"
+   ```
+
+   Non-opencode kinds keep the plain `herdr agent start <prefix>-<role> --kind <kind> --pane <pane>` form.
 
 `install.sh` creates these symlinks (plus `~/bin` PATH registration in
 `~/.bashrc`/`~/.zshrc`, marker comment, idempotent):

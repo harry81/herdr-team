@@ -135,6 +135,12 @@ assert_equal "$(send_lines)" "1" "watcher_k_정확히1회"
 assert_contains "$SEND_K" "enter" "watcher_k_enter포함"
 assert_not_contains "$SEND_K" "tab" "watcher_k_tab미포함"
 
+echo "== l) help 문구 V2 키 기준 정정 (shift+tab=agent.cycle, <leader>a=agent.list) =="
+WATCH_HELP="$("$WATCH" --help 2>&1 || true)"
+assert_contains "$WATCH_HELP" "shift+tab" "watcher_l_help_shift+tab"
+assert_contains "$WATCH_HELP" "agent.cycle" "watcher_l_help_agent.cycle"
+assert_contains "$WATCH_HELP" "agent.list" "watcher_l_help_agent.list"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

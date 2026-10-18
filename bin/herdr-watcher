@@ -300,9 +300,9 @@ def main():
     parser.add_argument("--max-iterations", type=int, default=None, help="Maximum loop iterations (for testing)")
     parser.add_argument("--no-auto-allow", action="store_true", help="Disable automatic permission approval")
     parser.add_argument("--approve-keys", type=str, default="enter",
-                        help="팝업 승인 키 시퀀스 (기본: enter, 빈 값이면 enter 로 대체). 트리거는 화면 하단 팝업 시그니처(마지막 줄 'enter confirm' + 헤더/선택지)이며 herdr status 에 의존하지 않음. enter 는 팝업 기본 선택=Allow once 승인. 'Allow always' 가 필요하면 right 를 쓸 수 있음(tab 금지: opencode 권한 팝업이 tab 을 소비하지 않고 primary agent 프로필을 순환시킴)")
+                        help="팝업 승인 키 시퀀스 (기본: enter, 빈 값이면 enter 로 대체). 트리거는 화면 하단 팝업 시그니처(마지막 줄 'enter confirm' + 헤더/선택지)이며 herdr status 에 의존하지 않음. enter 는 팝업 기본 선택=Allow once 승인. 'Allow always' 가 필요하면 right 를 쓸 수 있음(agent 순환 키 금지: V2 기본 agent.cycle=shift+tab, agent.list=<leader>a(leader ctrl+x)이며 권한 팝업은 이 키를 소비하지 않고 primary agent 를 순환시킴)")
     parser.add_argument("--fallback-keys", type=str, default="",
-                        help="1차 키 실패(팝업 유지) 시 대체 키 (기본: 빈 값=비활성). ⚠️ tab 은 opencode 권한 팝업이 소비하지 않고 primary agent 프로필을 순환시키므로 자동 경로에서 절대 사용 금지. 'Allow always' 는 right 로 선택")
+                        help="1차 키 실패(팝업 유지) 시 대체 키 (기본: 빈 값=비활성). ⚠️ agent 순환 키(shift+tab=agent.cycle, <leader>a=agent.list)는 opencode 권한 팝업이 소비하지 않고 primary agent 프로필을 순환시키므로 자동 경로에서 절대 사용 금지. 'Allow always' 는 right 로 선택")
     parser.add_argument("--retry-after", type=float, default=10.0,
                         help="동일 팝업 재전송/대체키 전환 최소 대기 초 (기본: 10)")
     parser.add_argument("--max-attempts", type=int, default=2,

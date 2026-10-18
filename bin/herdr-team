@@ -494,6 +494,14 @@ run() {
     "$@" >/dev/null
   fi
 }
+# stdout 캡처용 실행 (세션 ID 등). dry-run이면 계획만 출력하고 아무것도 실행하지 않는다.
+run_capture() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ %s\n' "$*"
+    return 0
+  fi
+  "$@"
+}
 log() { printf '[herdr-team] %s\n' "$*"; }
 # herdr JSON 출력에서 pane_id 추출 (jq 기반, 버전별 필드 차이 흡수).
 # split/current 응답은 {"result":{"pane":{"pane_id":"wD:p1F",...}}} 형태가 표준이며,
@@ -526,6 +534,32 @@ need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "error: '$1' 명령을 찾을 수 없습니다." >&2; exit 127
   fi
+}
+# 역할 agent 로 고정된 opencode 세션을 미리 만들고 session id를 stdout으로 돌려준다.
+# dry-run에서는 계획 라인만 출력하고 값을 반환하지 않는다(--dry-run 면제, R6).
+# location 미지정 시 $HOME에 귀속되므로(E19) 반드시 location.directory를 명시한다.
+opencode_session_for() {
+  local agent="$1" var payload out sid
+  var="SID_$(printf '%s' "${agent#"$PREFIX"-}" | tr '[:lower:]' '[:upper:]')"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ %s=$(opencode api post /api/session -d "$(jq -nc --arg a %s --arg d %q %s)" | jq -r .data.id)\n' \
+      "$var" "$agent" "$CWD" "'{agent:\$a,title:\$a,location:{directory:\$d}}'"
+    return 0
+  fi
+  if ! payload="$(jq -nc --arg a "$agent" --arg d "$CWD" '{agent:$a,title:$a,location:{directory:$d}}')"; then
+    echo "error: 세션 요청 JSON 생성 실패 ($agent)" >&2
+    return 1
+  fi
+  if ! out="$(run_capture opencode api post /api/session -d "$payload")"; then
+    echo "error: 세션 생성 실패 ($agent) — opencode 설치/백그라운드 서비스 상태를 확인하세요." >&2
+    return 1
+  fi
+  sid="$(printf '%s' "$out" | jq -r '.data.id // empty' 2>/dev/null)"
+  if [[ -z "$sid" ]]; then
+    echo "error: 세션 ID 파싱 실패 ($agent): ${out:-<empty>}" >&2
+    return 1
+  fi
+  printf '%s' "$sid"
 }
 
 # --- 1) 템플릿 복사/생성 (preset별 문서 격리: agents/<preset>/) ---
@@ -879,7 +913,13 @@ setup_panes() {
       for _role in "${ROLES[@]}"; do
         _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
         _agent="$(role_agent "$_role")"
-        printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var"
+        if [[ "$KIND" == "opencode" ]]; then
+          opencode_session_for "$_agent"
+          _sid_var="SID_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
+          printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s" -- --session "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var" "$_sid_var"
+        else
+          printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var"
+        fi
       done
     fi
     return
@@ -989,11 +1029,21 @@ setup_panes() {
   done
 
   if [[ "$NO_START" -eq 0 ]]; then
+    if [[ "$KIND" == "opencode" ]]; then need_cmd opencode; fi
+    local sid=""
     i=0
     for role in "${ROLES[@]}"; do
       agent="$(role_agent "$role")"
       if ! herdr agent list 2>/dev/null | grep -q -- "$agent"; then
-        run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
+        if [[ "$KIND" == "opencode" ]]; then
+          if ! sid="$(opencode_session_for "$agent")"; then
+            echo "error: ${agent} 세션 생성 실패 → 시작 중단 (이미 생성된 pane: ${#PANE_IDS[@]}개)" >&2
+            exit 1
+          fi
+          run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}" -- --session "$sid"
+        else
+          run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
+        fi
       else log "$agent 이미 존재 → 시작 생략"; fi
       i=$((i+1))
     done

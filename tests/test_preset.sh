@@ -758,6 +758,35 @@ for f in "${PERM_FILES[@]}"; do
   fi
 done
 
+echo "== 39) opencode 세션 사전생성 + -- --session 바인딩 (TB-1/TB-2/TB-4) =="
+# (a) dev/biz/creator dry-run: 역할 수만큼 세션 생성 라인 + 세션 바인딩
+assert_contains "$DEV_OUT" 'opencode api post /api/session' "session: dev 세션 생성 계획"
+assert_contains "$BIZ_OUT" 'opencode api post /api/session' "session: biz 세션 생성 계획"
+assert_contains "$CREATOR_OUT" 'opencode api post /api/session' "session: creator 세션 생성 계획"
+SID_DEV_N="$(printf '%s\n' "$DEV_OUT" | grep -c 'SID_[A-Z]*=\$(opencode api post /api/session')"
+assert_equal "$SID_DEV_N" "4" "session: dev 역할 수(4)만큼 세션 생성"
+# (b) 세션 바인딩은 역할별로 동일 pane 변수와 짝을 이룬다 (2col 매핑 정합)
+for r in ORCHESTRATOR PLANNER WORKER REVIEWER; do
+  assert_contains "$DEV_OUT" "--pane \"\$P_$r\" -- --session \"\$SID_$r\"" "session: 2col 역할↔pane↔session 정합 ($r)"
+done
+# (c) location 명시 (E19: 미지정 시 \$HOME 귀속 회귀 방지)
+assert_contains "$DEV_OUT" 'location:{directory:' "session: location 명시 (E19 회귀 방지)"
+# (d) -- --agent 는 여전히 미출력 (E20 불변식)
+assert_not_contains "$DEV_OUT" "-- --agent" "session: dev --agent 미사용"
+assert_not_contains "$CREATOR_OUT" "-- --agent" "session: creator --agent 미사용"
+# (e) kind 게이팅: opencode 아닌 kind는 신규 라인 0줄
+assert_not_contains "$KIND_ENV_OUT" "api post /api/session" "session: codex 세션 라인 없음"
+assert_not_contains "$KIND_ENV_OUT" "-- --session" "session: codex 세션 바인딩 없음"
+# (f) --no-start 면제: 세션 생성 계획도 미출력
+assert_not_contains "$GEN_DRY" "api post /api/session" "session: --no-start 세션 생성 면제"
+# (g) 문서 회귀 방지: V2 미존재 --agent 플래그 서술 제거 + 세션 바인딩 반영
+assert_not_contains "$README_EN" "--agent <prefix>" "docs: README --agent 서술 제거"
+assert_not_contains "$README_KO" "--agent <prefix>" "docs: README.ko --agent 서술 제거"
+assert_not_contains "$README_EN" "-- --agent" "docs: README -- --agent 서술 제거"
+assert_not_contains "$README_KO" "-- --agent" "docs: README.ko -- --agent 서술 제거"
+assert_contains "$README_EN" "-- --session" "docs: README 세션 바인딩 반영"
+assert_contains "$README_KO" "-- --session" "docs: README.ko 세션 바인딩 반영"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
