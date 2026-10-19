@@ -17,6 +17,8 @@
    - **Green**: 테스트를 통과시키는 최소한의 프로덕션 코드 구현
    - **Refactor**: 코드 가독성 및 중복 개선
 2. **코드 검증 필수**: 코드 작성 후 반드시 해당 단위 테스트를 실행하여 정상 통과를 확인합니다.
+3. **테스트 실행 티어(필수)**: 편집 루프는 T1(변경 파일 대응 테스트)만 반복하고, 태스크 완료 시 T2(스코프 회귀) 1회를 실행합니다. T2 대상은 `scripts/testmap.sh`가 출력하는 매핑 스위트이며, 지시받은 티어만 실행합니다.
+**테스트 티어링 (Fast Loop 원칙)**: 테스트는 3계층으로 실행한다. **T1 Fast-Loop**(변경 파일 대응 테스트, 편집 루프마다, 5초 이내)와 **T2 Scoped Regression**(`scripts/testmap.sh` 매핑 스위트, 태스크 완료 시 1회, 10초 이내 목표)은 worker가 실행한다. **T3 Full Regression**은 push 직전 또는 CI에서만 1회, 비동기 실행 — worker의 임의 T3 실행 금지. 티어 선택은 Orchestrator가 태스크 지시에 명시하고 worker는 지시된 티어만 실행(지시 없으면 T1만 후 재지시 요청). blast radius 판정(core/surface)은 `docs/specs/test-tiering-spec.md`의 파일 경로 기반 규칙으로 한다. reviewer는 T3 노드에서만 full regression 실행, 그 외 규정 밖 단위 테스트 재실행 금지. T2 실패 시 수정 후 재실행 1회까지 허용하며, 재실패하면 T3로 승격한다. 결과 고지: `[T2 scoped] <command> → N passed in T s` — 기존 [full-regression] 고지 형식은 폐지하고 이 형식으로 전환한다.
 
 ### 2.2 비코드 작업 모드 (문서/콘텐츠)
 1. **초안 → 피드백 반복**: 목차·브리프에 따라 초안을 작성하고, reviewer의 교정·팩트체크 피드백을 반영합니다.

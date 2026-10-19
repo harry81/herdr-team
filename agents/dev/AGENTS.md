@@ -26,7 +26,7 @@
    ├─ 1) 명세 작성 지시 ──► [ ht-planner ] 기획/설계 명세 + Task Breakdown (필요 시 UX/Wireframe 명세 포함)
    │        │                    │
    │        ▼ 명세 수령        완료 즉시 다음 연결
-   ├─ 2) TDD 구현 지시 ────► [ ht-worker ] TDD 구현 + 단위 테스트 PASS (전체 회귀 1회)
+   ├─ 2) TDD 구현 지시 ────► [ ht-worker ] TDD 구현 + 단위 테스트 PASS (T2 scoped 회귀)
    │        │                    │
    │        ▼ 변경사항 전달    완료 즉시 다음 연결
    └─ 3) 검증/리뷰 지시 ───► [ ht-reviewer ] 빌드·테스트 직접 실행 + 배포/E2E 검증 (단위 재실행 금지) ── [APPROVE + 실행 로그] ──► Orchestrator → PM 보고
@@ -70,4 +70,4 @@
    - ⚠️ **`--until` 단일 상태값**: `--until` 은 상태 **하나만** 받는다. `--until idle,done` 처럼 콤마로 나열하면 `invalid agent status` 에러다. 여러 상태를 기다리려면 플래그를 반복(`--until idle --until done`)하거나 `--until` 을 생략한 `herdr agent wait <TARGET>`(기본: idle/done/blocked 매칭)을 쓴다.
    - ✅ **비동기 경로** (예외 경로 전용): `--wait` 없이 프롬프트를 먼저 보낸 뒤 `herdr agent wait <TARGET> --until idle --timeout <MS>`로 대기하고, 반환 즉시 `herdr agent read <TARGET> --lines <N>`으로 산출물을 읽는다.
 4. **무방치 원칙 (Orchestrator)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
-5. **TDD 중복 방지 및 Fast-Track 원칙**: worker는 작업 대상 파일 전용 단위 테스트로 TDD 루프를 반복하고 전체 회귀는 완료 직전 1회만 실행해 [full-regression] 결과를 고지한다. reviewer는 단위 테스트 작성·중복 실행을 금지하며, git diff 리뷰 + 전체 회귀 1회 + DoD 대조로 즉시 승인 판정한다(예외 실행은 사유 명시). orchestrator는 규약 외 테스트 재실행을 지시하지 않는다.
+5. **테스트 티어링 (Fast Loop 원칙)**: 테스트는 3계층으로 실행한다. **T1 Fast-Loop**(변경 파일 대응 테스트, 편집 루프마다, 5초 이내)와 **T2 Scoped Regression**(`scripts/testmap.sh` 매핑 스위트, 태스크 완료 시 1회, 10초 이내 목표)은 worker가 실행한다. **T3 Full Regression**은 push 직전 또는 CI에서만 1회, 비동기 실행 — worker의 임의 T3 실행 금지. 티어 선택은 Orchestrator가 태스크 지시에 명시하고 worker는 지시된 티어만 실행(지시 없으면 T1만 후 재지시 요청). blast radius 판정(core/surface)은 `docs/specs/test-tiering-spec.md`의 파일 경로 기반 규칙으로 한다. reviewer는 T3 노드에서만 full regression 실행, 그 외 규정 밖 단위 테스트 재실행 금지. T2 실패 시 수정 후 재실행 1회까지 허용하며, 재실패하면 T3로 승격한다. 결과 고지: `[T2 scoped] <command> → N passed in T s` — 기존 [full-regression] 고지 형식은 폐지하고 이 형식으로 전환한다.

@@ -32,7 +32,8 @@
 
 1. **빌드/린트**: 예 `npm run build`, `npm run lint`, `tsc --noEmit`, `pytest --collect-only` 등 프로젝트 표준 명령.
 2. **단위 테스트**: `ht-worker`가 명시한 테스트 명령 전체 실행 (예: `pytest tests/unit/test_xxx.py -v`, `npm test -- <scope>`).
-3. **통합 및 E2E/회귀**: 변경 범위에 따라 관련 통합·회귀 스위트 실행 (예: `pytest tests/`, `npm run test:e2e`, `playwright test`). 전체 실행이 무거우면 최소 변경 관련 스코프 + 핵심 회귀 1종은 필수.
+3. **T3 Full Regression (push/CI 노드)**: full regression은 push 직전 또는 CI에서만 1회 실행합니다(비동기, 세션 점유 없음). 변경 범위(blast radius) 판정은 `docs/specs/test-tiering-spec.md` (c)의 파일 경로 기반 규칙에 위임하며, 그 외 규정 밖 단위 테스트 재실행은 금지합니다(worker의 T1/T2 결과 보고를 신뢰).
+**테스트 티어링 (Fast Loop 원칙)**: 테스트는 3계층으로 실행한다. **T1 Fast-Loop**(변경 파일 대응 테스트, 편집 루프마다, 5초 이내)와 **T2 Scoped Regression**(`scripts/testmap.sh` 매핑 스위트, 태스크 완료 시 1회, 10초 이내 목표)은 worker가 실행한다. **T3 Full Regression**은 push 직전 또는 CI에서만 1회, 비동기 실행 — worker의 임의 T3 실행 금지. 티어 선택은 Orchestrator가 태스크 지시에 명시하고 worker는 지시된 티어만 실행(지시 없으면 T1만 후 재지시 요청). blast radius 판정(core/surface)은 `docs/specs/test-tiering-spec.md`의 파일 경로 기반 규칙으로 한다. reviewer는 T3 노드에서만 full regression 실행, 그 외 규정 밖 단위 테스트 재실행 금지. T2 실패 시 수정 후 재실행 1회까지 허용하며, 재실패하면 T3로 승격한다. 결과 고지: `[T2 scoped] <command> → N passed in T s` — 기존 [full-regression] 고지 형식은 폐지하고 이 형식으로 전환한다.
 4. **실패 처리**: 실패 시 재현 절차(명령어, 환경, 입력), 기대 vs 실제, 에러 로그 발췌를 보고서에 기록하고 `[REQUEST CHANGES]`로 반송. `ht-worker` 보완 후 재실행하여 재판정.
 
 > 실행 원칙: 테스트를 직접 고치거나 프로덕션 코드를 수정하지 않습니다. 환경 문제(의존성 미설치 등)로 실행 불가 시에도 `[REQUEST CHANGES]` + 차단 사유/재현 명령을 명시합니다.

@@ -20,6 +20,10 @@ jobs:
         run: bash tests/test_permissions_merge.sh
       - name: Permissions seed suite
         run: bash tests/test_permissions_seed.sh
+      - name: Testmap suite
+        run: bash tests/test_testmap.sh
+      - name: Template sync suite
+        run: bash tests/test_template_sync.sh
       - name: Installer + release zip suite
         run: bash tests/test_install.sh
       - name: Windows launcher suite
