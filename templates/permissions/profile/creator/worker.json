@@ -1,0 +1,13 @@
+{
+  "preset": "creator",
+  "role": "worker",
+  "layer": "L1",
+  "description": "초안 집필 — docs/*.md allow, docs/specs는 프로파일 override로 deny(명세는 planner 소관)",
+  "includes": ["core-read", "git", "test-build", "herdr-read", "docs-write"],
+  "permissions": [
+    { "action": "edit", "resource": "*", "effect": "deny" },
+    { "action": "edit", "resource": "docs/*.md", "effect": "allow" },
+    { "action": "edit", "resource": "docs/specs/*.md", "effect": "deny" },
+    { "action": "shell", "resource": "git push*", "effect": "ask" }
+  ]
+}

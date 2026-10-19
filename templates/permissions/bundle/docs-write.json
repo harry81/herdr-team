@@ -1,0 +1,12 @@
+{
+  "name": "docs-write",
+  "layer": "L1",
+  "description": "문서 전용 편집 — 광역 deny 후 docs 특정 allow (last-match-wins 정합 순서)",
+  "permissions": [
+    { "action": "edit", "resource": "*", "effect": "deny" },
+    { "action": "edit", "resource": "docs/specs/*.md", "effect": "allow" },
+    { "action": "edit", "resource": "docs/*.md", "effect": "allow" },
+    { "action": "shell", "resource": "mkdir -p docs*", "effect": "allow" },
+    { "action": "shell", "resource": "tee docs/specs/*", "effect": "allow" }
+  ]
+}

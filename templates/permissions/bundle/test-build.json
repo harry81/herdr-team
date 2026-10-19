@@ -1,0 +1,24 @@
+{
+  "name": "test-build",
+  "layer": "L1",
+  "description": "테스트·빌드·린트 (멱등 실행, 프로젝트 자원 한정)",
+  "permissions": [
+    { "action": "shell", "resource": "pytest*", "effect": "allow" },
+    { "action": "shell", "resource": "python3 -m pytest*", "effect": "allow" },
+    { "action": "shell", "resource": "python -m pytest*", "effect": "allow" },
+    { "action": "shell", "resource": "npm test*", "effect": "allow" },
+    { "action": "shell", "resource": "npm run *", "effect": "allow" },
+    { "action": "shell", "resource": "npm build*", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm test*", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm run *", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm build*", "effect": "allow" },
+    { "action": "shell", "resource": "make *", "effect": "allow" },
+    { "action": "shell", "resource": "tsc*", "effect": "allow" },
+    { "action": "shell", "resource": "ruff *", "effect": "allow" },
+    { "action": "shell", "resource": "mypy *", "effect": "allow" },
+    { "action": "shell", "resource": "bash tests/*", "effect": "allow" },
+    { "action": "shell", "resource": "node scripts/*", "effect": "allow" },
+    { "action": "shell", "resource": "python3 scripts/*", "effect": "allow" },
+    { "action": "shell", "resource": "python scripts/*", "effect": "allow" }
+  ]
+}

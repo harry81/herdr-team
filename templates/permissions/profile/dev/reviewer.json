@@ -1,0 +1,12 @@
+{
+  "preset": "dev",
+  "role": "reviewer",
+  "layer": "L1",
+  "description": "검증 전용 — 산출물 미수정, 10-temp/tmp 임시 쓰기만 허용(광역 deny 후 협소 exception)",
+  "includes": ["core-read", "git", "test-build", "herdr-read"],
+  "permissions": [
+    { "action": "edit", "resource": "*", "effect": "deny" },
+    { "action": "edit", "resource": "10-temp/*", "effect": "allow" },
+    { "action": "edit", "resource": "tmp/*", "effect": "allow" }
+  ]
+}

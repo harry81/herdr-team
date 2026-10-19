@@ -1,0 +1,19 @@
+{
+  "name": "git",
+  "layer": "L0/L2",
+  "description": "git 조회는 allow, 원격 변경·강제 되돌리기는 ask (L2)",
+  "permissions": [
+    { "action": "shell", "resource": "git status*", "effect": "allow" },
+    { "action": "shell", "resource": "git diff*", "effect": "allow" },
+    { "action": "shell", "resource": "git log*", "effect": "allow" },
+    { "action": "shell", "resource": "git branch*", "effect": "allow" },
+    { "action": "shell", "resource": "git show*", "effect": "allow" },
+    { "action": "shell", "resource": "git tag*", "effect": "allow" },
+    { "action": "shell", "resource": "git remote*", "effect": "allow" },
+    { "action": "shell", "resource": "git rev-parse*", "effect": "allow" },
+    { "action": "shell", "resource": "git push*", "effect": "ask" },
+    { "action": "shell", "resource": "git reset --hard*", "effect": "ask" },
+    { "action": "shell", "resource": "git clean -fd*", "effect": "ask" },
+    { "action": "shell", "resource": "git checkout -- *", "effect": "ask" }
+  ]
+}

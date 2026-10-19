@@ -1,0 +1,10 @@
+{
+  "preset": "pkm",
+  "role": "worker",
+  "layer": "L1",
+  "description": "볼트 노트 구현 유일 실질 쓰기 — vault-write 번들이 경계 보유. git push는 L2 ask 유지",
+  "includes": ["core-read", "git", "test-build", "herdr-read", "vault-write"],
+  "permissions": [
+    { "action": "shell", "resource": "git push*", "effect": "ask" }
+  ]
+}

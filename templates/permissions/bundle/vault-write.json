@@ -1,0 +1,13 @@
+{
+  "name": "vault-write",
+  "layer": "L1",
+  "description": "PKM 볼트 — 광역 deny 후 볼트 경로 allow (last-match-wins 정합 순서)",
+  "permissions": [
+    { "action": "edit", "resource": "*", "effect": "deny" },
+    { "action": "edit", "resource": "00-Inbox/*", "effect": "allow" },
+    { "action": "edit", "resource": "01-System/*", "effect": "allow" },
+    { "action": "edit", "resource": "06-Wiki/*", "effect": "allow" },
+    { "action": "edit", "resource": "08-TIL/*", "effect": "allow" },
+    { "action": "edit", "resource": "10-temp/*", "effect": "allow" }
+  ]
+}

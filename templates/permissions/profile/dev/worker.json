@@ -1,0 +1,13 @@
+{
+  "preset": "dev",
+  "role": "worker",
+  "layer": "L1",
+  "description": "구현 전용 쓰기 — 광역 deny 후 src/tests allow. git push는 L2 ask 유지(PM 확정)",
+  "includes": ["core-read", "git", "test-build", "herdr-read", "opencode-api"],
+  "permissions": [
+    { "action": "edit", "resource": "*", "effect": "deny" },
+    { "action": "edit", "resource": "src/**", "effect": "allow" },
+    { "action": "edit", "resource": "tests/**", "effect": "allow" },
+    { "action": "shell", "resource": "git push*", "effect": "ask" }
+  ]
+}

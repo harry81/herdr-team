@@ -1,0 +1,8 @@
+{
+  "preset": "dev",
+  "role": "planner",
+  "layer": "L1",
+  "description": "문서 전용 쓰기(docs/specs/*.md) — 그 외 경로는 docs-write 번들이 deny",
+  "includes": ["core-read", "git", "herdr-read", "docs-write"],
+  "permissions": []
+}

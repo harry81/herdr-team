@@ -581,6 +581,170 @@ wait_pane_ready() {
   done
 }
 
+# --- 권한 모델(계층형 번들 + 역할 프로파일) 병합/시딩 ---
+# 명세: docs/specs/permission-model-optimization-spec.md §c/§d/§e
+# baseline(L0/L2/L3) + bundle*(L0/L1 도메인) + profile/<preset>/<role>(역할 경계) 순으로
+# permissions를 이어 붙여 last-match-wins 판정을 결정적으로 만든다(뒤 규칙이 우선).
+permissions_strip_jsonc() {  # 전체 줄 주석(//) 제거 → 순수 JSON
+  sed -e 's/^[[:space:]]*\/\/.*$//' "$1"
+}
+permissions_src_dir() {  # preset-local > --template-dir > 번들 (기존 템플릿 해석 순서 준용)
+  local c
+  if [[ -n "${PERMISSIONS_DIR:-}" && -f "$PERMISSIONS_DIR/baseline.json" ]]; then printf '%s' "$PERMISSIONS_DIR"; return 0; fi
+  for c in "$(preset_dir "$PRESET" 2>/dev/null || true)/permissions" "$TEMPLATE_DIR/permissions" "$SCRIPT_DIR/../templates/permissions"; do
+    if [[ -n "$c" && -f "$c/baseline.json" ]]; then printf '%s' "$c"; return 0; fi
+  done
+  return 1
+}
+permissions_merge_role() {  # $1=role → stdout: baseline+includes+profile 병합 JSON (순수 함수형)
+  local role="$1" src prof b tmp out
+  src="$(permissions_src_dir)" || return 1
+  prof="$src/profile/$PRESET/$role.json"
+  [[ -f "$prof" ]] || return 1
+  tmp="$(mktemp)"; out=""
+  printf '[' > "$tmp"
+  local first=1
+  for b in $(jq -r '.includes[]' "$prof"); do
+    [[ -f "$src/bundle/$b.json" ]] || { rm -f "$tmp"; echo "error: bundle 없음: $b ($prof)" >&2; return 1; }
+    [[ "$first" -eq 1 ]] || printf ',' >> "$tmp"
+    permissions_strip_jsonc "$src/baseline.json" >/dev/null
+    cat "$src/bundle/$b.json" >> "$tmp"; first=0
+  done
+  printf ']' >> "$tmp"
+  out="$(jq -n \
+      --slurpfile base <(permissions_strip_jsonc "$src/baseline.json") \
+      --slurpfile bundles "$tmp" \
+      --slurpfile prof <(permissions_strip_jsonc "$prof") '
+        ($bundles[0] // []) as $b
+        | ($b | map(.permissions // []) | add // []) as $bp
+        | ($b | map(.policies // []) | add // []) as $bpol
+        | {
+            baseline_note: ($base[0].note // ""),
+            permissions: (($base[0].permissions // []) + $bp + ($prof[0].permissions // [])),
+            policies: ((($base[0].policies // []) + $bpol + ($prof[0].policies // [])) | unique_by(.resource))
+          }')" || { rm -f "$tmp"; return 1; }
+  rm -f "$tmp"
+  printf '%s' "$out"
+}
+permissions_glob_to_regex() {  # glob → 안전한 정규식 (정규식 메타문자 이스케이프 후 * → .*)
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/[][(){}^$+.|]/\\&/g' -e 's/\*/.*/g'
+}
+permissions_judge() {  # $1=병합 json 파일 $2=action $3=resource → allow|ask|deny
+  local f="$1" act="$2" res="$3" pres pat a r e
+  # 1) policies hard-deny (에스컬레이션 불가 — 최우선)
+  while IFS= read -r pres; do
+    [[ -n "$pres" ]] || continue
+    [[ "$pres" == "$act:"* ]] || continue
+    pat="$(permissions_glob_to_regex "${pres#*:}")"
+    if [[ "$res" =~ $pat ]]; then printf 'deny'; return 0; fi
+  done < <(jq -r '(.policies // [])[] | select(.effect == "deny") | .resource' "$f")
+  # 2) permissions: 선언 순서대로 스캔, 마지막 매칭이 승리 (last-match-wins)
+  e="ask"
+  while IFS=$'\t' read -r a r e2; do
+    [[ "$a" == "$act" ]] || continue
+    pat="$(permissions_glob_to_regex "$r")"
+    if [[ "$res" =~ $pat ]]; then e="$e2"; fi
+  done < <(jq -r '(.permissions // [])[] | [.action, .resource, .effect] | @tsv' "$f")
+  printf '%s' "$e"
+}
+permissions_yaml_block() {  # $1=병합 json 파일 → stdout: frontmatter YAML (permissions만)
+  # V2 스키마 실측: agent 설정(Config.AgentEncoded)의 허용 키는 description/mode/permissions/model 등이며
+  # `policies`는 agent 레벨에 존재하지 않는다(additionalProperties:false → 무효·권한 블록 붕괴 실측).
+  # 따라서 L3 hard-deny policies는 프로젝트 .opencode/opencode.jsonc(top-level)에만 둔다.
+  local f="$1"
+  printf 'permissions:\n'
+  jq -r '(.permissions // [])[] | "  - action: \(.action)\n    resource: \"\(.resource | gsub("\\\\"; "\\\\") | gsub("\""; "\\\""))\"\n    effect: \(.effect)"' "$f"
+}
+permissions_inject_frontmatter() {  # $1=agent md $2=yaml block 파일 — V1 permission 블록을 V2 permissions/policies로 교체
+  local f="$1" block="$2" tmp
+  tmp="$(mktemp)"
+  awk -v blockfile="$block" '
+    function emit(   line) { while ((getline line < blockfile) > 0) print line; close(blockfile) }
+    NR == 1 && $0 == "---" { fm = 1; print; next }
+    fm && $0 == "---" { if (!emitted) { emit(); emitted = 1 } print; fm = 0; next }
+    fm && /^(permission|permissions|policies):/ { skip = 1; next }
+    fm && skip && /^[[:space:]]/ { next }
+    fm && skip && /^$/ { next }
+    fm && skip { skip = 0 }
+    { print }
+    END { if (fm && !emitted) emit() }
+  ' "$f" > "$tmp" && mv "$tmp" "$f"
+}
+permissions_merge_project_file() {  # $1=기존 jsonc $2=신규(우리) json → stdout 병합 JSON
+  local existing="$1" ours="$2" user
+  permissions_strip_jsonc "$existing" | jq -e . >/dev/null 2>&1 || return 1
+  user="$(permissions_strip_jsonc "$existing" | jq -c .)"
+  jq -n -c --argjson u "$user" --slurpfile o "$ours" '
+    ($u) as $u
+    | ($o[0]) as $o
+    | (($u.permissions // []) + []) as $up
+    | ($up | map([.action, .resource])) as $uk
+    | ($up | map(select(.action == "shell" and .resource == "*")) | length) as $user_has_star
+    | ($o.permissions // []) as $op
+    | ($op | map(select(
+         ([.action, .resource]) as $k
+         | (($uk | index($k)) == null)
+           and (((.action == "shell" and .resource == "*") and $user_has_star > 0) | not)
+       ))) as $added
+    | ($u
+       + { permissions: ($up + $added),
+           policies: ((($u.policies // []) + ($o.policies // [])) | unique_by([.action, .resource])) }
+       + (if ($u["$schema"] // null) == null then { "$schema": $o["$schema"] } else {} end))'
+}
+setup_permissions() {  # 시딩: .opencode/opencode.jsonc(기존 사용자 파일 보존 병합) + agent frontmatter(V2 permissions/policies)
+  if [[ "$NO_TEMPLATE" -eq 1 ]]; then log "권한 시딩 생략(--no-template)"; return; fi
+  local src=""
+  src="$(permissions_src_dir 2>/dev/null || true)"
+  if [[ -z "$src" ]]; then log "permissions 템플릿 없음 → 권한 시딩 생략"; return; fi
+  local dest="$CWD/.opencode" global="$CWD/.opencode/opencode.jsonc" role
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ permissions: merge baseline=%s → %s (기존 파일 보존 병합, .bak 백업)\n' "$src" "$global"
+    printf '+ permissions: merge profile/%s/<role>.json → .opencode/agents/%s-<role>.md frontmatter (V2 permissions/policies)\n' "$PRESET" "$PREFIX"
+    return 0
+  fi
+  mkdir -p "$dest/agents"
+  local base_json
+  base_json="$(jq -n --slurpfile base <(permissions_strip_jsonc "$src/baseline.json") '{
+      "$schema": "https://opencode.ai/config.json",
+      permissions: ($base[0].permissions // []),
+      policies: (($base[0].policies // []) | unique_by([.action, .resource]))
+    }')" || return 1
+  if [[ -f "$global" ]]; then
+    cp -p "$global" "$global.bak"
+    log "기존 .opencode/opencode.jsonc 백업: opencode.jsonc.bak"
+    if merged="$(permissions_merge_project_file "$global" <(printf '%s' "$base_json"))"; then
+      {
+        printf '// AUTO-GENERATED by herdr-team (preset=%s) — 기존 사용자 설정 보존 병합\n' "$PRESET"
+        printf '%s' "$merged" | jq .
+      } > "$global"
+      log "권한 병합: .opencode/opencode.jsonc (사용자 키 보존 + baseline L0/L2/L3)"
+    else
+      log "경고: 기존 .opencode/opencode.jsonc JSON 파싱 실패 → 원본 유지(백업만 생성)"
+    fi
+  else
+    {
+      printf '// AUTO-GENERATED by herdr-team (preset=%s) — 수동 편집 금지\n' "$PRESET"
+      printf '// 계층형 권한: baseline.json(L0/L2/L3 policies) + 역할별 allow는 agents/%s-<role>.md frontmatter\n' "$PREFIX"
+      printf '%s' "$base_json" | jq .
+    } > "$global"
+    log "권한 생성: .opencode/opencode.jsonc (baseline: L0/L2 + L3 hard-deny)"
+  fi
+  for role in "${ROLES[@]}"; do
+    local merged prof="$src/profile/$PRESET/$role.json" md="$dest/agents/$PREFIX-$role.md" blk
+    [[ -f "$prof" ]] || { log "경고: 권한 프로파일 없음 → skip: profile/$PRESET/$role.json"; continue; }
+    if ! merged="$(permissions_merge_role "$role")"; then
+      echo "error: 권한 병합 실패: $PRESET/$role" >&2; return 1
+    fi
+    if [[ -f "$md" ]]; then
+      local mj; mj="$(mktemp)"; printf '%s' "$merged" > "$mj"
+      blk="$(mktemp)"; permissions_yaml_block "$mj" > "$blk"
+      permissions_inject_frontmatter "$md" "$blk"; rm -f "$blk" "$mj"
+      log "권한 주입: .opencode/agents/$PREFIX-$role.md frontmatter (V2 permissions/policies)"
+    else
+      log "경고: agent 정의 없음 → 권한 주입 skip: .opencode/agents/$PREFIX-$role.md"
+    fi
+  done
+}
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "error: '$1' 명령을 찾을 수 없습니다." >&2; exit 127
@@ -1132,6 +1296,7 @@ printf 'herdr-team v%s\n' "$VERSION"
 PREV_ACTIVE="$(active_preset)"
 setup_templates
 setup_opencode_agents
+setup_permissions
 if [[ "$TEMPLATES_ONLY" -eq 1 ]]; then
   log "templates-only: 템플릿 설치 완료 (pane 분할 생략)"
   exit 0

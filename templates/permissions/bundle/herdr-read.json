@@ -1,0 +1,17 @@
+{
+  "name": "herdr-read",
+  "layer": "L0/L2",
+  "description": "herdr 조회 allow, pane 종료·중단은 ask (L2)",
+  "permissions": [
+    { "action": "shell", "resource": "herdr agent list*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr agent read*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr agent get*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr pane list*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr pane read*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr pane current*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr tab list*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr worktree list*", "effect": "allow" },
+    { "action": "shell", "resource": "herdr pane close*", "effect": "ask" },
+    { "action": "shell", "resource": "herdr pane kill*", "effect": "ask" }
+  ]
+}

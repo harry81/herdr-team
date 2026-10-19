@@ -16,6 +16,10 @@ jobs:
         run: bash tests/test_pkm_preset.sh
       - name: Pane ready suite
         run: bash tests/test_pane_ready.sh
+      - name: Permissions merge suite
+        run: bash tests/test_permissions_merge.sh
+      - name: Permissions seed suite
+        run: bash tests/test_permissions_seed.sh
       - name: Installer + release zip suite
         run: bash tests/test_install.sh
       - name: Windows launcher suite

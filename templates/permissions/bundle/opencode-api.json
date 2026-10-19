@@ -1,0 +1,10 @@
+{
+  "name": "opencode-api",
+  "layer": "L1",
+  "description": "opencode 세션 사전생성 API allow — 광역 ask 후 협소 allow (last-match-wins 정합 순서)",
+  "permissions": [
+    { "action": "shell", "resource": "opencode *", "effect": "ask" },
+    { "action": "shell", "resource": "opencode api post /api/session*", "effect": "allow" },
+    { "action": "shell", "resource": "opencode --version*", "effect": "allow" }
+  ]
+}

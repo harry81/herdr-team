@@ -1,0 +1,22 @@
+{
+  "layer": "baseline",
+  "note": "전역 공통(AUTO): fallback ask + L2 ask + L3 hard-deny policies. L0/L1 allow는 bundle/*.json으로만 공급된다.",
+  "permissions": [
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    { "action": "shell", "resource": "git push*", "effect": "ask" },
+    { "action": "shell", "resource": "git reset --hard*", "effect": "ask" },
+    { "action": "shell", "resource": "git clean -fd*", "effect": "ask" },
+    { "action": "shell", "resource": "rm *", "effect": "ask" },
+    { "action": "shell", "resource": "herdr pane close*", "effect": "ask" },
+    { "action": "shell", "resource": "herdr pane kill*", "effect": "ask" }
+  ],
+  "policies": [
+    { "action": "tool.use", "resource": "shell:sudo *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:curl * | *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:wget * | *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:rm -rf *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:rm -fr *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:chmod -R 777 *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push --force*", "effect": "deny" }
+  ]
+}

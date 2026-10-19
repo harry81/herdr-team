@@ -1,0 +1,10 @@
+{
+  "preset": "biz",
+  "role": "researcher",
+  "layer": "L0",
+  "description": "읽기 전용 조사 — 쓰기 없음",
+  "includes": ["core-read", "git", "herdr-read"],
+  "permissions": [
+    { "action": "edit", "resource": "*", "effect": "deny" }
+  ]
+}
