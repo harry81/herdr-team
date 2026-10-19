@@ -68,5 +68,6 @@
    - ✅ `herdr agent wait` 는 `--wait` 없이 보낸 비동기(fire-and-forget) 프롬프트에만 사용한다(예외 경로 전용). `--wait` 가 타임아웃으로 반환된 경우에도 `wait` 재호출 금지 — `herdr agent read` 로 현재 상태·원인을 확인한 뒤 재지시/중계한다.
    - ℹ️ 중복 대기 금지는 "절대 한 줄에 여러 명령어 실행 금지"(단일 명령 불변식)와 별개의 독립 규칙이며, 기존 규칙을 대체하지 않는다.
    - ⚠️ **`--until` 단일 상태값**: `--until` 은 상태 **하나만** 받는다. `--until idle,done` 처럼 콤마로 나열하면 `invalid agent status` 에러다. 여러 상태를 기다리려면 플래그를 반복(`--until idle --until done`)하거나 `--until` 을 생략한 `herdr agent wait <TARGET>`(기본: idle/done/blocked 매칭)을 쓴다.
+   - ✅ **비동기 경로** (예외 경로 전용): `--wait` 없이 프롬프트를 먼저 보낸 뒤 `herdr agent wait <TARGET> --until idle --timeout <MS>`로 대기하고, 반환 즉시 `herdr agent read <TARGET> --lines <N>`으로 산출물을 읽는다.
 4. **무방치 원칙 (Orchestrator)**: 각 에이전트가 작업 완료 후 idle로 방치되지 않도록 완료 즉시 다음 단계를 연결합니다.
 5. **TDD 중복 방지 및 Fast-Track 원칙**: worker는 작업 대상 파일 전용 단위 테스트로 TDD 루프를 반복하고 전체 회귀는 완료 직전 1회만 실행해 [full-regression] 결과를 고지한다. reviewer는 단위 테스트 작성·중복 실행을 금지하며, git diff 리뷰 + 전체 회귀 1회 + DoD 대조로 즉시 승인 판정한다(예외 실행은 사유 명시). orchestrator는 규약 외 테스트 재실행을 지시하지 않는다.
