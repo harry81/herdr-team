@@ -86,6 +86,7 @@ hts sd --dry-run       # 실행 없이 계획만 출력
 | `biz` | 코딩 없는 소규모 운영자 | orchestrator, planner, researcher, reviewer | 소상공인 사업 운영: 지원사업·CS 매뉴얼·운영 자동화 (worker 없음) |
 | `mkt` | 자영업/1인 마케터 | orchestrator, planner, researcher, reviewer | 로컬·SNS 마케팅, 키워드·경쟁 분석, 규정 준수 카피 |
 | `creator` | 창작자·출판 | orchestrator, planner, worker, reviewer | 콘텐츠 창작·출판, 목차 → 초안 → 교정 |
+| `pkm` | Obsidian PKM 볼트 사용자 | orchestrator, planner, researcher, worker, reviewer | PKM 볼트 팀, 노트·볼트 페이지 생산/정리 (researcher on-demand) |
 
 > `app`은 `dev`에 흡수되었습니다. `--preset app`은 계속 동작하지만 deprecated alias(경고)입니다.
 
@@ -134,7 +135,8 @@ herdr-team/
 │   ├── research/               # 프리셋: 심층 조사·지식 탐색
 │   ├── biz/                    # 프리셋: 소상공인 사업 운영
 │   ├── mkt/                    # 프리셋: 로컬·SNS 마케팅
-│   └── creator/                # 프리셋: 콘텐츠 창작·출판
+│   ├── creator/                # 프리셋: 콘텐츠 창작·출판
+│   └── pkm/                    # 프리셋: PKM 볼트 팀
 ├── tests/
 │   ├── test_preset.sh          # 프리셋 + TUI 테스트 (정본 + 레거시 래퍼)
 │   ├── test_install.sh         # 설치 + 배포 zip 테스트
@@ -150,7 +152,7 @@ herdr-team/
 
 1. **prefix 결정** — `$1` 우선, 없으면 git root 디렉토리명(없으면 폴더명)에서 자동 추출.
    `try2`→`try2`, `my-project`→`mp`, `scandimension`→`sc` 형태의 2~4글자 축약 또는 폴더명 그대로.
-2. **프리셋 결정** — `--preset dev|research|biz|mkt|creator`, 환경변수 `HERDR_TEAM_PRESET`, 또는 TUI 메뉴 (기본값: `dev`). `app`은 `dev`의 deprecated alias입니다.
+2. **프리셋 결정** — `--preset dev|research|biz|mkt|creator|pkm`, 환경변수 `HERDR_TEAM_PRESET`, 또는 TUI 메뉴 (기본값: `dev`). `app`은 `dev`의 deprecated alias입니다.
 3. **템플릿 준비 & 격리** — 프리셋별 정본은 `agents/<preset>/`(`AGENTS.md`·`<prefix>-<role>.md`)에,
    활성 프리셋은 `.herdr-team/preset`에 기록됩니다. 루트 `AGENTS.md`는 활성 뷰로, 전환 시 루트 수정분을
    나가는 프리셋 정본에 write-back한 뒤 들어오는 정본을 루트로 복사합니다.
@@ -216,13 +218,14 @@ herdr-team/
 `--preset` 지정이 없으면(환경변수·`--no-interactive`도 없을 때) 프리셋 메뉴가 표시됩니다. 영어 기본 + 한국어 병기:
 
 ```
-Select AI team preset (1-5 or name, default: dev):
+Select AI team preset (1-6 or name, default: dev):
   1) dev - Software Development (소프트웨어 개발·MVP, 4인 팀, orchestrator/planner/worker/reviewer)
   2) research - Deep Research & Knowledge Discovery (...)
   3) biz - Small Business Operations (소상공인 사업 운영, ...)
   4) mkt - Local & SNS Marketing (로컬·SNS 마케팅, ...)
   5) creator - Content Creation & Publishing (콘텐츠 창작·출판, ...)
-Select [1-5/dev/research/biz/mkt/creator] (default: dev, 10s):
+  6) pkm - PKM Vault Team (노트·볼트 페이지 생산/정리, ...)
+Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 ```
 
 참고:
@@ -231,7 +234,7 @@ Select [1-5/dev/research/biz/mkt/creator] (default: dev, 10s):
 - `--no-interactive`는 묻지 않고 `dev`로 진행.
 - `--list-presets`는 프리셋 목록 출력 후 종료.
 
-### 프리셋 (dev, research, biz, mkt, creator)
+### 프리셋 (dev, research, biz, mkt, creator, pkm)
 
 | 프리셋 | 역할 | 용도 |
 |--------|------|------|
@@ -240,6 +243,7 @@ Select [1-5/dev/research/biz/mkt/creator] (default: dev, 10s):
 | `biz` | orchestrator, planner, researcher, reviewer | 소상공인 사업 운영: 지원사업·CS·운영 자동화 (worker 없음) |
 | `mkt` | orchestrator, planner, researcher, reviewer | 로컬·SNS 마케팅, 키워드·경쟁 분석, 규정 준수 카피 (worker on-demand) |
 | `creator` | orchestrator, planner, worker, reviewer | 콘텐츠 창작·출판, 목차 → 초안 → 교정 (researcher on-demand) |
+| `pkm` | orchestrator, planner, researcher, worker, reviewer | PKM 볼트 팀, 노트·볼트 페이지 생산/정리 (researcher on-demand) |
 
 각 프리셋은 `templates/<preset>/` (`preset.conf` + `AGENTS.md`)에 정의됩니다.
 역할은 일반화되어 있어 프리셋의 `ROLES`에서 에이전트명(`<prefix>-<role>`)을 도출하므로,

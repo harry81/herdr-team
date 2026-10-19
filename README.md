@@ -87,6 +87,7 @@ hts sd --dry-run       # print plan only, no changes
 | `biz` | small business operators, no code | orchestrator, planner, researcher, reviewer | Small Business Operations: support programs, CS manuals, ops automation (no worker) |
 | `mkt` | shop owners / solo marketers | orchestrator, planner, researcher, reviewer | Local & SNS Marketing, keyword/competitor analysis, compliant copy |
 | `creator` | authors & content creators | orchestrator, planner, worker, reviewer | Content Creation & Publishing, outline → draft → proofread |
+| `pkm` | Obsidian PKM vault owners | orchestrator, planner, researcher, worker, reviewer | PKM Vault Team, note/vault-page pipeline (researcher on-demand) |
 
 > `app` was merged into `dev`; `--preset app` still works as a deprecated alias for `dev`.
 
@@ -135,7 +136,8 @@ herdr-team/
 │   ├── research/               # Preset: Deep Research & Knowledge Discovery
 │   ├── biz/                    # Preset: Small Business Operations
 │   ├── mkt/                    # Preset: Local & SNS Marketing
-│   └── creator/                # Preset: Content Creation & Publishing
+│   ├── creator/                # Preset: Content Creation & Publishing
+│   └── pkm/                    # Preset: PKM Vault Team
 ├── tests/
 │   ├── test_preset.sh          # Preset + TUI tests (canonical + legacy wrapper)
 │   ├── test_install.sh         # Installer + release zip tests
@@ -151,7 +153,7 @@ herdr-team/
 
 1. **Prefix** — `$1` wins; otherwise derived from the git root (or folder) name.
    `try2`→`try2`, `my-project`→`mp`, `scandimension`→`sc` (2–4 letter abbreviation or full name).
-2. **Preset** — `--preset dev|research|biz|mkt|creator`, `HERDR_TEAM_PRESET`, or the interactive TUI menu (default: `dev`). `app` is a deprecated alias for `dev`.
+2. **Preset** — `--preset dev|research|biz|mkt|creator|pkm`, `HERDR_TEAM_PRESET`, or the interactive TUI menu (default: `dev`). `app` is a deprecated alias for `dev`.
 3. **Templates & isolation** — each preset's canonical docs live under `agents/<preset>/`
    (`AGENTS.md` + `<prefix>-<role>.md`), with the active preset tracked in `.herdr-team/preset`.
    The root `AGENTS.md` is the active view: on switch the root edits are written back to the
@@ -223,13 +225,14 @@ overwrites another preset's docs:
 With no `--preset` (and no `HERDR_TEAM_PRESET` / `--no-interactive`), a preset menu is shown:
 
 ```
-Select AI team preset (1-5 or name, default: dev):
+Select AI team preset (1-6 or name, default: dev):
   1) dev - Software Development (소프트웨어 개발·MVP, 4인 팀, orchestrator/planner/worker/reviewer)
   2) research - Deep Research & Knowledge Discovery (...)
   3) biz - Small Business Operations (소상공인 사업 운영, ...)
   4) mkt - Local & SNS Marketing (로컬·SNS 마케팅, ...)
   5) creator - Content Creation & Publishing (콘텐츠 창작·출판, ...)
-Select [1-5/dev/research/biz/mkt/creator] (default: dev, 10s):
+  6) pkm - PKM Vault Team (노트·볼트 페이지 생산/정리, ...)
+Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 ```
 
 Notes:
@@ -238,7 +241,7 @@ Notes:
 - `--no-interactive` never prompts and defaults to `dev`.
 - `--list-presets` prints available presets and exits.
 
-### Presets (dev, research, biz, mkt, creator)
+### Presets (dev, research, biz, mkt, creator, pkm)
 
 | Preset | Roles | Focus |
 |--------|-------|-------|
@@ -247,6 +250,7 @@ Notes:
 | `biz` | orchestrator, planner, researcher, reviewer | Small Business Operations: support programs, CS, ops automation (no worker) |
 | `mkt` | orchestrator, planner, researcher, reviewer | Local & SNS Marketing, keyword/competitor analysis, compliant copy (worker on-demand) |
 | `creator` | orchestrator, planner, worker, reviewer | Content Creation & Publishing, outline → draft → proofread (researcher on-demand) |
+| `pkm` | orchestrator, planner, researcher, worker, reviewer | PKM Vault Team, note/vault-page pipeline (researcher on-demand) |
 
 Each preset lives in `templates/<preset>/` (`preset.conf` + `AGENTS.md`).
 Roles are generalized: the script derives agent names (`<prefix>-<role>`) from the preset's `ROLES`,

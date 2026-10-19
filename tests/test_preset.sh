@@ -127,7 +127,7 @@ assert_contains "$HELP_OUT" "Deep Research" "help: research English label"
 assert_contains "$HELP_OUT" "Small Business" "help: biz English label"
 assert_contains "$HELP_OUT" "Local & SNS" "help: mkt English label"
 assert_contains "$HELP_OUT" "Content Creation" "help: creator English label"
-assert_contains "$TUI_OUT" "Select [1-5/dev/research/biz/mkt/creator]" "TUI: 동적 English-primary prompt"
+assert_contains "$TUI_OUT" "Select [1-6/dev/research/biz/mkt/creator/pkm]" "TUI: 동적 English-primary prompt"
 assert_contains "$TUI_OUT" "Software Development" "TUI: dev English label"
 if [[ -f "$REPO/LICENSE" ]]; then ok "LICENSE 존재"; else bad "LICENSE 존재"; fi
 assert_contains "$(cat "$REPO/LICENSE" 2>/dev/null)" "MIT License" "LICENSE: MIT"
@@ -312,7 +312,14 @@ for p in dev research biz mkt creator; do
   assert_contains "$README_EN" "| \`$p\`" "readme_preset표_5종: $p"
   assert_contains "$README_KO" "| \`$p\`" "readme_ko_preset표_5종: $p"
 done
-assert_contains "$README_EN" "Select [1-5" "readme_tui_1-5"
+assert_contains "$README_EN" "Select [1-6" "readme_tui_1-6"
+assert_contains "$README_EN" "| \`pkm\`" "readme_preset표_pkm"
+assert_contains "$README_KO" "| \`pkm\`" "readme_ko_preset표_pkm"
+if [[ "$(grep -cF '| `pkm`' "$REPO/README.md")" -ge 2 ]]; then ok "readme_preset표2_pkm"; else bad "readme_preset표2_pkm (Summary/Presets 표 모두 필요)"; fi
+if [[ "$(grep -cF '| `pkm`' "$REPO/README.ko.md")" -ge 2 ]]; then ok "readme_ko_preset표2_pkm"; else bad "readme_ko_preset표2_pkm (요약/프리셋 표 모두 필요)"; fi
+assert_contains "$README_EN" "├── creator/" "readme_tree_creator_중간행"
+assert_contains "$README_EN" "└── pkm/" "readme_tree_pkm_마지막행"
+assert_contains "$README_KO" "└── pkm/" "readme_ko_tree_pkm_마지막행"
 assert_not_contains "$README_EN" "| \`app\`" "readme_preset표_app_미노출"
 assert_contains "$README_EN" "app" "README: app→dev alias 문구"
 assert_contains "$README_EN" "agents/dev/" "readme_isolation_tree: agents/dev/"
@@ -611,6 +618,7 @@ NRW_DOCS=(
   "templates/biz/AGENTS.md"
   "templates/creator/AGENTS.md"
   "templates/research/AGENTS.md"
+  "templates/pkm/AGENTS.md"
   "templates/agents/ROLE-taskmanager.md"
   "templates/opencode-agents/ROLE-orchestrator.md"
   "agents/hts-taskmanager.md"
@@ -670,6 +678,7 @@ NRW_BA_FILES=(
   "templates/biz/AGENTS.md"
   "templates/creator/AGENTS.md"
   "templates/research/AGENTS.md"
+  "templates/pkm/AGENTS.md"
   "templates/agents/ROLE-taskmanager.md"
   "agents/hts-taskmanager.md"
 )

@@ -12,6 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Preset + TUI suite
         run: bash tests/test_preset.sh
+      - name: PKM preset suite
+        run: bash tests/test_pkm_preset.sh
       - name: Installer + release zip suite
         run: bash tests/test_install.sh
       - name: Windows launcher suite
