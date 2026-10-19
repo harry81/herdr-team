@@ -14,6 +14,8 @@ jobs:
         run: bash tests/test_preset.sh
       - name: PKM preset suite
         run: bash tests/test_pkm_preset.sh
+      - name: Pane ready suite
+        run: bash tests/test_pane_ready.sh
       - name: Installer + release zip suite
         run: bash tests/test_install.sh
       - name: Windows launcher suite

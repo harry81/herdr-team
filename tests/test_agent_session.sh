@@ -34,7 +34,11 @@ cat > "$STUB/herdr" <<'STUBEOF'
 #!/usr/bin/env bash
 case "${1:-}" in
   pane)
-    printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n' ;;
+    case "${2:-}" in
+      run|wait-output) printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n' ;;  # probe/페이싱: ready로 응답
+      process-info) printf '{"result":{"process_info":{"shell_pid":42,"foreground_process_group_id":42}}}\n' ;;
+      *) printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n' ;;
+    esac ;;
   agent)
     case "${2:-}" in
       list) exit 1 ;;  # 에이전트 없음 → start 진행

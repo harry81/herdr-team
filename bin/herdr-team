@@ -491,7 +491,11 @@ run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '+ %s\n' "$*"
   else
-    "$@" >/dev/null
+    # 실패 시 stdout 억제 + 종료코드 전파. 무음 소실 방지: 원인 명시 에러로 폐쇄.
+    "$@" >/dev/null && return 0
+    local __r=$?
+    echo "error: 명령 실패: $*" >&2
+    return "$__r"
   fi
 }
 # stdout 캡처용 실행 (세션 ID 등). dry-run이면 계획만 출력하고 아무것도 실행하지 않는다.
@@ -530,6 +534,53 @@ down_split_ratio() {
   v="${v%"${v##*[!0]}"}"   # 후행 0 제거: 0.250000 → 0.25
   printf '%s' "${v%.}"     # 후행 소수점 제거 방어: 1.000000 → 1
 }
+
+# --- pane ready 대기: agent_pane_busy(shell 미준비 race) 결정론 해소 ---
+# 실측 근거(spec §4.2 검증 완료, herdr 0.9.3 — tests/test_pane_ready.sh 헤더):
+# - `pane run`: 즉시 반환(rc=0), 명령은 pty 입력으로 큐잉(완료 대기 아님).
+# - `pane wait-output`: 즉시 검색 후 폴링, --timeout 폐쇄, 정규식 지원.
+# - process-info 스키마(실측): foreground_processes[0]/{name,pid}, shell_pid, foreground_process_group_id.
+#   foreground_process_group_id == shell_pid ⇔ pane shell이 foreground 소유(점유 아님);
+#   busy pane(foreground sleep/vim)에서는 불일치 — 결정론적 busy 판정.
+# 채택 조합(spec §2.1 D+B+C보조): 프로세스 gate(C) → 마커 프로브+평탄화 허용 정규식(D).
+#   리터럴 --match는 busy pane 타이핑 에코를 매치하는 false positive가 있어(실측) 라인 시작
+#   앵커 정규식을 사용한다; `$` 앵커는 스냅샷 라인 공백 패딩 + 프롬프트 평탄화로 불안정(실측).
+READY_TIMEOUT_S="${HERDR_TEAM_READY_TIMEOUT_S:-20}"  # 전역 참조 노출 유지 (주입 이용자 대응)
+HT_READY_MARKER="__HT_READY_MARKER__"
+pane_shell_foreground() {
+  local _out _spid _pgid
+  _out="$(herdr pane process-info --pane "$1" 2>/dev/null)" || return 1
+  _spid="$(printf '%s' "$_out" | jq -r '.result.process_info.shell_pid // empty')"
+  _pgid="$(printf '%s' "$_out" | jq -r '.result.process_info.foreground_process_group_id // empty')"
+  [[ -n "$_spid" && -n "$_pgid" && "$_pgid" == "$_spid" ]]
+}
+wait_pane_ready() {
+  local _pane="$1" _start=$SECONDS _n=0 _limit="${HERDR_TEAM_READY_TIMEOUT_S:-$READY_TIMEOUT_S}"
+  until pane_shell_foreground "$_pane"; do
+    (( SECONDS - _start < _limit )) || {
+      echo "error: pane ${_pane} ready 대기 초과 (${_limit}s)" >&2
+      echo "error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다." >&2
+      return 1
+    }
+    _n=$((_n+1))
+    log "pane ${_pane} shell foreground 대기 중 (attempt ${_n})"
+    # 페이싱: wait-output 내장 폴링으로 재시도 간격 확보 (매칭 불가능 패턴, 0.5s 폐쇄)
+    herdr pane wait-output "$_pane" --match "${HT_READY_MARKER}:no-op" --timeout 500 >/dev/null 2>&1 || true
+  done
+  # shell이 프로브 명령을 실제 실행해 출력했음을 이벤트로 확정 — 타이핑 에코("printf ...")와
+  # 구별 위해 라인 시작 앵커. 스냅샷 공백 패딩·프롬프트 평탄화 때문에 `$` 앵커는 미사용.
+  until herdr pane run "$_pane" printf "$HT_READY_MARKER" >/dev/null 2>&1 \
+        && herdr pane wait-output "$_pane" --regex "(?m)^[ \t]*${HT_READY_MARKER}" --timeout 1500 >/dev/null 2>&1; do
+    (( SECONDS - _start < _limit )) || {
+      echo "error: pane ${_pane} ready 대기 초과 (${_limit}s)" >&2
+      echo "error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다." >&2
+      return 1
+    }
+    _n=$((_n+1))
+    log "pane ${_pane} ready 대기 중 (attempt ${_n})"
+  done
+}
+
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "error: '$1' 명령을 찾을 수 없습니다." >&2; exit 127
@@ -930,8 +981,10 @@ setup_panes() {
         if [[ "$KIND" == "opencode" ]]; then
           opencode_session_for "$_agent"
           _sid_var="SID_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
+          printf '+ wait_pane_ready "$%s"\n' "$_var"
           printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s" -- --session "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var" "$_sid_var"
         else
+          printf '+ wait_pane_ready "$%s"\n' "$_var"
           printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var"
         fi
       done
@@ -1049,6 +1102,8 @@ setup_panes() {
     for role in "${ROLES[@]}"; do
       agent="$(role_agent "$role")"
       if ! herdr agent list 2>/dev/null | grep -q -- "$agent"; then
+        # shell 미준비 race(agent_pane_busy) 방지: start 직전에 pane ready 이벤트 확정.
+        wait_pane_ready "${PANE_IDS[$i]}" || { echo "error: ${agent} 시작 중단 (pane ${PANE_IDS[$i]} shell 미준비)" >&2; exit 1; }
         if [[ "$KIND" == "opencode" ]]; then
           if ! sid="$(opencode_session_for "$agent")"; then
             echo "error: ${agent} 세션 생성 실패 → 시작 중단 (이미 생성된 pane: ${#PANE_IDS[@]}개)" >&2
