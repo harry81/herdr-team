@@ -126,6 +126,19 @@ for b in core-read git test-build docs-write herdr-read opencode-api vault-write
   fi
 done
 
+echo "== 8) herdr dispatch allow + pane 종료 ask 회귀 =="
+assert_equal "$(judge dev orchestrator shell 'herdr agent prompt ht-worker "작업 지시" --wait --timeout 600000')" "allow" "herdr_dispatch: orchestrator prompt"
+assert_equal "$(judge dev orchestrator shell 'herdr agent wait ht-worker --until idle --timeout 600000')" "allow" "herdr_dispatch: orchestrator wait"
+assert_equal "$(judge dev worker shell 'herdr agent prompt ht-reviewer "직접 지시"')" "allow" "herdr_dispatch: worker prompt (범위 리스크 §2.3 회귀 고정)"
+assert_equal "$(judge dev reviewer shell 'herdr pane close wT:p1')" "ask" "herdr_read_ask: reviewer pane close"
+assert_equal "$(judge dev worker shell 'herdr pane kill wT:p1')" "ask" "herdr_read_ask: worker pane kill"
+assert_contains "$(cat "$REPO/templates/opencode-agents/ROLE-orchestrator.md")" 'herdr agent prompt' "herdr_dispatch: ROLE-orchestrator 위임 명령 텍스트"
+if jq -e '.permissions|length>0' "$PERM/bundle/herdr-read.json" >/dev/null 2>&1; then
+  ok "herdr_dispatch: herdr-read.json jq 유효"
+else
+  bad "herdr_dispatch: herdr-read.json jq 유효"
+fi
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
