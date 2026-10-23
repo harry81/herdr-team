@@ -1,22 +1,194 @@
 {
   "layer": "baseline",
-  "note": "전역 공통(AUTO): fallback ask + L2 ask + L3 hard-deny policies. L0/L1 allow는 bundle/*.json으로만 공급된다.",
+  "note": "전역 공통(AUTO): 미매칭 shell = ask(기본값 — permissions_judge fallback) + L2 ask + L3 hard-deny policies. L0/L1 allow는 bundle/*.json으로만 공급된다.",
+  "policy_note": "L3 후보 e2e 판정(TB-3, 리소스 텍스트 실측): 채택 = dd of=/dev/sd*·nvme*, mkfs* /dev/*, '>' /dev/sd*·nvme* 리다이렉트, git push --mirror*/--delete*. 미채택 = (1) '* > /dev/*' 광범위형: 'echo hi > /dev/null' 오탐으로 /dev/null 정상 사용 차단, (2) 'mkfs*' 단독: 'rg mkfs docs' 오탐 → /dev/ 경로 한정으로 정밀화 채택, (3) '>>' append 전용 변형: dd deny가 주요 파괴 경로를 덮어 패턴 수 대비 이득 낮음, (4) 백틱/$() 커맨드 치환: glob 문자 클래스로 정밀 검출 불가(후속 조사 과제). 자기 변조 방지(L3, shell 경로): 리다이렉트(>/>>) 로 .opencode/**·.herdr-team/** 쓰기, cp/mv/sed 로 .opencode/**·.herdr-team/** 대상 지정, cp 로 .git/hooks/** 쓰기를 deny. 정책 패턴에 캐럿(^)은 쓰지 않는다: opencode 엔진 매처가 정책 resource 를 ^...$ 전체 앵커 + '^' 리터럴 이스케이프로 처리하므로 캐럿을 넣으면 런타임에 매칭되지 않는다(커밋 메시지 오탐도 엔진 앵커 덕에 원래 없음). 한계(best-effort): 'cd x && cp ... .opencode/y' 처럼 앞에 다른 명령이 붙은 형태, './'-접두 경로, 변수/tee 우회, cat/sed 읽기는 미차단.",
   "permissions": [
-    { "action": "shell", "resource": "*", "effect": "ask" },
-    { "action": "shell", "resource": "git push*", "effect": "ask" },
-    { "action": "shell", "resource": "git reset --hard*", "effect": "ask" },
-    { "action": "shell", "resource": "git clean -fd*", "effect": "ask" },
-    { "action": "shell", "resource": "rm *", "effect": "ask" },
-    { "action": "shell", "resource": "herdr pane close*", "effect": "ask" },
-    { "action": "shell", "resource": "herdr pane kill*", "effect": "ask" }
+    {
+      "action": "shell",
+      "resource": "git push*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git reset --hard*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git clean -fd*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "rm *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "herdr pane close*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "herdr pane kill*",
+      "effect": "ask"
+    }
   ],
   "policies": [
-    { "action": "tool.use", "resource": "shell:sudo *", "effect": "deny" },
-    { "action": "tool.use", "resource": "shell:curl * | *", "effect": "deny" },
-    { "action": "tool.use", "resource": "shell:wget * | *", "effect": "deny" },
-    { "action": "tool.use", "resource": "shell:rm -rf *", "effect": "deny" },
-    { "action": "tool.use", "resource": "shell:rm -fr *", "effect": "deny" },
-    { "action": "tool.use", "resource": "shell:chmod -R 777 *", "effect": "deny" },
-    { "action": "tool.use", "resource": "shell:git push --force*", "effect": "deny" }
+    {
+      "action": "tool.use",
+      "resource": "shell:sudo *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:curl * | *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:wget * | *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:rm -rf *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:rm -fr *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:chmod -R 777 *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git push --force*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:dd*of=/dev/sd*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:dd*of=/dev/nvme*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:mkfs* /dev/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* > /dev/sd*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* > /dev/nvme*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >/dev/sd*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >/dev/nvme*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git push --mirror*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git push --delete*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* > .opencode/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >.opencode/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >> .opencode/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >>.opencode/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:cp * .opencode/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:mv * .opencode/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:sed * .opencode/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* > .herdr-team/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >.herdr-team/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >> .herdr-team/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:* >>.herdr-team/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:cp * .herdr-team/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:mv * .herdr-team/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:sed * .herdr-team/*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:cp * .git/hooks/*",
+      "effect": "deny"
+    }
   ]
 }

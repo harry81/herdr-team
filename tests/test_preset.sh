@@ -396,25 +396,31 @@ STUBEOF
     local pfx="$1" pre="$2" cwd="$3"; shift 3
     PATH="$ISTUB:$PATH" "$BIN" "$pfx" --preset "$pre" --cwd "$cwd" --template-dir "$REPO/templates" --no-interactive --no-start --dry-run "$@" 2>&1
   }
+  managed_block_of() { # 루트/정본의 관리 섹션 내부만 (canon 프리셋 순수성 비교용)
+    awk '/herdr-team:managed BEGIN/{f=1;next} /herdr-team:managed END/{f=0} f' "$1"
+  }
 
   # --- 24·25·26: dev→mkt→dev 무손실 왕복 / activate / write-back ---
   I1="$(mktemp -d)"
   iso_run iso dev "$I1"
   echo "CUSTOM-DEV-MARKER" >> "$I1/agents/dev/iso-worker.md"
+  I1_DEV_BLOCK="$(managed_block_of "$I1/agents/dev/AGENTS.md")"
   echo "ROOT-DEV-EDIT" >> "$I1/AGENTS.md"
   iso_run iso mkt "$I1"
   if grep -q "CUSTOM-DEV-MARKER" "$I1/agents/dev/iso-worker.md" 2>/dev/null; then ok "iso_roundtrip_lossless: dev 정본 마커 보존";
   else bad "iso_roundtrip_lossless: dev 정본 마커 보존"; fi
-  if cmp -s "$I1/AGENTS.md" "$I1/agents/mkt/AGENTS.md"; then ok "iso_switch_activate_root: 루트==agents/mkt/AGENTS.md";
-  else bad "iso_switch_activate_root: 루트==agents/mkt/AGENTS.md"; fi
-  if cmp -s "$I1/AGENTS.md" "$I1/agents/mkt/AGENTS.md"; then ok "switch_activate_incoming";
+  if [[ "$(managed_block_of "$I1/AGENTS.md")" == "$(managed_block_of "$I1/agents/mkt/AGENTS.md")" ]]; then ok "iso_switch_activate_root: 루트 관리 섹션==agents/mkt";
+  else bad "iso_switch_activate_root: 루트 관리 섹션==agents/mkt"; fi
+  if [[ "$(managed_block_of "$I1/AGENTS.md")" == "$(managed_block_of "$I1/agents/mkt/AGENTS.md")" ]]; then ok "switch_activate_incoming";
   else bad "switch_activate_incoming"; fi
-  if grep -q "ROOT-DEV-EDIT" "$I1/agents/dev/AGENTS.md" 2>/dev/null; then ok "iso_writeback_root_edit: 루트 편집→dev 정본";
-  else bad "iso_writeback_root_edit: 루트 편집→dev 정본"; fi
-  if grep -q "ROOT-DEV-EDIT" "$I1/agents/dev/AGENTS.md" 2>/dev/null; then ok "switch_writeback_outgoing";
-  else bad "switch_writeback_outgoing"; fi
+  if grep -q "ROOT-DEV-EDIT" "$I1/AGENTS.md" 2>/dev/null; then ok "iso_writeback_root_edit: 루트 편집은 루트에 보존";
+  else bad "iso_writeback_root_edit: 루트 편집은 루트에 보존"; fi
+  if grep -q "ROOT-DEV-EDIT" "$I1/agents/dev/AGENTS.md" 2>/dev/null; then bad "switch_writeback_canon_pure: 사용자 본문 미기록";
+  else ok "switch_writeback_canon_pure: 사용자 본문 미기록"; fi
+  if [[ "$(managed_block_of "$I1/agents/dev/AGENTS.md")" == "$I1_DEV_BLOCK" ]]; then ok "iso_writeback_inner_only: dev 정본 내부 보존";
+  else bad "iso_writeback_inner_only: dev 정본 내부 보존"; fi
   iso_run iso dev "$I1"
-  if cmp -s "$I1/AGENTS.md" "$I1/agents/dev/AGENTS.md" && grep -q "ROOT-DEV-EDIT" "$I1/AGENTS.md"; then ok "iso_roundtrip_lossless: 루트 복원";
+  if [[ "$(managed_block_of "$I1/AGENTS.md")" == "$I1_DEV_BLOCK" ]] && grep -q "ROOT-DEV-EDIT" "$I1/AGENTS.md"; then ok "iso_roundtrip_lossless: 루트 복원";
   else bad "iso_roundtrip_lossless: 루트 복원"; fi
   assert_equal "$(cat "$I1/.herdr-team/preset" 2>/dev/null)" "dev" "iso_roundtrip_lossless: state=dev"
   rm -rf "$I1"
@@ -427,8 +433,10 @@ STUBEOF
   iso_run iso dev "$I2"
   assert_equal "$(cat "$I2/agents/iso-worker.md")" "FLAT-WORKER-ORIG" "migrate_flat_preserves_originals: 평면 원본 불변"
   assert_equal "$(cat "$I2/agents/dev/iso-worker.md")" "FLAT-WORKER-ORIG" "migrate_flat_role_docs: 정본으로 복사"
-  assert_equal "$(cat "$I2/agents/dev/AGENTS.md")" "ROOT-ORIG" "migrate_root_agents_canonical: 루트→정본 import"
-  assert_equal "$(cat "$I2/AGENTS.md")" "ROOT-ORIG" "migrate_root_agents_canonical: 루트 무변경"
+  if grep -qF "herdr-team:managed BEGIN" "$I2/agents/dev/AGENTS.md" && ! grep -q "ROOT-ORIG" "$I2/agents/dev/AGENTS.md"; then ok "migrate_root_agents_canonical: 정본 마커 시딩(본문 미오염)";
+  else bad "migrate_root_agents_canonical: 정본 마커 시딩(본문 미오염)"; fi
+  if grep -q "ROOT-ORIG" "$I2/AGENTS.md" && grep -qF "herdr-team:managed BEGIN" "$I2/AGENTS.md"; then ok "migrate_root_agents_canonical: 루트 본문 보존 + 관리 섹션";
+  else bad "migrate_root_agents_canonical: 루트 본문 보존 + 관리 섹션"; fi
   assert_equal "$(cat "$I2/.herdr-team/preset" 2>/dev/null)" "dev" "migrate: state=dev"
   rm -rf "$I2"
 
@@ -718,18 +726,36 @@ for d in "${NRW_DOCS[@]}"; do
   if [[ -z "$NRW_COMMA" ]]; then ok "nrw_until콤마나열_금지: $d"; else bad "nrw_until콤마나열_금지: $d ($NRW_COMMA)"; fi
 done
 
-echo "== 38) 읽기전용 agent 파일 bash 권한 보강 (템플릿 정본 + 로컬 생성물) =="
-# 커밋 대상 정본 2개는 항상 단언한다. .opencode/agents/* 는 .gitignore 생성물이라
-# 클린 체크아웃에 존재하지 않으므로, 있을 때만(로컬) 추가 검증하고 없으면 SKIP 한다.
-PERM_FILES=(
-  "templates/opencode-agents/ROLE-planner.md"
-  "templates/opencode-agents/ROLE-orchestrator.md"
-)
-for f in ".opencode/agents/ht-planner.md" ".opencode/agents/ht-orchestrator.md"; do
-  if [[ -f "$REPO/$f" ]]; then PERM_FILES+=("$f"); else echo "SKIP: $f 부재(.opencode 생성물) -> §38 검증 제외"; fi
-done
-# frontmatter에서 bash 권한 키 라인만 정규화 추출 (집합/순서 동일성 비교용)
-perm_key_lines() {
+echo "== 38) agent 파일 권한: V1 템플릿 정본 + V2 생성물 (시딩기 산출) =="
+# 커밋 대상 정본 2개는 V1 permission 맵, .opencode/agents/* 는 시딩기가 만든 V2 permissions 배열이다.
+# 두 양식을 하나의 정규화 함수로 "action|resource|effect" 3-tuple 로 뽑아 각자의 계약을 단언한다.
+perm_rules() {  # $1=파일 → 정렬된 action|resource|effect (V1 맵/V2 배열 공통)
+  awk '
+    function p3(a, r, e) { if (a != "") print a "|" r "|" e }
+    /^---/ { if (!v1 && !v2) next; p3(a, r, e); exit }
+    /^permissions:/ { v2 = 1; next }
+    /^permission:/  { v1 = 1; next }
+    v2 {
+      if ($0 ~ /^[[:space:]]*- action:/) { p3(a, r, e); a = $3; r = ""; e = ""; next }
+      if ($0 ~ /^[[:space:]]+resource:/) { r = $0; sub(/^[[:space:]]+resource:[[:space:]]*/, "", r); gsub(/^"|"$/, "", r); next }
+      if ($0 ~ /^[[:space:]]+effect:/) { e = $2; next }
+      next
+    }
+    v1 && /^[[:space:]]+[A-Za-z_]+: (allow|deny|ask)$/ {
+      line = $0; sub(/^[[:space:]]+/, "", line)
+      a = line; sub(/:.*/, "", a)
+      e = line; sub(/.*:[[:space:]]*/, "", e)
+      p3(a, "*", e); a = ""; next
+    }
+    v1 && /^[[:space:]]+"/ {
+      line = $0; sub(/^[[:space:]]+/, "", line)
+      r = line; sub(/".*$/, "", r); sub(/^"/, "", r)
+      e = line; sub(/.*:[[:space:]]*/, "", e)
+      p3("shell", r, e); r = ""; e = ""
+    }
+  ' "$1" | sort
+}
+perm_key_lines() {  # V1 맵의 키 라인 (정본 2파일 집합/순서 동일성 비교용)
   awk '
     /^permission:/ { p = 1; next }
     !p { next }
@@ -737,8 +763,11 @@ perm_key_lines() {
     /^[[:space:]]+"[^"]+":/ { gsub(/^[[:space:]]+/, ""); print }
   ' "$1"
 }
+
+echo "== 38a) V1 템플릿 정본 2파일 (기존 계약 유지) =="
+V1_FILES=("templates/opencode-agents/ROLE-planner.md" "templates/opencode-agents/ROLE-orchestrator.md")
 PERM_REF=""
-for f in "${PERM_FILES[@]}"; do
+for f in "${V1_FILES[@]}"; do
   if [[ ! -f "$REPO/$f" ]]; then bad "perm_파일_존재: $f"; continue; fi
   ok "perm_파일_존재: $f"
   TXT="$(cat "$REPO/$f")"
@@ -758,14 +787,45 @@ for f in "${PERM_FILES[@]}"; do
     bad "perm_ask_선행순서: $f (ask=$ASK_LN first_allow=$FIRST_ALLOW_LN)"
   fi
   KEYS="$(perm_key_lines "$REPO/$f")"
-  if [[ -z "$PERM_REF" ]]; then
-    PERM_REF="$KEYS"
-  elif [[ "$KEYS" == "$PERM_REF" ]]; then
-    ok "perm_키집합_순서_동일: $f"
-  else
-    bad "perm_키집합_순서_동일: $f (다름)"
-  fi
+  if [[ -z "$PERM_REF" ]]; then PERM_REF="$KEYS"
+  elif [[ "$KEYS" == "$PERM_REF" ]]; then ok "perm_키집합_순서_동일: $f"
+  else bad "perm_키집합_순서_동일: $f (다름)"; fi
 done
+# V1 정규화 파서가 맵을 3-tuple 로 읽는지 (TC-§38-29)
+assert_contains "$(perm_rules "$REPO/templates/opencode-agents/ROLE-planner.md")" "edit|*|deny" "perm_정규화_V1_edit_deny"
+
+echo "== 38b) V2 생성물 (프레시 시딩 .opencode/agents/*) =="
+# 로컬 생성물은 stale 할 수 있으므로(과거 baseline 산출) 임시 CWD 에 새로 시딩해 결정론적으로 검증한다.
+if command -v jq >/dev/null 2>&1; then
+  WSTUB="$(mktemp -d)"; WCWD="$(mktemp -d)"
+  cat > "$WSTUB/herdr" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
+STUBEOF
+  chmod +x "$WSTUB/herdr"
+  PATH="$WSTUB:$PATH" "$BIN" ht --preset dev --cwd "$WCWD" --template-dir "$REPO/templates" \
+    --no-interactive --no-start >/dev/null 2>&1
+  for f in "$WCWD/.opencode/agents/ht-planner.md" "$WCWD/.opencode/agents/ht-orchestrator.md"; do
+    if [[ ! -f "$f" ]]; then bad "perm_v2_생성: ${f#"$WCWD"/}"; continue; fi
+    RULES="$(perm_rules "$f")"
+    if [[ -n "$RULES" ]]; then ok "perm_v2_파싱: ${f#"$WCWD"/}"; else bad "perm_v2_파싱: ${f#"$WCWD"/}"; fi
+    assert_contains "$RULES" "edit|*|deny" "perm_v2_edit_deny: ${f#"$WCWD"/}"
+    assert_contains "$RULES" "shell|ls *|allow" "perm_v2_ls_allow: ${f#"$WCWD"/}"
+    assert_contains "$RULES" "shell|git status*|allow" "perm_v2_git_status_allow: ${f#"$WCWD"/}"
+    assert_contains "$RULES" "shell|herdr agent list*|allow" "perm_v2_herdr_allow: ${f#"$WCWD"/}"
+    assert_contains "$RULES" "shell|rg *|allow" "perm_v2_rg_allow: ${f#"$WCWD"/}"
+    assert_contains "$RULES" "shell|python* --version*|allow" "perm_v2_python_allow: ${f#"$WCWD"/}"
+    assert_contains "$RULES" "shell|git push*|ask" "perm_v2_l2_ask: ${f#"$WCWD"/}"
+    # baseline 완화 회귀: 전역 shell "*" ask 는 더 이상 시딩되지 않는다(미매칭 기본값이 ask)
+    assert_not_contains "$RULES" "shell|*|ask" "perm_v2_전역ask_미시딩: ${f#"$WCWD"/}"
+    # ask-first: permission 블록 첫 effect 가 ask (baseline L2 ask 선행)
+    FIRST_EFF="$(awk '/^permissions:/{p=1;next} p&&/^---/{exit} p&&/^[[:space:]]+effect:/{print $2; exit}' "$f")"
+    assert_equal "$FIRST_EFF" "ask" "perm_v2_ask_선행순서: ${f#"$WCWD"/}"
+  done
+  rm -rf "$WSTUB" "$WCWD"
+else
+  echo "SKIP: jq 없음 → V2 생성물 검증 생략"
+fi
 
 echo "== 39) opencode 세션 사전생성 + -- --session 바인딩 (TB-1/TB-2/TB-4) =="
 # (a) dev/biz/creator dry-run: 역할 수만큼 세션 생성 라인 + 세션 바인딩

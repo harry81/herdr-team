@@ -1,0 +1,16 @@
+{
+  "name": "core-dev",
+  "layer": "L1",
+  "description": "일반 개발 명령 allow (9종 한정) — core-read와 중복 재선언 금지(ls/cat/grep/find 등은 core-read 소관)",
+  "permissions": [
+    { "action": "shell", "resource": "mkdir *", "effect": "allow" },
+    { "action": "shell", "resource": "touch *", "effect": "allow" },
+    { "action": "shell", "resource": "sed *", "effect": "allow" },
+    { "action": "shell", "resource": "cp *", "effect": "allow" },
+    { "action": "shell", "resource": "mv *", "effect": "allow" },
+    { "action": "shell", "resource": "git add*", "effect": "allow" },
+    { "action": "shell", "resource": "git commit*", "effect": "allow" },
+    { "action": "shell", "resource": "git mv*", "effect": "allow" },
+    { "action": "shell", "resource": "git restore --staged*", "effect": "allow" }
+  ]
+}

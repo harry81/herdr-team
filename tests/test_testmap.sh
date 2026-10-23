@@ -24,8 +24,8 @@ ok "testmap_스크립트_존재: scripts/testmap.sh"
 # --- fixture git repo ---
 mk_fixture() { # $1=dir  → 본 레포와 동일한 경로 레이아웃을 갖춘 git repo
   mkdir -p "$1"/{bin,scripts,tests,templates,docs,.github/workflows,src}
-  for f in tests/test_preset.sh tests/test_agent_session.sh tests/test_pane_ready.sh tests/test_permissions_seed.sh tests/test_permissions_merge.sh tests/test_pkm_preset.sh tests/test_templates_only.sh tests/test_testmap.sh tests/test_template_sync.sh; do : > "$1/$f"; done
-  : > "$1/bin/herdr-team"; : > "$1/scripts/build-zip.sh"; : > "$1/AGENTS.md"; : > "$1/src/app.ts"
+  for f in tests/test_preset.sh tests/test_agent_session.sh tests/test_pane_ready.sh tests/test_permissions_seed.sh tests/test_permissions_merge.sh tests/test_pkm_preset.sh tests/test_templates_only.sh tests/test_testmap.sh tests/test_template_sync.sh tests/test_watcher.sh tests/test_watcher_start.sh; do : > "$1/$f"; done
+  : > "$1/bin/herdr-team"; : > "$1/bin/herdr-watcher"; : > "$1/scripts/build-zip.sh"; : > "$1/AGENTS.md"; : > "$1/src/app.ts"
   ( cd "$1" && git init -q . && git config user.email t@t && git config user.name t && git add -A && git commit -qm base )
 }
 run_tm() { # $1=fixture dir  [extra args...]
@@ -48,6 +48,14 @@ for s in tests/test_agent_session.sh tests/test_pane_ready.sh tests/test_preset.
   assert_contains "$OUT" "$s" "bin_change_기대스위트: $s"
 done
 assert_not_contains "$OUT" "unclassified" "bin_change_미분류_없음(bare 모드)"
+
+echo "== 2b) bin/herdr-watcher 변경 → watcher 2스위트 매핑 (R-01) =="
+printf 'v2\n' >> "$D1/bin/herdr-watcher"
+OUT="$(run_tm "$D1")"
+for s in tests/test_watcher.sh tests/test_watcher_start.sh; do
+  assert_contains "$OUT" "$s" "watcher_change_기대스위트: $s"
+done
+assert_contains "$OUT" "tests/test_preset.sh" "watcher_change_bin와일드카드_회귀"
 
 echo "== 3) 매핑된 파일 변경 → 그 파일 자체 스위트 =="
 printf 'x\n' >> "$D1/tests/test_preset.sh"

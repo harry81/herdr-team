@@ -28,6 +28,10 @@ NO_TEMPLATE=0
 NO_INTERACTIVE=0
 LIST_PRESETS=0
 FORCE=0
+NO_GITIGNORE=0
+NO_BACKUP=0
+WATCHER=0
+NO_AUTO_ALLOW=0
 PRESET_ARG=""
 PRESET=""
 TEMPLATE_DIR="${HERDR_TEAM_TEMPLATE_DIR:-$HOME/templates/agent-team}"
@@ -175,6 +179,11 @@ Options:
   --force           reseed only the requested preset folder from templates
                     (agents/<preset>/) and force-activate root AGENTS.md;
                     other presets are left untouched
+  --watcher         start herdr-watcher in the background (opt-in auto-approve;
+                    L2 asks are approved too. stop: kill $(cat .herdr-team/watcher.pid))
+                    add --no-auto-allow to monitor only
+  --no-gitignore    do not register .herdr-team/ and .opencode/ in .gitignore
+  --no-backup       do not back up root AGENTS.md before merging
   --dry-run         print planned commands without executing
   -v, --version     print version and exit
   -h, --help        print this help
@@ -225,6 +234,10 @@ while [[ $# -gt 0 ]]; do
     --templates-only) TEMPLATES_ONLY=1; shift ;;
     --no-template) NO_TEMPLATE=1; shift ;;
     --force) FORCE=1; shift ;;
+    --no-gitignore) NO_GITIGNORE=1; shift ;;
+    --no-backup) NO_BACKUP=1; shift ;;
+    --watcher) WATCHER=1; shift ;;
+    --no-auto-allow) NO_AUTO_ALLOW=1; shift ;;
     --kind) KIND_ARG="${2:?--kind에 값이 필요합니다}"; shift 2 ;;
     --layout) LAYOUT_ARG="${2:?--layout에 값이 필요합니다 (2col|right-stack)}"; shift 2 ;;
     --cwd) CWD="${2:?--cwd에 값이 필요합니다}"; shift 2 ;;
@@ -465,6 +478,153 @@ subst_tpl() {
 legacy_role_docs() {
   ls "$CWD/agents/" 2>/dev/null | grep -E "^${PREFIX}-(planner|worker|reviewer|researcher|orchestrator|taskmanager)\.md$" || true
 }
+# --- 온보딩 안전성 유틸 (R1 gitignore 멱등 / R2 관리 섹션 병합 / R3 가드) ---
+# 명세: docs/specs/safe-onboarding-spec.md
+MANAGED_BEGIN_RE='^<!-- herdr-team:managed BEGIN [(]preset=[^)]*[)] -->$'
+MANAGED_END_LINE='<!-- herdr-team:managed END -->'
+
+managed_scan() {  # $1=파일 $2=state|preamble|interior — 마커는 "라인 전체 일치"만 인정
+  [[ -f "$1" ]] || { [[ "$2" == "state" ]] && printf 'none'; return 0; }
+  awk -v file="$1" -v bre="$MANAGED_BEGIN_RE" -v el="$MANAGED_END_LINE" -v mode="$2" '
+    function out(line) {
+      if (mode == "state") return
+      if (ib) { if (mode == "interior") print line }
+      else if (mode == "preamble") print line
+    }
+    BEGIN {
+      while ((getline line < file) > 0) {
+        n++; L[n] = line
+        if (line ~ /^[[:space:]]*(```|~~~)/) nf++
+      }
+      close(file)
+      fences = (nf % 2 == 0)
+      for (i = 1; i <= n; i++) {
+        line = L[i]
+        if (fences && line ~ /^[[:space:]]*(```|~~~)/) { f = !f; out(line); continue }
+        if (!f && line ~ bre) { b++; if (!ib) { ib = 1; if (!fb) fb = i } continue }
+        if (!f && line == el) { e++; if (ib) { ib = 0; if (!fe) fe = i } continue }
+        out(line)
+      }
+      if (mode != "state") exit
+      if (b == 0 && e == 0) print "none"
+      else if (b >= 2 || e >= 2) print "multi"
+      else if (b == 1 && e == 1 && fb < fe) print "single"
+      else print "broken"
+    }
+  '
+}
+managed_state() { managed_scan "$1" state; }  # none | single | multi | broken
+managed_part() { managed_scan "$1" "$2"; }    # preamble(블록 밖) | interior(블록 안)
+managed_block() {  # $1=preset $2=본문 파일 → stdout: 마커로 감싼 관리 섹션
+  printf '<!-- herdr-team:managed BEGIN (preset=%s) -->\n' "$1"
+  [[ -s "$2" ]] && awk '{ print }' "$2"
+  printf '%s\n' "$MANAGED_END_LINE"
+}
+managed_recompose() {  # $1=preamble 파일 $2=본문 파일 $3=preset → stdout
+  [[ -s "$1" ]] && awk '{ print }' "$1"
+  managed_block "$3" "$2"
+}
+atomic_write() {  # $1=dest, stdin=내용 — 심링크는 링크 대상에 쓰고 링크는 보존, tmp → mv 원자 교체
+  local dest="$1" real tmp perm=""
+  real="$dest"
+  if [[ -L "$dest" ]]; then
+    real="$(readlink -f -- "$dest" 2>/dev/null || true)"
+    [[ -n "$real" ]] || real="$(realpath -- "$dest" 2>/dev/null || true)"
+    if [[ -z "$real" ]]; then echo "error: 심링크 대상 해석 실패: $dest" >&2; return 1; fi
+  fi
+  if [[ -d "$real" ]]; then
+    echo "error: $real 가 디렉터리입니다 — 파일로 교체할 수 없습니다." >&2; return 1
+  fi
+  if [[ -e "$real" ]]; then
+    perm="$(stat -c '%a' "$real" 2>/dev/null || stat -f '%Lp' "$real" 2>/dev/null || true)"
+  fi
+  if ! tmp="$(mktemp "$(dirname "$real")/.herdr-team.tmp.XXXXXX" 2>/dev/null)"; then
+    echo "error: 쓸 수 없습니다: $real (디렉터리 쓰기 권한 확인)" >&2; return 1
+  fi
+  if ! cat > "$tmp"; then rm -f "$tmp"; echo "error: 쓰기 실패: $real" >&2; return 1; fi
+  chmod "${perm:-644}" "$tmp" 2>/dev/null || true
+  if ! mv "$tmp" "$real"; then rm -f "$tmp"; echo "error: 교체 실패: $real" >&2; return 1; fi
+}
+backup_root_agents() {  # $1=루트 AGENTS.md → 백업 경로 stdout (타임스탬프 충돌 시 .N)
+  local dir="$CWD/.herdr-team/backup" ts dest n=1
+  mkdir -p "$dir" || { echo "error: 백업 디렉터리 생성 실패: $dir" >&2; return 1; }
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  dest="$dir/AGENTS.md.$ts.bak"
+  while [[ -e "$dest" ]]; do n=$((n+1)); dest="$dir/AGENTS.md.$ts.bak.$n"; done
+  cp -p "$1" "$dest" || { echo "error: 백업 실패: $1" >&2; return 1; }
+  printf '%s' "$dest"
+}
+guard_preconditions() {  # G1~G5: 어떤 쓰기도 전에 fail-fast (종료코드 2)
+  local root="$CWD/AGENTS.md" lower="$CWD/agents.md" entry path label
+  # G1: 대소문자 충돌 — 소문자만 있어도 선제 차단(도구가 2회차 데드락을 만들지 않도록)
+  if [[ -e "$lower" ]] && { [[ ! -e "$root" ]] || ! [[ "$root" -ef "$lower" ]]; }; then
+    echo "error: 소문자 agents.md 가 존재합니다 — 루트 팀 문서는 AGENTS.md 이며 별개 파일이 됩니다 (대소문자 충돌)." >&2
+    echo "  - $lower" >&2
+    if [[ -e "$root" ]]; then echo "  - $root" >&2; fi
+    echo "  agents.md 를 AGENTS.md 로 통합(이름 변경/삭제)한 뒤 재실행하세요 (루트 AGENTS.md 쓰기 중단)." >&2
+    return 2
+  fi
+  for entry in "$CWD/agents|agents/<preset>/" "$CWD/agents/$PRESET|agents/$PRESET/" "$CWD/.herdr-team|.herdr-team/"; do
+    path="${entry%%|*}"; label="${entry#*|}"
+    if [[ -e "$path" && ! -d "$path" ]]; then
+      echo "error: $path 가 디렉터리가 아닙니다 — $label 시딩에 실패합니다. 파일을 정리 후 재실행하세요." >&2
+      return 2
+    fi
+  done
+  # G5: 관리 섹션 마커 상태 (라인 전체 일치 기준)
+  if [[ -f "$root" ]]; then
+    case "$(managed_state "$root")" in
+      multi)
+        echo "error: $root 의 herdr-team 관리 섹션 마커가 2쌍 이상입니다 — 중복 마커를 1쌍만 남긴 뒤 재실행하세요." >&2
+        return 2 ;;
+      broken)
+        echo "error: $root 의 herdr-team 관리 섹션 마커 쌍이 맞지 않습니다 (BEGIN/END 불일치) — 수동 편집을 확인한 뒤 재실행하세요." >&2
+        return 2 ;;
+    esac
+  fi
+  return 0
+}
+gitignore_normalize() {  # 선행/후행 공백·행 끝 주석·후행 슬래시 정규화 (E3)
+  printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]#.*$//' -e 's/[[:space:]]*$//' -e 's:/*$::'
+}
+gitignore_has() {  # $1=.gitignore $2=항목 토큰(.herdr-team|.opencode)
+  [[ -f "$1" ]] || return 1
+  local line
+  while IFS= read -r line; do
+    [[ "$(gitignore_normalize "$line")" == "$2" ]] && return 0
+  done < "$1"
+  return 1
+}
+ensure_gitignore() {  # R1: 부족분만 1회 append (멱등·원자적·기존 바이트 보존)
+  if [[ "$NO_GITIGNORE" -eq 1 ]]; then log "gitignore 보강 생략(--no-gitignore)"; return 0; fi
+  local gi="$CWD/.gitignore" t add=()
+  if ! git -C "$CWD" rev-parse --show-toplevel >/dev/null 2>&1; then
+    log "git 저장소가 아니므로 .gitignore 보강 생략: $CWD"; return 0
+  fi
+  if [[ -e "$gi" && ! -f "$gi" ]]; then
+    echo "error: $gi 가 일반 파일이 아닙니다 — .gitignore 무시 등록에 실패합니다. 파일을 정리 후 재실행하세요." >&2
+    return 1
+  fi
+  for t in .herdr-team .opencode; do gitignore_has "$gi" "$t" || add+=("$t/"); done
+  if [[ ${#add[@]} -eq 0 ]]; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then printf '+ gitignore: 이미 있음 → %s\n' "$gi"; fi
+    return 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ gitignore: append %s → %s\n' "${add[*]}" "$gi"
+    return 0
+  fi
+  {
+    if [[ -f "$gi" ]]; then
+      cat "$gi"
+      if [[ -n "$(tail -c1 "$gi")" ]]; then printf '\n'; fi
+    fi
+    printf '# herdr-team\n'
+    printf '%s\n' "${add[@]}"
+  } | atomic_write "$gi" || return 1
+  log "gitignore 보강: ${add[*]} → $gi"
+}
+
 sync_root_agents() {
   local active canon root
   active="$(active_preset)"
@@ -474,17 +634,96 @@ sync_root_agents() {
   fi
   canon="$(canonical_dir)"
   root="$CWD/AGENTS.md"
-  # (4a) 아웃고잉 스냅샷: 루트 수정분을 나가는 프리셋 정본으로 (무손실)
+  local tmpd
+  tmpd="$(mktemp -d)"
+  # (4a) 아웃고잉 스냅샷: 루트 관리 섹션의 "내부"만 정본으로 — 사용자 본문(preamble)은 정본에 기록하지 않는다
   if [[ -f "$root" && -n "$active" && "$active" != "$PRESET" && "$FORCE" -eq 0 ]]; then
-    mkdir -p "$CWD/agents/$active"
-    cp "$root" "$CWD/agents/$active/AGENTS.md"
-    log "write-back: AGENTS.md → agents/${active}/AGENTS.md"
+    if [[ "$(managed_state "$root")" == "single" ]]; then
+      mkdir -p "$CWD/agents/$active"
+      managed_part "$root" interior > "$tmpd/body"
+      managed_block "$active" "$tmpd/body" | atomic_write "$CWD/agents/$active/AGENTS.md" \
+        || { rm -rf "$tmpd"; return 1; }
+      log "write-back: AGENTS.md → agents/${active}/AGENTS.md (관리 섹션 내부만)"
+    else
+      log "write-back 생략: AGENTS.md 에 관리 섹션이 없습니다 (사용자 본문은 루트에 유지)"
+    fi
   fi
-  # (4b) 인커밍 활성화
-  if [[ ! -f "$root" || "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
-    cp "$canon/AGENTS.md" "$root"
+  # (4b) 인커밍 활성화: 백업 → 관리 섹션만 치환(사용자 본문 보존) → 원자적 쓰기. 정본은 순수 내용 유지
+  if [[ ! -f "$root" ]]; then
+    atomic_write "$root" < "$canon/AGENTS.md" || { rm -rf "$tmpd"; return 1; }
     log "activate: agents/${PRESET}/AGENTS.md → AGENTS.md"
+  elif [[ "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
+    managed_part "$root" preamble > "$tmpd/pre"
+    if [[ "$(managed_state "$canon/AGENTS.md")" == "single" ]]; then
+      managed_part "$canon/AGENTS.md" interior > "$tmpd/body"
+    else
+      awk '{ print }' "$canon/AGENTS.md" > "$tmpd/body"
+    fi
+    managed_recompose "$tmpd/pre" "$tmpd/body" "$PRESET" > "$tmpd/merged"
+    local bak=""
+    # --force: 변경 유무와 무관하게 백업 선행 (spec §2 R2)
+    if [[ "$FORCE" -eq 1 && "$NO_BACKUP" -eq 0 ]]; then
+      bak="$(backup_root_agents "$root")" || { rm -rf "$tmpd"; return 1; }
+      log "백업: ${bak#"$CWD"/}"
+    fi
+    if ! cmp -s "$tmpd/merged" "$root"; then
+      if [[ -z "$bak" && "$NO_BACKUP" -eq 0 ]]; then
+        bak="$(backup_root_agents "$root")" || { rm -rf "$tmpd"; return 1; }
+        log "백업: ${bak#"$CWD"/}"
+      fi
+      atomic_write "$root" < "$tmpd/merged" || { rm -rf "$tmpd"; return 1; }
+      log "activate: agents/${PRESET}/AGENTS.md → AGENTS.md (관리 섹션 치환, 사용자 본문 보존)"
+    fi
   fi
+  rm -rf "$tmpd"
+}
+
+# --- watcher 옵트인 백그라운드 기동 (R3) ---
+# 비차단 원칙: 어떤 실패도 ht 종료코드에 반영하지 않는다(경고 1행 후 계속).
+watcher_running() {  # $1=pidfile → 이미 가동 중이면 0
+  local pf="$1" pid
+  [[ -f "$pf" ]] || return 1
+  pid="$(tr -cd '0-9' < "$pf" 2>/dev/null)"
+  [[ -n "$pid" ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  # PID 재사용 오탐 방지: cmdline 확인(/proc 없는 플랫폼은 생존만으로 판단)
+  if [[ -r "/proc/$pid/cmdline" ]]; then
+    tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q 'herdr-watcher' || return 1
+  fi
+  return 0
+}
+start_watcher() {
+  if [[ "$NO_START" -eq 1 ]]; then log "watcher 생략: --no-start (감시할 agent 없음)"; return 0; fi
+  if [[ "$TEMPLATES_ONLY" -eq 1 ]]; then log "watcher 생략: --templates-only (pane 미분할)"; return 0; fi
+  local pidfile="$CWD/.herdr-team/watcher.pid" logfile="$CWD/.herdr-team/watcher.log" wbin=""
+  wbin="$(command -v herdr-watcher 2>/dev/null || true)"
+  if [[ -z "$wbin" && -x "$SCRIPT_DIR/../bin/herdr-watcher" ]]; then wbin="$SCRIPT_DIR/../bin/herdr-watcher"; fi
+  if [[ -z "$wbin" ]]; then log "WARN: herdr-watcher 를 찾을 수 없습니다 → watcher 기동 생략"; return 0; fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '+ watcher: start --prefix %s --cwd %s → .herdr-team/watcher.log (pidfile %s)\n' "${PREFIX}-" "$CWD" ".herdr-team/watcher.pid"
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then log "WARN: python3 없음 → watcher 기동 생략"; return 0; fi
+  if watcher_running "$pidfile"; then
+    log "watcher 이미 가동 중 (pid=$(tr -cd '0-9' < "$pidfile"), pidfile $pidfile) → 생략"
+    return 0
+  fi
+  mkdir -p "$CWD/.herdr-team"
+  if [[ -d "$logfile" ]] || ! : >> "$logfile" 2>/dev/null; then
+    log "WARN: watcher 로그를 쓸 수 없습니다 ($logfile) → watcher 기동 생략"; return 0
+  fi
+  local -a wargs=(--prefix "${PREFIX}-" --cwd "$CWD")
+  if [[ "$NO_AUTO_ALLOW" -eq 1 ]]; then wargs+=(--no-auto-allow); fi
+  nohup "$wbin" "${wargs[@]}" >> "$logfile" 2>&1 &
+  local wpid=$!
+  # 즉시 종료(설정/의존성 오류) 판별용 짧은 유예 후 생존 확인 — 실패 시 pidfile 미기록
+  sleep 0.3
+  if ! kill -0 "$wpid" 2>/dev/null; then
+    log "WARN: watcher 기동 실패(즉시 종료) → 계속 진행 (종료코드 불변)"; rm -f "$pidfile"; return 0
+  fi
+  printf '%s\n' "$wpid" > "$pidfile"
+  log "watcher 기동: pid=$wpid prefix=${PREFIX}- (L2 ask 팝업도 Allow once 자동 승인됩니다 — 취소: kill $wpid)"
+  return 0
 }
 
 run() {
@@ -626,20 +865,34 @@ permissions_merge_role() {  # $1=role → stdout: baseline+includes+profile 병�
   rm -f "$tmp"
   printf '%s' "$out"
 }
-permissions_glob_to_regex() {  # glob → 안전한 정규식 (정규식 메타문자 이스케이프 후 * → .*)
-  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/[][(){}^$+.|]/\\&/g' -e 's/\*/.*/g'
+permissions_glob_to_regex() {  # glob → 정규식 (opencode v2.0.32 엔진 매처 의미론 복제)
+  # 엔진: 백슬래시→'/', [.+^${}()|[]\] 이스케이프(^는 리터럴), *→.*, ?→.,
+  #       후행 " .*" 는 "( .*)?" 로 완화, 전체 ^...$ 앵커.
+  printf '%s' "$1" | tr '\\' '/' | awk '
+    {
+      s = $0; out = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "*") out = out ".*"
+        else if (c == "?") out = out "."
+        else if (index(".+^${}()|[]", c) > 0) out = out "\\" c
+        else out = out c
+      }
+      if (out ~ / \.\*$/) out = substr(out, 1, length(out) - 3) "( .*)?"
+      print "^" out "$"
+    }'
 }
 permissions_judge() {  # $1=병합 json 파일 $2=action $3=resource → allow|ask|deny
-  local f="$1" act="$2" res="$3" pres pat a r e
-  # 1) policies hard-deny (에스컬레이션 불가 — 최우선)
+  local f="$1" act="$2" res="$3" pres pat a r e key
+  key="${act}:${res}"; key="${key//\\//}"
+  # 1) policies hard-deny — 엔진과 동일하게 "action:resource" 전체 문자열을 전체 앵커로 매칭
   while IFS= read -r pres; do
     [[ -n "$pres" ]] || continue
-    [[ "$pres" == "$act:"* ]] || continue
-    pat="$(permissions_glob_to_regex "${pres#*:}")"
-    if [[ "$res" =~ $pat ]]; then printf 'deny'; return 0; fi
+    pat="$(permissions_glob_to_regex "$pres")"
+    if [[ "$key" =~ $pat ]]; then printf 'deny'; return 0; fi
   done < <(jq -r '(.policies // [])[] | select(.effect == "deny") | .resource' "$f")
   # 2) permissions: 선언 순서대로 스캔, 마지막 매칭이 승리 (last-match-wins)
-  e="ask"
+  e="ask"; res="${res//\\//}"
   while IFS=$'\t' read -r a r e2; do
     [[ "$a" == "$act" ]] || continue
     pat="$(permissions_glob_to_regex "$r")"
@@ -715,6 +968,9 @@ setup_permissions() {  # 시딩: .opencode/opencode.jsonc(기존 사용자 파�
     if merged="$(permissions_merge_project_file "$global" <(printf '%s' "$base_json"))"; then
       {
         printf '// AUTO-GENERATED by herdr-team (preset=%s) — 기존 사용자 설정 보존 병합\n' "$PRESET"
+        printf '// 주의: shell "*": allow 를 수동 추가하면 L2 ask 방어가 꺼집니다(사용자 책임).\n'
+        printf '// ⚠️ 권한 자기 변조 방어는 edit 도구 한정입니다(best-effort): shell(sed -i / cp / mv / echo >)로는\n'
+        printf '//    .opencode/**, .herdr-team/**, .git/hooks/** 쓰기를 완전히 막지 못합니다 — 신뢰 경계로 보지 마세요.\n'
         printf '%s' "$merged" | jq .
       } > "$global"
       log "권한 병합: .opencode/opencode.jsonc (사용자 키 보존 + baseline L0/L2/L3)"
@@ -725,10 +981,16 @@ setup_permissions() {  # 시딩: .opencode/opencode.jsonc(기존 사용자 파�
     {
       printf '// AUTO-GENERATED by herdr-team (preset=%s) — 수동 편집 금지\n' "$PRESET"
       printf '// 계층형 권한: baseline.json(L0/L2/L3 policies) + 역할별 allow는 agents/%s-<role>.md frontmatter\n' "$PREFIX"
+      printf '// 주의: shell "*": allow 를 수동 추가하면 L2 ask 방어가 꺼집니다(사용자 책임).\n'
+      printf '// ⚠️ 권한 자기 변조 방어는 edit 도구 한정입니다(best-effort): shell(sed -i / cp / mv / echo >)로는\n'
+      printf '//    .opencode/**, .herdr-team/**, .git/hooks/** 쓰기를 완전히 막지 못합니다 — 신뢰 경계로 보지 마세요.\n'
       printf '%s' "$base_json" | jq .
     } > "$global"
     log "권한 생성: .opencode/opencode.jsonc (baseline: L0/L2 + L3 hard-deny)"
   fi
+  case " ${ROLES[*]} " in
+    *" worker "*) log "경고: edit deny-list 는 edit 도구 한정 — shell(sed -i/cp/mv/echo >) 우회는 차단하지 않습니다(best-effort)." ;;
+  esac
   for role in "${ROLES[@]}"; do
     local merged prof="$src/profile/$PRESET/$role.json" md="$dest/agents/$PREFIX-$role.md" blk
     [[ -f "$prof" ]] || { log "경고: 권한 프로파일 없음 → skip: profile/$PRESET/$role.json"; continue; }
@@ -904,6 +1166,8 @@ EOF
 setup_templates() {
   if [[ "$NO_TEMPLATE" -eq 1 ]]; then log "템플릿 단계 생략(--no-template)"; return; fi
 
+  ensure_gitignore
+
   local active canon root
   active="$(active_preset)"
   if [[ -n "$active" ]] && ! is_known_preset "$active"; then
@@ -955,6 +1219,11 @@ setup_templates() {
     if [[ -f "$root" && -n "$active" && "$active" != "$PRESET" && "$FORCE" -eq 0 ]]; then
       printf '+ write-back: AGENTS.md → agents/%s/AGENTS.md\n' "$active"
     fi
+    if [[ -f "$root" && "$NO_BACKUP" -eq 0 ]]; then
+      if [[ "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
+        printf '+ backup: AGENTS.md → .herdr-team/backup/ (타임스탬프)\n'
+      fi
+    fi
     if [[ ! -f "$root" || "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
       printf '+ activate: agents/%s/AGENTS.md → AGENTS.md\n' "$PRESET"
     fi
@@ -983,16 +1252,17 @@ setup_templates() {
     fi
   done
 
-  # (2) 정본 AGENTS.md — 레거시(미활성)면 루트에서 무손실 import, 아니면 템플릿 시딩
+  # (2) 정본 AGENTS.md — 항상 프리셋 순수 내용(관리 섹션 마커로 감쌈). 루트 본문은 preamble 로만 취급
   if [[ ! -f "$canon/AGENTS.md" || "$FORCE" -eq 1 ]]; then
-    if [[ -z "$active" && -f "$root" && "$FORCE" -eq 0 ]]; then
-      cp "$root" "$canon/AGENTS.md"
-      log "canonical import: AGENTS.md → agents/${PRESET}/AGENTS.md"
-    elif [[ -n "$agents_md_src" && -f "$agents_md_src" ]]; then
-      subst_tpl "$agents_md_src" > "$canon/AGENTS.md"
+    local body_tmp
+    body_tmp="$(mktemp)"
+    if [[ -n "$agents_md_src" && -f "$agents_md_src" ]]; then
+      subst_tpl "$agents_md_src" > "$body_tmp"
     else
-      write_builtin_agents_md "$canon/AGENTS.md"
+      write_builtin_agents_md "$body_tmp"
     fi
+    managed_block "$PRESET" "$body_tmp" > "$canon/AGENTS.md"
+    rm -f "$body_tmp"
   fi
 
   # (3) 루트 활성화 (write-back + activate)
@@ -1294,11 +1564,14 @@ fi
 
 printf 'herdr-team v%s\n' "$VERSION"
 PREV_ACTIVE="$(active_preset)"
+if [[ "$NO_TEMPLATE" -eq 0 ]]; then guard_preconditions || exit $?; fi
 setup_templates
 setup_opencode_agents
 setup_permissions
 if [[ "$TEMPLATES_ONLY" -eq 1 ]]; then
+  if [[ "$WATCHER" -eq 1 ]]; then start_watcher; fi
   log "templates-only: 템플릿 설치 완료 (pane 분할 생략)"
   exit 0
 fi
 setup_panes
+if [[ "$WATCHER" -eq 1 ]]; then start_watcher; fi

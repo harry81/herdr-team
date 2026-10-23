@@ -43,6 +43,7 @@ case "${1:-}" in
         case "$(cat "$FIX/screen_mode" 2>/dev/null || echo none)" in
           popup_bottom)      echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm" ;;
           transcript)        echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm"; echo "이후 대화 기록 계속"; echo "normal" ;;
+          popup_with_hint)   echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm"; echo "esc cancel · ? help" ;;
           transcript_bottom) echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm"; echo "이후 대화 기록 계속"; echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm" ;;
           once)  if [ -f "$FIX/send.log" ]; then echo "normal"; else echo "Permission required"; echo "Allow once  Allow always  Reject"; echo "enter confirm"; fi ;;
           *)     echo "normal" ;;
@@ -111,6 +112,12 @@ echo "== h) status=working + 화면 마커가 중간에만(transcript, 오탐) �
 reset_fix; set_status working; set_screen transcript
 run_watch_case 5
 assert_equal "$(send_lines)" "0" "watcher_h_working_오탐_전송0"
+
+echo "== h2) 진짜 팝업 + 푸터 뒤 힌트 1줄 → 승인 1회 (완화 의도: 마지막 줄 고정 아님) =="
+reset_fix; set_status working; set_screen popup_with_hint
+run_watch_case 3
+assert_equal "$(send_lines)" "1" "watcher_h2_힌트1줄_팝업승인"
+assert_not_contains "$(cat "$FIX/send.log" 2>/dev/null || true)" "tab" "watcher_h2_tab0"
 
 echo "== i) blocked + popup(유지) + 기본 fallback → enter 만, tab 0건 (fail-closed) =="
 reset_fix; set_status blocked; set_screen popup_bottom

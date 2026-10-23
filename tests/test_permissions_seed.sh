@@ -91,6 +91,42 @@ assert_equal "$BADACTION" "0" 'policy_contract: 스키마 enum 준수(action/eff
 assert_not_contains "$FW" 'permission:' "seed_frontmatter_v1_제거: V1 permission 블록 미사용"
 if [[ ! -e "$C1/.opencode/agents/pfx-worker.permissions.jsonc" ]]; then ok "seed_ineffective_artifact_제거: .permissions.jsonc 미생성"; else bad "seed_ineffective_artifact_제거"; fi
 
+echo "== 2b) worker frontmatter: core-dev allow + 민감 경로 deny (TC-WK-19/20) =="
+FW_RULES="$(awk '/^permissions:/{p=1;next} /^---/{if(p)exit} p' "$C1/.opencode/agents/pfx-worker.md")"
+assert_contains "$FW_RULES" 'resource: "git add*"' "tc_wk_20_core_dev_git_add"
+assert_contains "$FW_RULES" 'resource: "mkdir *"' "tc_wk_20_core_dev_mkdir"
+assert_contains "$FW_RULES" 'resource: ".env*"' "tc_wk_12_env_deny"
+assert_contains "$FW_RULES" 'resource: ".opencode/**"' "tc_wk_13_자기변조_opencode_deny"
+assert_contains "$FW_RULES" 'resource: ".herdr-team/**"' "tc_wk_13_자기변조_herdr_deny"
+FW_ALLOW_LN="$(printf '%s\n' "$FW_RULES" | grep -n 'resource: "\*"' | head -n1 | cut -d: -f1)"
+FW_ENV_LN="$(printf '%s\n' "$FW_RULES" | grep -n 'resource: ".env\*"' | head -n1 | cut -d: -f1)"
+if [[ -n "$FW_ALLOW_LN" && -n "$FW_ENV_LN" && "$FW_ALLOW_LN" -lt "$FW_ENV_LN" ]]; then
+  ok "tc_wk_14_frontmatter_순서: edit * allow($FW_ALLOW_LN) < .env deny($FW_ENV_LN)"
+else
+  bad "tc_wk_14_frontmatter_순서: allow=$FW_ALLOW_LN deny=$FW_ENV_LN"
+fi
+
+echo "== 2c) F-02: shell 우회 한계 문서 경고 (best-effort) =="
+JSONC_TXT="$(cat "$C1/.opencode/opencode.jsonc" 2>/dev/null)"
+assert_contains "$JSONC_TXT" "edit 도구 한정" "f02_문서경고_edit도구한정"
+assert_contains "$JSONC_TXT" "shell" "f02_문서경고_shell경로"
+assert_equal "$(printf '%s' "$JSONC_TXT" | grep -cF 'shell:^' || true)" "0" "f_r3_01_시딩정책_캐럿_0건"
+
+echo "== 2d) R-03: 자기변조 경고는 worker 역할 병합 시에만 =="
+C6="$(mktemp -d)"
+OUT_WORKER="$(PATH="$STUB:$PATH" "$BIN" pfx --preset dev --cwd "$C6" --template-dir "$REPO/templates" \
+  --no-interactive --no-start 2>&1)"
+assert_contains "$OUT_WORKER" "edit 도구 한정" "r03_worker_경고_출력"
+C7="$(mktemp -d)"
+OUT_NOWORKER="$(PATH="$STUB:$PATH" "$BIN" pfx --preset research --cwd "$C7" --template-dir "$REPO/templates" \
+  --no-interactive --no-start 2>&1)"
+if printf '%s' "$OUT_NOWORKER" | grep -qF "edit 도구 한정"; then
+  bad "r03_비worker_경고_미출력"
+else
+  ok "r03_비worker_경고_미출력"
+fi
+rm -rf "$C6" "$C7"
+
 echo "== 3) 실측 증거: opencode debug agents에 시딩 권한 반영 =="
 if command -v opencode >/dev/null 2>&1; then
   printf '{"dependencies":{}}\n' > "$C1/.opencode/package.json"   # project agent 로딩 요건(실측: package.json)
@@ -105,7 +141,7 @@ if command -v opencode >/dev/null 2>&1; then
   WR_EFF="$(printf '%s' "$DA_JSON" | jq -c '.[] | select(.id=="pfx-worker") | [.permissions[] | select(.resource=="pytest*" or .resource=="git push*" or (.action=="edit" and .resource=="*"))]' 2>/dev/null)"
   assert_contains "$WR_EFF" '{"action":"shell","resource":"pytest*","effect":"allow"}' "debug_agents_evidence: worker pytest=allow(유효 권한)"
   assert_contains "$WR_EFF" '{"action":"shell","resource":"git push*","effect":"ask"}' "debug_agents_evidence: worker git push=ask(유효 권한)"
-  assert_contains "$WR_EFF" '{"action":"edit","resource":"*","effect":"deny"}' "debug_agents_evidence: worker edit 경계"
+  assert_contains "$WR_EFF" '{"action":"edit","resource":"*","effect":"allow"}' "debug_agents_evidence: worker edit 자율(deny-list)"
   # frontmatter policies는 스키마 미지원 → agent request.body에 정책이 실리지 않아야 함(권한 블록 붕괴 방지)
   assert_equal "$(printf '%s' "$DA_JSON" | jq -r '.[] | select(.id=="pfx-worker") | (.request.body.policies // "none")')" "none" "debug_agents_evidence: agent policies 미전달(스키마 준수)"
   # 역할 격리: orchestrator 유효 권한에는 pytest allow 규칙이 없고 edit deny 경계만 있다

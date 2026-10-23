@@ -2,9 +2,24 @@
   "preset": "pkm",
   "role": "worker",
   "layer": "L1",
-  "description": "볼트 노트 구현 유일 실질 쓰기 — vault-write 번들이 경계 보유. git push는 L2 ask 유지",
-  "includes": ["core-read", "git", "test-build", "herdr-read", "vault-write"],
+  "description": "볼트 노트 구현 실질 쓰기 — edit 광역 allow 후 민감 경로 deny(vault-write 번들이 도메인 경계 보유). git push는 L2 ask 유지",
+  "includes": ["core-read", "core-dev", "git", "test-build", "herdr-read", "vault-write"],
   "permissions": [
+    { "action": "edit", "resource": "*", "effect": "allow" },
+    { "action": "edit", "resource": ".env*", "effect": "deny" },
+    { "action": "edit", "resource": "**/.env*", "effect": "deny" },
+    { "action": "edit", "resource": "**/*.pem", "effect": "deny" },
+    { "action": "edit", "resource": "**/*.key", "effect": "deny" },
+    { "action": "edit", "resource": "**/id_rsa*", "effect": "deny" },
+    { "action": "edit", "resource": "**/*credential*", "effect": "deny" },
+    { "action": "edit", "resource": "*.pem", "effect": "deny" },
+    { "action": "edit", "resource": "*.key", "effect": "deny" },
+    { "action": "edit", "resource": "id_rsa*", "effect": "deny" },
+    { "action": "edit", "resource": "*credential*", "effect": "deny" },
+    { "action": "edit", "resource": ".ssh/**", "effect": "deny" },
+    { "action": "edit", "resource": ".git/**", "effect": "deny" },
+    { "action": "edit", "resource": ".opencode/**", "effect": "deny" },
+    { "action": "edit", "resource": ".herdr-team/**", "effect": "deny" },
     { "action": "shell", "resource": "git push*", "effect": "ask" }
   ]
 }

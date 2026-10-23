@@ -106,10 +106,12 @@ def get_agents(prefix=None, cwd_filter=None):
 def detect_permission_popup(name):
     """화면 최하단 오버레이 팝업 시그니처로 진짜 권한 팝업을 판별한다.
 
-    - 마지막 비어있지 않은 줄 = 팝업 푸터("enter confirm" 포함)
-    - 그 위 어딘가에 팝업 헤더/선택지("Permission required" 또는 Allow once/always/Reject)
-    트랜스크립트에 같은 단어가 섞여도 뒤에 다른 내용이 이어지면 마커가 마지막 줄이
-    아니게 되어 오탐되지 않는다. herdr 상태 신호(blocked)에 의존하지 않는다.
+    - 팝업 푸터("enter confirm")는 최하단 오버레이이므로 마지막 줄이거나 힌트/상태
+      1줄 뒤에 온다(완화: 마지막 줄 고정 아님).
+    - 푸터 뒤에 2줄 이상 이어지면 팝업이 위로 밀려난 트랜스크립트이므로 오탐 처리한다.
+    - 헤더/선택지("Permission required"/Allow once/always/Reject)는 푸터 바로 위
+      최근 6줄 안에 있어야 한다(과거 대화의 동일 문자열과 구분).
+    herdr 상태 신호(blocked)에 의존하지 않는다.
     """
     try:
         out = subprocess.check_output(
@@ -122,10 +124,16 @@ def detect_permission_popup(name):
     lines = [ln for ln in out.splitlines() if ln.strip()]
     if not lines:
         return False
-    if "enter confirm" not in lines[-1]:
+    last = len(lines) - 1
+    footer = None
+    for i in range(last, max(last - 2, -1), -1):
+        if "enter confirm" in lines[i]:
+            footer = i
+            break
+    if footer is None:
         return False
-    head = "\n".join(lines[:-1])
-    return any(m in head for m in ("Permission required", "Allow once", "Allow always", "Reject"))
+    window = lines[max(0, footer - 5):footer]
+    return any(m in ln for ln in window for m in ("Permission required", "Allow once", "Allow always", "Reject"))
 
 
 def send_keys(pane_id, keys):

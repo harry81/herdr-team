@@ -34,11 +34,13 @@ fi
 map_builtin() {
   case "$1" in
     bin/herdr-team)
-      printf '%s' "tests/test_agent_session.sh tests/test_pane_ready.sh tests/test_preset.sh tests/test_templates_only.sh tests/test_permissions_seed.sh tests/test_permissions_merge.sh tests/test_pkm_preset.sh" ;;
+      printf '%s' "tests/test_agent_session.sh tests/test_pane_ready.sh tests/test_preset.sh tests/test_templates_only.sh tests/test_permissions_seed.sh tests/test_permissions_merge.sh tests/test_pkm_preset.sh tests/test_safe_onboarding.sh tests/test_watcher_start.sh" ;;
+    bin/herdr-watcher) printf '%s' "tests/test_watcher.sh tests/test_watcher_start.sh" ;;
     bin/*|lib/*|src/*|schemas/*) printf '%s' "tests/test_preset.sh" ;;
     scripts/testmap.sh) printf '%s' "tests/test_testmap.sh" ;;
     scripts/build-zip.sh) printf '%s' "tests/test_install.sh" ;;
     scripts/*) printf '%s' "tests/test_preset.sh" ;;
+    templates/permissions/*) printf '%s' "tests/test_permissions_merge.sh tests/test_permissions_seed.sh tests/test_preset.sh" ;;
     templates/*) printf '%s' "tests/test_preset.sh tests/test_pkm_preset.sh tests/test_template_sync.sh tests/test_permissions_seed.sh" ;;
     agents/*) printf '%s' "tests/test_template_sync.sh tests/test_preset.sh" ;;
     AGENTS.md) printf '%s' "tests/test_template_sync.sh tests/test_preset.sh" ;;
