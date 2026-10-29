@@ -260,7 +260,7 @@ Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s): 2⏎   ← �
 | `templates/{dev,research,biz,mkt,creator,pkm}/preset.conf` | PRESET_DESC en only + 주석 en화 | core 경로 (`templates/**` — test-tiering 매핑: `test_preset.sh`, `test_permissions_seed.sh` 스위트 대응) |
 | `tests/test_tui_i18n.sh` | tc-2/2b/2c/d/f ko 관련 케이스 삭제/교체 + 한글 음절 0건 검사 + plain모드 ESC/CR 0건·status 라인 분리 검증 | 신규/수정 테스트 |
 | `tests/test_tui_layout.sh` | 신규 — F2 전용: 논TTY 카운트다운 0 바이트/프로세스 0개, prompt 라인 통합(출력 뒤 토큰 `Select [` 라인 개행 존재), 넓이 규칙 | 신규 테스트 |
-| `tests/test_preset.sh` | **수정하지 않는다(계약 유지 목표)** — `Software Development` 등 라벨 계약은 §5.4로 유지 | 불변 (T2에서 검증) |
+| `tests/test_preset.sh` | **예외 1행 허용**: `:58` 의 `소상공인` grep 토큰만 신규 영문 문안 토큰 `support programs` 로 교체(English Only 강제). 나머지 460개 단언은 불변 | 1행 수정 + T2 검증 |
 | `README.md` / `README.ko.md` | TUI 예시 갱신(박스 아트+영어 only 배너), `--no-color`, 언어 정책 1행 | docs (surface) |
 | `docs/specs/ht-tui-i18n-and-polish-spec.md` | 완료 — 대체 1줄 표기 | 문서 |
 
