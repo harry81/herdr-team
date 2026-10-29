@@ -12,6 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Preset + TUI suite
         run: bash tests/test_preset.sh
+      - name: TUI i18n suite
+        run: bash tests/test_tui_i18n.sh
       - name: PKM preset suite
         run: bash tests/test_pkm_preset.sh
       - name: Pane ready suite
