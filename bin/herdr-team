@@ -139,7 +139,7 @@ _msg_en() {
     guard.err.not_a_dir) printf 'error: %s is not a directory — %s seeding fails. Clean up and re-run.\n' "$2" "$3" ;;
     guard.err.marker.multi) printf 'error: more than one managed-section marker pair in %s — keep exactly one pair and re-run.\n' "$2" ;;
     guard.err.marker.broken) printf 'error: mismatched managed-section markers in %s (BEGIN/END) — check manual edits and re-run.\n' "$2" ;;
-    gitignore.err.not_file) printf 'error: %s is not a regular file — gitignore registration fails. Clean up and re-run.\n' "$2" ;;
+    gitignore.err.not_file) printf 'error: %s is not a regular file — gitignore registration fails\n' "$2" ;;
     run.err.cmd_fail) printf 'error: command failed: %s\n' "$2" ;;
     pane.err.ready_timeout) printf 'error: pane %s ready wait exceeded (%ss)\n' "$2" "$3" ;;
     pane.err.foreground) printf 'error: a foreground process (e.g. vim) holds the pane shell — close it and re-run\n' ;;
