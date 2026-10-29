@@ -224,16 +224,38 @@ overwrites another preset's docs:
 
 ### Interactive TUI
 
-With no `--preset` (and no `HERDR_TEAM_PRESET` / `--no-interactive`), a preset menu is shown:
+With no `--preset` (and no `HERDR_TEAM_PRESET` / `--no-interactive`), a preset menu is shown.
+The banner is always the first thing printed, then (on a real terminal) boxed menus with a
+countdown on its own status line:
+
+```
++---------------------------------+
+|  herdr-team v1.4.0              |
+|  One command. One AI agent team. |
++---------------------------------+
++---------------------------------------------+
+|  Select preset                              |
+|---------------------------------------------|
+|  1) dev      Software Development (MVP... * |
+|  2) research Deep Research & Knowledge...   |
+|  3) biz      Small Business Operations...   |
+|  ...                                        |
+|  default: dev                               |
++---------------------------------------------+
+Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
+10s [##########]
+```
+
+Non-interactive (pipe/CI/`--no-color`) output stays a plain one-line-per-item stream:
 
 ```
 Select AI team preset (1-6 or name, default: dev):
-  1) dev - Software Development (소프트웨어 개발·MVP, 4인 팀, orchestrator/planner/worker/reviewer)
-  2) research - Deep Research & Knowledge Discovery (...)
-  3) biz - Small Business Operations (소상공인 사업 운영, ...)
-  4) mkt - Local & SNS Marketing (로컬·SNS 마케팅, ...)
-  5) creator - Content Creation & Publishing (콘텐츠 창작·출판, ...)
-  6) pkm - PKM Vault Team (노트·볼트 페이지 생산/정리, ...)
+  1) dev - Software Development (MVP teams, TDD; orchestrator/planner/worker/reviewer)
+  2) research - Deep Research & Knowledge Discovery (sourced comparison, verified report)
+  3) biz - Small Business Operations (support programs, CS, ops automation)
+  4) mkt - Local & SNS Marketing (keyword/competitor analysis, compliant copy)
+  5) creator - Content Creation & Publishing (outline, draft, proofread)
+  6) pkm - PKM Vault Team (note/vault-page pipeline, researcher on-demand)
 Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 ```
 
@@ -242,38 +264,26 @@ Notes:
 - Non-blocking: EOF / timeout / piped input falls back to `dev` (automation-safe).
 - `--no-interactive` never prompts and defaults to `dev`.
 - `--list-presets` prints available presets and exits.
-- The menu is localized: English is the default, Korean is selected automatically from
-  `LANG`/`LC_ALL` (`ko*`) or forced with `HERDR_TEAM_LANG=ko` (see [Language](#language-herdr_team_lang)).
-- Colors, box banner and the countdown timer are used only on an interactive terminal.
+- The countdown prints on its own line (`` + line clear only) and is cleared on
+  input / EOF / timeout / Ctrl-C / exit; the prompt line is never rewritten.
+- Colors, box art and the countdown are used only on an interactive terminal.
   Piped, `CI`, `NO_COLOR`, `TERM=dumb` and `--no-color` output is plain ASCII with no
   escape or carriage-return bytes, so automation output stays stable.
 
-### Language (`HERDR_TEAM_LANG`)
+### Language
 
-Console messages and the TUI menus are printed in English by default and in Korean when a
-Korean locale is detected. Resolution order (decided once at startup):
+The console output is **English only**. `HERDR_TEAM_LANG`, `LC_ALL` and `LANG` are ignored
+(silently - no warning is printed) and no locale changes the output. `--help` is English
+too; Korean documentation is available at [README.ko.md](README.ko.md).
 
-1. `HERDR_TEAM_LANG` — `en` or `ko` (any other value falls back to `en` with a `WARN`)
-2. `LC_ALL` — `ko*` → Korean, anything else → English
-3. `LANG` — `ko*` → Korean, anything else → English
-4. unset → English
+`usage()`/`--help`, error prefixes (`error: `), option names, preset/kind identifiers and
+layout names are never translated. `templates/*/preset.conf` descriptions are English only.
 
-```bash
-HERDR_TEAM_LANG=ko hts     # Korean menus/messages
-HERDR_TEAM_LANG=en hts     # English (default)
-```
+#### Adding a language (not supported today)
 
-`usage()`/`--help` stays English for every locale; Korean users can read
-[README.ko.md](README.ko.md). Error prefixes (`error: `), option names, preset/kind
-identifiers and layout names are never translated.
-
-#### Adding a language
-
-1. Use the English strings in `_msg_en()` (inside `bin/herdr-team`) as the source text.
-2. Add `_msg_<lang>()` with the same key set and the same number of format arguments.
-3. Add the language prefix to `ht_detect_locale()`.
-4. Add the new locale to `tests/test_tui_i18n.sh` (catalog parity) and make it pass.
-5. Link the new `README.<lang>.md` here.
+The project ships a single locale on purpose. If a second locale is ever required, the
+change is: add `_msg_<lang>()` with the same key set and format arguments as `_msg_en()`,
+add the locale selection rule explicitly, and extend `tests/test_tui_i18n.sh`.
 
 ### Presets (dev, research, biz, mkt, creator, pkm)
 

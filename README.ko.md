@@ -217,16 +217,36 @@ herdr-team/
 
 ### TUI 인터랙티브 메뉴
 
-`--preset` 지정이 없으면(환경변수·`--no-interactive`도 없을 때) 프리셋 메뉴가 표시됩니다. 영어 기본 + 한국어 병기:
+`--preset` 지정이 없으면(환경변수·`--no-interactive`도 없을 때) 프리셋 메뉴가 표시됩니다.
+배너가 항상 첫 출력이고, 실제 터미널에서는 박스 메뉴와 카운트다운 상태 라인이 이어집니다:
+
+```
++---------------------------------+
+|  herdr-team v1.4.0              |
+|  One command. One AI agent team. |
++---------------------------------+
++---------------------------------------------+
+|  Select preset                              |
+|---------------------------------------------|
+|  1) dev      Software Development (MVP... * |
+|  2) research Deep Research & Knowledge...   |
+|  3) biz      Small Business Operations...   |
+|  default: dev                               |
++---------------------------------------------+
+Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
+10s [##########]
+```
+
+파이프/CI/`--no-color`(비TTY)에서는 박스 없이 기존 1행 스트리밍 그대로입니다:
 
 ```
 Select AI team preset (1-6 or name, default: dev):
-  1) dev - Software Development (소프트웨어 개발·MVP, 4인 팀, orchestrator/planner/worker/reviewer)
-  2) research - Deep Research & Knowledge Discovery (...)
-  3) biz - Small Business Operations (소상공인 사업 운영, ...)
-  4) mkt - Local & SNS Marketing (로컬·SNS 마케팅, ...)
-  5) creator - Content Creation & Publishing (콘텐츠 창작·출판, ...)
-  6) pkm - PKM Vault Team (노트·볼트 페이지 생산/정리, ...)
+  1) dev - Software Development (MVP teams, TDD; orchestrator/planner/worker/reviewer)
+  2) research - Deep Research & Knowledge Discovery (sourced comparison, verified report)
+  3) biz - Small Business Operations (support programs, CS, ops automation)
+  4) mkt - Local & SNS Marketing (keyword/competitor analysis, compliant copy)
+  5) creator - Content Creation & Publishing (outline, draft, proofread)
+  6) pkm - PKM Vault Team (note/vault-page pipeline, researcher on-demand)
 Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 ```
 
@@ -235,37 +255,19 @@ Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 - 블로킹 없음: EOF·타임아웃·파이프 입력이면 `dev`로 진행 (자동화 안전).
 - `--no-interactive`는 묻지 않고 `dev`로 진행.
 - `--list-presets`는 프리셋 목록 출력 후 종료.
-- 메뉴는 국제화되어 있습니다: 기본은 영어, `LANG`/`LC_ALL`이 `ko*`이면 한국어,
-  `HERDR_TEAM_LANG=ko`로 강제할 수 있습니다 ([언어](#언어-herdr_team_lang) 참조).
-- 색상·박스 배너·카운트다운은 대화형 터미널에서만 사용합니다. 파이프, `CI`, `NO_COLOR`,
+- 카운트다운은 별도 상태 라인에서만 갱신되고(`\r` + 라인 클리어), 입력/EOF/타임아웃/
+  Ctrl-C/종료 시 잔여 문자열 없이 정리됩니다. 프롬프트 라인은 다시 쓰지 않습니다.
+- 색상·박스·카운트다운은 대화형 터미널에서만 사용합니다. 파이프, `CI`, `NO_COLOR`,
   `TERM=dumb`, `--no-color` 환경에서는 escape·캐리지리턴 없이 순수 ASCII로 출력되어
   자동화 출력이 안정적으로 유지됩니다.
 
-### 언어 (`HERDR_TEAM_LANG`)
+### 언어 정책 (English only)
 
-콘솔 메시지와 TUI 메뉴는 기본 영어이며, 한국어 로케일이 감지되면 한국어로 표시됩니다.
-판정 순서(시작 시 1회 결정):
-
-1. `HERDR_TEAM_LANG` — `en` 또는 `ko` (그 외 값은 `WARN` 1회 후 `en` 폴백)
-2. `LC_ALL` — `ko*` → 한국어, 그 외 → 영어
-3. `LANG` — `ko*` → 한국어, 그 외 → 영어
-4. 미설정 → 영어
-
-```bash
-HERDR_TEAM_LANG=ko hts     # 한국어 메뉴/메시지
-HERDR_TEAM_LANG=en hts     # 영어(기본값)
-```
-
-`usage()`/`--help`는 모든 로케일에서 영어로 유지됩니다. 에러 접두어(`error: `), 옵션 이름,
-preset/kind 식별자, layout 이름은 번역하지 않습니다.
-
-#### 언어 추가 절차
-
-1. `bin/herdr-team`의 `_msg_en()` 영문 문장을 기준 원문으로 사용합니다.
-2. 동일 키 집합·동일 서식 인자 개수로 `_msg_<lang>()`을 추가합니다.
-3. `ht_detect_locale()`의 로케일 prefix 목록에 새 언어를 추가합니다.
-4. `tests/test_tui_i18n.sh`의 카탈로그 패리티 테스트에 새 로케일을 포함해 PASS시킵니다.
-5. 이 문서에 `README.<lang>.md` 링크를 추가합니다.
+**콘솔 출력은 영어 전용입니다.** `HERDR_TEAM_LANG`, `LC_ALL`, `LANG`은 무시되며(경고 없음)
+어떤 로케일도 출력 언어를 바꾸지 않습니다. `--help`도 영어이며, 한국어 문서는
+[README.ko.md](README.ko.md) 자체입니다. 에러 접두어(`error: `), 옵션 이름,
+preset/kind 식별자, layout 이름은 번역하지 않습니다. `templates/*/preset.conf` 설명도
+영어 전용입니다.
 
 ### 프리셋 (dev, research, biz, mkt, creator, pkm)
 
