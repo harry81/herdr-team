@@ -68,6 +68,45 @@ read_version() {
   printf 'unknown'
 }
 VERSION="$(read_version)"
+
+# --- i18n: 로케일 결정 + 문자열 카탈로그 (명세 §3) ---
+# 결정 순서: HERDR_TEAM_LANG > LC_ALL > LANG > en. 시작 시 1회 확정(실행 중 불변).
+# 카탈로그는 스크립트 내부 함수(단일 파일 배포 무결성 — 명세 §3.2 A안).
+MSG_LOCALE=""
+MSG_KEYS="preset.usage.none preset.list.noconf"
+ht_detect_locale() {
+  local v="${HERDR_TEAM_LANG:-}"
+  if [[ -n "$v" ]]; then
+    case "$v" in en|ko) printf '%s' "$v"; return 0 ;; *) printf 'en'; return 1 ;; esac
+  fi
+  if [[ -n "${LC_ALL:-}" ]]; then
+    case "$LC_ALL" in ko*) printf 'ko'; return 0 ;; *) printf 'en'; return 0 ;; esac
+  fi
+  if [[ -n "${LANG:-}" ]]; then
+    case "$LANG" in ko*) printf 'ko'; return 0 ;; *) printf 'en'; return 0 ;; esac
+  fi
+  printf 'en'
+}
+if ! MSG_LOCALE="$(ht_detect_locale)"; then
+  printf 'WARN: unknown HERDR_TEAM_LANG=%s → falling back to en\n' "${HERDR_TEAM_LANG:-}" >&2
+fi
+msg() { # msg KEY [ARGS...] — 개행 포함 여부는 키 서식에 고정
+  local key="$1"; shift
+  if [[ "$MSG_LOCALE" == "ko" ]]; then _msg_ko "$key" "$@"; else _msg_en "$key" "$@"; fi
+}
+_msg_en() {
+  case "$1" in
+    preset.usage.none) printf '(none)' ;;
+    preset.list.noconf) printf '(preset.conf missing)' ;;
+  esac
+}
+_msg_ko() {
+  case "$1" in
+    preset.usage.none) printf '(없음)' ;;
+    preset.list.noconf) printf '(preset.conf 없음)' ;;
+  esac
+}
+
 # 기본 노출 순서/기본값 안정용 힌트. 여기 없는 preset도 자동 발견되어 뒤에 추가된다.
 PRESET_ORDER="dev research biz mkt creator"
 # preset 디렉토리 탐색: --template-dir/<preset> 우선, 없으면 스크립트 번들 templates/<preset>
@@ -123,7 +162,7 @@ print_preset_usage() {
 preset_usage_list() {
   local list
   list="$(ordered_presets | tr '\n' ' ' | sed -e 's/ *$//')"
-  if [[ -n "$list" ]]; then printf '%s' "$list"; else printf '(없음)'; fi
+  if [[ -n "$list" ]]; then printf '%s' "$list"; else msg preset.usage.none; fi
 }
 
 # --- herdr 사전 점검 (herdr-team는 herdr 위에서 동작) ---
@@ -299,7 +338,7 @@ list_presets() {
     if [[ -n "$dir" ]]; then
       printf '%-8s %s\n' "$name" "${desc:-$dir}"
     else
-      printf '%-8s (preset.conf 없음)\n' "$name"
+      printf '%-8s %s\n' "$name" "$(msg preset.list.noconf)"
     fi
   done
 }
