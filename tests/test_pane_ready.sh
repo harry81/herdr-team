@@ -48,6 +48,9 @@ trap 'rm -f "$FN_SRC"' EXIT
   extract_fn run
   extract_fn pane_shell_foreground
   extract_fn wait_pane_ready
+  # 에러 문구는 i18n 카탈로그(msg/_msg_en)에서 온다 — 추출 하네스에도 함께 싣는다
+  sed -n '/^msg() {/,/^}/p' "$BIN"
+  sed -n '/^_msg_en() {/,/^}/p' "$BIN"
 } > "$FN_SRC"
 if [[ -s "$FN_SRC" ]]; then ok "help_fn_추출: wait_pane_ready 정의 존재"; else bad "help_fn_추출: wait_pane_ready 정의 존재"; fi
 
@@ -120,7 +123,7 @@ S3="$(mktemp -d)"; mkdir -p "$S3/log"; printf 0 > "$S3/log/calls"
 T0=$(date +%s)
 OUT="$(ready_run 999 "$S3" wT:pZ 2 0)"; R="$?"
 assert_exit "$R" 1 "ready_폐쇄-a: 영구 busy rc=1"
-assert_contains "$OUT" "ready 대기 초과" "ready_폐쇄-a: 원인 명시 에러"
+assert_contains "$OUT" "ready wait exceeded" "ready_폐쇄-a: 원인 명시 에러"
 T1=$(date +%s)
 ELAPSED=$((T1-T0))
 if [[ "$ELAPSED" -lt 12 ]]; then ok "ready_폐쇄-a: 폐쇄(${ELAPSED}s < 12s)"; else bad "ready_폐쇄-a: 폐쇄($ELAPSED s)"; fi
@@ -129,13 +132,13 @@ echo "== R3 폐쇄-b) gate 통과·프로브 미매칭 지속 → 명시적 실�
 S3b="$(mktemp -d)"; mkdir -p "$S3b/log"; printf 0 > "$S3b/log/calls"
 OUT="$(ready_run 999 "$S3b" wT:pZ 2 1)"; R="$?"
 assert_exit "$R" 1 "ready_폐쇄-b: 영구 미매칭 rc=1"
-assert_contains "$OUT" "ready 대기 초과" "ready_폐쇄-b: 원인 명시 에러"
+assert_contains "$OUT" "ready wait exceeded" "ready_폐쇄-b: 원인 명시 에러"
 rm -rf "$S1" "$S2" "$S3" "$S3b"
 
 echo "== run() 개선: 실패 시 무음 소실 제거 =="
 RUN_OUT="$(DRY_RUN=0 bash -c 'source "$1"; run bash -c "echo ERRMSG >&2; exit 5"' _ "$FN_SRC" 2>&1)"; R="$?"
 assert_exit "$R" 5 "run_개선: 종료코드 전파"
-assert_contains "$RUN_OUT" "명령 실패" "run_개선: 실패 명시 에러"
+assert_contains "$RUN_OUT" "command failed" "run_개선: 실패 명시 에러"
 assert_contains "$RUN_OUT" "ERRMSG" "run_개선: subcommand stderr 보존"
 
 echo "== R4 dry-run 배선: start 직전 wait_pane_ready 계획 출력 =="

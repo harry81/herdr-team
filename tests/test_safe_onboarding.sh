@@ -165,7 +165,7 @@ D="$(mk_git)"; mkdir "$D/.gitignore"
 OUT="$(iso "$D")"; RC=$?
 if [[ "$RC" -ne 0 ]]; then ok "gi15_디렉터리_exit≠0"; else bad "gi15_디렉터리_exit≠0 (rc=0)"; fi
 assert_contains "$OUT" "$D/.gitignore" "gi15_경로_명시"
-assert_contains "$OUT" "일반 파일이 아닙니다" "gi15_에러문구"
+assert_contains "$OUT" "is not a regular file" "gi15_에러문구"
 assert_equal "$(ls -A "$D/.gitignore" | wc -l | tr -d ' ')" "0" "gi15_잔여물_없음"
 assert_not_contains "$OUT" "gitignore 보강:" "gi15_성공로그_없음"
 
@@ -259,7 +259,7 @@ EOF
 cp "$D/AGENTS.md" "$D/.root.snapshot"
 OUT="$(iso "$D")"; RC=$?
 assert_exit "$RC" 2 "ba18_exit_2"
-assert_contains "$OUT" "마커" "ba18_경고_마커"
+assert_contains "$OUT" "managed-section marker" "ba18_경고_마커"
 if cmp -s "$D/AGENTS.md" "$D/.root.snapshot"; then ok "ba18_쓰기0"; else bad "ba18_쓰기0"; fi
 assert_equal "$(backup_count "$D")" "0" "ba18_백업_없음"
 
@@ -326,20 +326,20 @@ echo "== TC-GD 21) agents 가 일반 파일 → exit 2 + 명확 메시지 =="
 D="$(mk_tmp)"; printf 'blocker\n' > "$D/agents"
 OUT="$(iso "$D")"; RC=$?
 assert_exit "$RC" 2 "gd21_exit_2"
-assert_contains "$OUT" "$D/agents 가 디렉터리가 아닙니다" "gd21_절대경로_문구"
+assert_contains "$OUT" "$D/agents is not a directory" "gd21_절대경로_문구"
 assert_not_contains "$OUT" "mkdir:" "gd21_원시_mkdir_에러_없음"
 
 echo "== TC-GD 22) agents/<preset> 이 일반 파일 → exit 2 =="
 D="$(mk_tmp)"; mkdir -p "$D/agents"; printf 'blocker\n' > "$D/agents/dev"
 OUT="$(iso "$D")"; RC=$?
 assert_exit "$RC" 2 "gd22_exit_2"
-assert_contains "$OUT" "$D/agents/dev 가 디렉터리가 아닙니다" "gd22_경로_문구"
+assert_contains "$OUT" "$D/agents/dev is not a directory" "gd22_경로_문구"
 
 echo "== TC-GD 23) .herdr-team 이 일반 파일 → exit 2 =="
 D="$(mk_tmp)"; printf 'blocker\n' > "$D/.herdr-team"
 OUT="$(iso "$D")"; RC=$?
 assert_exit "$RC" 2 "gd23_exit_2"
-assert_contains "$OUT" "$D/.herdr-team 가 디렉터리가 아닙니다" "gd23_경로_문구"
+assert_contains "$OUT" "$D/.herdr-team is not a directory" "gd23_경로_문구"
 
 echo "== TC-GD 24) agents 심링크-디렉터리 → 정상 통과 =="
 D="$(mk_tmp)"; mkdir -p "$D/real-agents"; ln -s real-agents "$D/agents"
@@ -371,7 +371,7 @@ printf 'BODY\n<!-- herdr-team:managed BEGIN (preset=dev) -->\n' > "$D/AGENTS.md"
 cp "$D/AGENTS.md" "$D/.root.snapshot"
 OUT="$(iso "$D")"; RC=$?
 assert_exit "$RC" 2 "gd27_불일치_exit_2"
-assert_contains "$OUT" "쌍" "gd27_불일치_안내"
+assert_contains "$OUT" "mismatched managed-section markers" "gd27_불일치_안내"
 if cmp -s "$D/AGENTS.md" "$D/.root.snapshot"; then ok "gd27_쓰기0"; else bad "gd27_쓰기0"; fi
 
 echo "== TC-GD 28) F-06: 소문자 agents.md 만 존재 → 1회차 선제 차단 (2회차 데드락 방지) =="

@@ -81,15 +81,15 @@ rm -rf "$D1" "$CWD_CASE"
 echo "== b) 세션 생성 실패(비정상 종료) → fail-fast =="
 D2="$(mktemp -d)"; run_case fail "$D2"
 if [[ "$RC" -ne 0 ]]; then ok "session_fail: exit != 0"; else bad "session_fail: exit != 0 (rc=0)"; fi
-assert_contains "$(cat "$D2/out")" "세션 생성 실패" "session_fail: 원인 메시지"
-assert_contains "$(cat "$D2/out")" "이미 생성된 pane" "session_fail: 생성된 pane 정리 안내"
+assert_contains "$(cat "$D2/out")" "session creation failed" "session_fail: 원인 메시지"
+assert_contains "$(cat "$D2/out")" "panes already created" "session_fail: 생성된 pane 정리 안내"
 assert_not_contains "$(cat "$D2/herdr.log" 2>/dev/null)" "agent start" "session_fail: agent start 미실행"
 rm -rf "$D2" "$CWD_CASE"
 
 echo "== c) 잘못된 JSON 응답 → sid 파싱 실패 fail-fast =="
 D3="$(mktemp -d)"; run_case badjson "$D3"
 if [[ "$RC" -ne 0 ]]; then ok "session_badjson: exit != 0"; else bad "session_badjson: exit != 0 (rc=0)"; fi
-assert_contains "$(cat "$D3/out")" "파싱 실패" "session_badjson: 원인 메시지"
+assert_contains "$(cat "$D3/out")" "session id parse failed" "session_badjson: 원인 메시지"
 assert_not_contains "$(cat "$D3/herdr.log" 2>/dev/null)" "agent start" "session_badjson: agent start 미실행"
 rm -rf "$D3" "$CWD_CASE"
 
