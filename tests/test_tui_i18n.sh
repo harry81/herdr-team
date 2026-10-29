@@ -113,7 +113,7 @@ assert_contains "$EN_TUI" "preset=research" "tc2c_en_선택_동작_불변"
 KO_TUI="$(printf '2\n1\n' | HERDR_TEAM_LANG=ko timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
 assert_contains "$KO_TUI" "AI 팀 프리셋을 선택하세요 (1-6 또는 이름, 기본: dev):" "tc2c_ko_프리셋_제목"
 assert_contains "$KO_TUI" "Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):" "tc2c_ko_프리셋_프롬프트_en고정"
-assert_contains "$KO_TUI" "에이전트 종류를 선택하세요 (1-4 또는 이름, 기본: opencode):" "tc2c_ko_kind_제목"
+assert_contains "$KO_TUI" "Select agent kind (1-4 or name, default: opencode):" "tc2c_ko_kind_제목_en고정_계약"
 assert_contains "$KO_TUI" "preset=research" "tc2c_ko_선택_동작_불변"
 
 EN_DEP="$(HERDR_TEAM_LANG=en "$BIN" test --preset app --dry-run --no-template --no-interactive 2>&1)"
