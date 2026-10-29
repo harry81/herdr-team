@@ -70,30 +70,12 @@ read_version() {
 }
 VERSION="$(read_version)"
 
-# --- i18n: 로케일 결정 + 문자열 카탈로그 (명세 §3) ---
-# 결정 순서: HERDR_TEAM_LANG > LC_ALL > LANG > en. 시작 시 1회 확정(실행 중 불변).
-# 카탈로그는 스크립트 내부 함수(단일 파일 배포 무결성 — 명세 §3.2 A안).
-MSG_LOCALE=""
+# --- 문자열 카탈로그 (English Only) ---
+# 명세: docs/specs/ht-tui-english-fancy-spec.md §2 — 단일 로케일 확정.
+# HERDR_TEAM_LANG/LC_ALL/LANG 은 읽지 않는다(출력·경고 영향 0).
 MSG_KEYS="parse.opt.missing.kind parse.opt.missing.layout parse.opt.missing.cwd parse.opt.missing.template_dir parse.opt.missing.preset parse.opt.unknown parse.prefix.multiple parse.prefix.invalid layout.unknown precheck.warn.skip precheck.err.title precheck.install.cmd precheck.verify precheck.bypass preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli fs.err.symlink.resolve fs.err.is_directory fs.err.write_denied fs.err.write_fail fs.err.replace_fail fs.err.backup_mkdir fs.err.backup_cp guard.err.agentsmd_lower guard.err.agentsmd_lower.path guard.err.agentsmd_lower.hint guard.err.not_a_dir guard.err.marker.multi guard.err.marker.broken gitignore.err.not_file run.err.cmd_fail pane.err.ready_timeout pane.err.foreground bundle.err.missing roles.err.empty pane.err.no_base pane.err.parse agent.err.session_json agent.err.session_fail agent.err.session_parse agent.err.session_abort agent.err.start_abort agent.log.exists"
-ht_detect_locale() {
-  local v="${HERDR_TEAM_LANG:-}"
-  if [[ -n "$v" ]]; then
-    case "$v" in en|ko) printf '%s' "$v"; return 0 ;; *) printf 'en'; return 1 ;; esac
-  fi
-  if [[ -n "${LC_ALL:-}" ]]; then
-    case "$LC_ALL" in ko*) printf 'ko'; return 0 ;; *) printf 'en'; return 0 ;; esac
-  fi
-  if [[ -n "${LANG:-}" ]]; then
-    case "$LANG" in ko*) printf 'ko'; return 0 ;; *) printf 'en'; return 0 ;; esac
-  fi
-  printf 'en'
-}
-if ! MSG_LOCALE="$(ht_detect_locale)"; then
-  printf 'WARN: unknown HERDR_TEAM_LANG=%s → falling back to en\n' "${HERDR_TEAM_LANG:-}" >&2
-fi
 msg() { # msg KEY [ARGS...] — 개행 포함 여부는 키 서식에 고정
-  local key="$1"; shift
-  if [[ "$MSG_LOCALE" == "ko" ]]; then _msg_ko "$key" "$@"; else _msg_en "$key" "$@"; fi
+  _msg_en "$@"
 }
 _msg_en() {
   case "$1" in
@@ -153,67 +135,6 @@ _msg_en() {
     agent.err.session_abort) printf 'error: %s session creation failed → start aborted (panes already created: %s)\n' "$2" "$3" ;;
     agent.err.start_abort) printf 'error: %s start aborted (pane %s shell not ready)\n' "$2" "$3" ;;
     agent.log.exists) printf '[herdr-team] %s already exists — start skipped\n' "$2" ;;
-    *) printf 'error: missing message key: %s\n' "$1" >&2 ;;
-  esac
-}
-_msg_ko() {
-  case "$1" in
-    parse.opt.missing.kind) printf 'error: --kind에 값이 필요합니다\n' ;;
-    parse.opt.missing.layout) printf 'error: --layout에 값이 필요합니다 (2col|right-stack)\n' ;;
-    parse.opt.missing.cwd) printf 'error: --cwd에 값이 필요합니다\n' ;;
-    parse.opt.missing.template_dir) printf 'error: --template-dir에 값이 필요합니다\n' ;;
-    parse.opt.missing.preset) printf 'error: --preset에 값이 필요합니다 (목록: --list-presets)\n' ;;
-    parse.opt.unknown) printf 'error: 알 수 없는 옵션: %s (도움말: --help)\n' "$2" ;;
-    parse.prefix.multiple) printf 'error: prefix는 1개만 지정 가능합니다: %s\n' "$2" ;;
-    parse.prefix.invalid) printf 'error: 유효한 prefix를 결정할 수 없습니다.\n' ;;
-    layout.unknown) printf 'error: 알 수 없는 layout: %s (2col|right-stack 중 선택)\n' "$2" ;;
-    precheck.warn.skip) printf 'WARN: herdr CLI 를 찾을 수 없지만 HERDR_TEAM_SKIP_CHECK=1 로 계속 진행합니다.\n' ;;
-    precheck.err.title) printf 'ERROR herdr CLI 를 찾을 수 없습니다.\n' ;;
-    precheck.install.cmd) printf '  설치:\n    curl -fsSL https://herdr.dev/install.sh | sh\n    Windows: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"\n' ;;
-    precheck.verify) printf '  확인:  herdr --version\n' ;;
-    precheck.bypass) printf '  우회:  HERDR_TEAM_SKIP_CHECK=1\n' ;;
-    preset.usage.none) printf '(없음)' ;;
-    preset.list.noconf) printf '(preset.conf 없음)' ;;
-    preset.menu.title) printf 'AI 팀 프리셋을 선택하세요 (1-%s 또는 이름, 기본: %s):\n' "$2" "$3" ;;
-    preset.menu.prompt) printf 'Select [1-%s/%s] (default: %s, 10s): ' "$2" "$3" "$4" ;;
-    preset.warn.deprecated) printf "[herdr-team] 경고: preset '%s'는 deprecated입니다. '%s'로 대체합니다. (app은 dev에 통합되었습니다)\n" "$2" "$3" ;;
-    preset.err.unknown.name) printf 'error: 알 수 없는 preset 선택: %s (사용 가능: %s)\n' "$2" "$3" ;;
-    preset.err.unknown.number) printf 'error: 알 수 없는 preset 선택: %s (1-%s 또는 이름)\n' "$2" "$3" ;;
-    preset.err.cli.unknown) printf 'error: 알 수 없는 preset: %s (사용 가능: %s. 목록: --list-presets)\n' "$2" "$3" ;;
-    preset.err.conf.missing) printf "error: preset '%s'의 preset.conf를 찾을 수 없습니다. templates/<preset>/preset.conf가 필요합니다 (탐색 경로: %s, %s).\n" "$2" "$3" "$4" ;;
-    preset.err.conf.missing.found) printf "error: preset '%s'의 preset.conf를 찾을 수 없습니다 (발견된 preset: %s; 탐색 경로: %s, %s).\n" "$2" "$3" "$4" "$5" ;;
-    kind.menu.title) printf 'Select agent kind (1-4 or name, default: opencode):\n' ;;  # 계약(en 고정): tests/test_preset.sh:181
-    kind.menu.item1) printf '  1) opencode - OpenCode Interpreter (기본값)\n' ;;
-    kind.menu.prompt) printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s): ' ;;
-    kind.err.unknown) printf 'error: 알 수 없는 agent kind 선택: %s\n' "$2" ;;
-    kind.err.unknown.cli) printf 'error: 알 수 없는 agent kind: %s (지원 목록: opencode, claude, codex, agy, pi, gemini, cursor 등)\n' "$2" ;;
-    fs.err.symlink.resolve) printf 'error: 심링크 대상 해석 실패: %s\n' "$2" ;;
-    fs.err.is_directory) printf 'error: %s 가 디렉터리입니다 — 파일로 교체할 수 없습니다.\n' "$2" ;;
-    fs.err.write_denied) printf 'error: 쓸 수 없습니다: %s (디렉터리 쓰기 권한 확인)\n' "$2" ;;
-    fs.err.write_fail) printf 'error: 쓰기 실패: %s\n' "$2" ;;
-    fs.err.replace_fail) printf 'error: 교체 실패: %s\n' "$2" ;;
-    fs.err.backup_mkdir) printf 'error: 백업 디렉터리 생성 실패: %s\n' "$2" ;;
-    fs.err.backup_cp) printf 'error: 백업 실패: %s\n' "$2" ;;
-    guard.err.agentsmd_lower) printf 'error: 소문자 agents.md 가 존재합니다 — 루트 팀 문서는 AGENTS.md 이며 별개 파일이 됩니다 (대소문자 충돌).\n' ;;
-    guard.err.agentsmd_lower.path) printf '  - %s\n' "$2" ;;
-    guard.err.agentsmd_lower.hint) printf '  agents.md 를 AGENTS.md 로 통합(이름 변경/삭제)한 뒤 재실행하세요 (루트 AGENTS.md 쓰기 중단).\n' ;;
-    guard.err.not_a_dir) printf 'error: %s 가 디렉터리가 아닙니다 — %s 시딩에 실패합니다. 파일을 정리 후 재실행하세요.\n' "$2" "$3" ;;
-    guard.err.marker.multi) printf 'error: %s 의 herdr-team 관리 섹션 마커가 2쌍 이상입니다 — 중복 마커를 1쌍만 남긴 뒤 재실행하세요.\n' "$2" ;;
-    guard.err.marker.broken) printf 'error: %s 의 herdr-team 관리 섹션 마커 쌍이 맞지 않습니다 (BEGIN/END 불일치) — 수동 편집을 확인한 뒤 재실행하세요.\n' "$2" ;;
-    gitignore.err.not_file) printf 'error: %s 가 일반 파일이 아닙니다 — .gitignore 무시 등록에 실패합니다. 파일을 정리 후 재실행하세요.\n' "$2" ;;
-    run.err.cmd_fail) printf 'error: 명령 실패: %s\n' "$2" ;;
-    pane.err.ready_timeout) printf 'error: pane %s ready 대기 초과 (%ss)\n' "$2" "$3" ;;
-    pane.err.foreground) printf 'error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다.\n' ;;
-    bundle.err.missing) printf 'error: bundle 없음: %s (%s)\n' "$2" "$3" ;;
-    roles.err.empty) printf "error: preset '%s'의 ROLES가 없거나 비어 있습니다 (%s/preset.conf 확인).\n" "$2" "$3" ;;
-    pane.err.no_base) printf 'error: 현재 Pane ID를 확인할 수 없습니다. Herdr 세션 안에서 실행하세요.\n' ;;
-    pane.err.parse) printf 'error: %s 분할 결과에서 pane_id 파싱 실패: %s\n' "$2" "$3" ;;
-    agent.err.session_json) printf 'error: 세션 요청 JSON 생성 실패 (%s)\n' "$2" ;;
-    agent.err.session_fail) printf 'error: 세션 생성 실패 (%s) — opencode 설치/백그라운드 서비스 상태를 확인하세요.\n' "$2" ;;
-    agent.err.session_parse) printf 'error: 세션 ID 파싱 실패 (%s): %s\n' "$2" "$3" ;;
-    agent.err.session_abort) printf 'error: %s 세션 생성 실패 → 시작 중단 (이미 생성된 pane: %s개)\n' "$2" "$3" ;;
-    agent.err.start_abort) printf 'error: %s 시작 중단 (pane %s shell 미준비)\n' "$2" "$3" ;;
-    agent.log.exists) printf '[herdr-team] %s 이미 존재 → 시작 생략\n' "$2" ;;
     *) printf 'error: missing message key: %s\n' "$1" >&2 ;;
   esac
 }
@@ -367,7 +288,7 @@ Labels:
   ① PM / ② <role 1 (orchestrator)> / ③ <role 2> / ④ <role 3> / ⑤ <role 4>
   (agents: {prefix}-<role>)
 EOF
-  printf '\n  한국어 안내: 메뉴·메시지는 HERDR_TEAM_LANG=ko 로 한국어 표시됩니다 (%s).\n' 'README.ko.md'
+  printf '\n  Language: English only -- no locale env vars (HERDR_TEAM_LANG is ignored).\n'
 }
 
 # --- 인자 파싱 ---

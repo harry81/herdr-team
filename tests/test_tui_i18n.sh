@@ -71,11 +71,7 @@ assert_contains "$TUI_PIPE" "preset=dev" "tc3_계약토큰_preset=dev"
 CI_PIPE="$(CI=1 printf '1\n1\n' | CI=1 timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
 assert_plain_bytes "$CI_PIPE" "tc3_CI_escape_CR_부재"
 
-KO_PIPE="$(printf '1\n1\n' | HERDR_TEAM_LANG=ko timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
-assert_plain_bytes "$KO_PIPE" "tc3_ko_escape_CR_부재"
-assert_contains "$KO_PIPE" "AI 팀 프리셋을 선택하세요" "tc3_ko_프리셋_메뉴_제목"
-
-echo "== tc-1) 카탈로그 패리티 (MSG_KEYS ↔ _msg_en/_msg_ko) =="
+echo "== tc-1) 카탈로그 (en 단일 벌) 패리티 =="
 MSG_KEYS_SRC="$(grep -m1 '^MSG_KEYS=' "$BIN" || true)"
 if [[ -z "$MSG_KEYS_SRC" ]]; then
   bad "tc1_MSG_KEYS_정의"
@@ -83,29 +79,22 @@ else
   ok "tc1_MSG_KEYS_정의"
   eval "$MSG_KEYS_SRC"
   CAT_SRC="$(mktemp)"
-  {
-    sed -n '/^_msg_en() {/,/^}/p' "$BIN"
-    sed -n '/^_msg_ko() {/,/^}/p' "$BIN"
-  } > "$CAT_SRC"
+  sed -n '/^_msg_en() {/,/^}/p' "$BIN" > "$CAT_SRC"
   if [[ -s "$CAT_SRC" ]]; then ok "tc1_카탈로그_추출"; else bad "tc1_카탈로그_추출"; fi
   for k in $MSG_KEYS; do
     EN_K="$(bash -c 'source "$1"; _msg_en "$2" A B C D' _ "$CAT_SRC" "$k" 2>/dev/null)"
-    KO_K="$(bash -c 'source "$1"; _msg_ko "$2" A B C D' _ "$CAT_SRC" "$k" 2>/dev/null)"
     if [[ -n "$EN_K" ]]; then ok "tc1_en_$k"; else bad "tc1_en_$k (empty)"; fi
-    if [[ -n "$KO_K" ]]; then ok "tc1_ko_$k"; else bad "tc1_ko_$k (empty)"; fi
-    case "$EN_K$KO_K" in
-      *%s*|*%d*) bad "tc1_서식_미치환_$k ($EN_K|$KO_K)" ;;
+    case "$EN_K" in
+      *%s*|*%d*) bad "tc1_서식_미치환_$k ($EN_K)" ;;
       *) ok "tc1_서식_해소_$k" ;;
     esac
   done
-  # 미지 키는 조용히 사라지지 않고 stderr로 방어 메시지를 낸다 (양 로케일 공통)
+  # 미지 키는 조용히 사라지지 않고 stderr로 방어 메시지를 낸다
   UNK_EN="$(bash -c 'source "$1"; _msg_en no.such.key' _ "$CAT_SRC" 2>&1)"
-  UNK_KO="$(bash -c 'source "$1"; _msg_ko no.such.key' _ "$CAT_SRC" 2>&1)"
-  assert_contains "$UNK_EN" "error: missing message key: no.such.key" "tc1_미지키_en_방어"
-  assert_contains "$UNK_KO" "error: missing message key: no.such.key" "tc1_미지키_ko_방어"
+  assert_contains "$UNK_EN" "error: missing message key: no.such.key" "tc1_미지키_방어"
   rm -f "$CAT_SRC"
-  # 키 집합 동일성 + 키별 서식 인자 개수 일치 (카탈로그 컴파일 타임 검증)
-  cat_key_args() { # $1=_msg_en|_msg_ko → "key<TAB>포맷인자수" 정렬 목록
+  # 키 집합/키별 서식 인자 개수 (카탈로그 컴파일 타임 검증)
+  cat_key_args() { # $1=_msg_en → "key<TAB>포맷인자수" 정렬 목록
     awk -v fn="$1" '
       $0 ~ "^" fn "\\(\\) \\{" { inb = 1; next }
       inb && /^}/ { inb = 0 }
@@ -118,8 +107,6 @@ else
     ' "$BIN" | sort
   }
   EN_KA="$(cat_key_args _msg_en)"
-  KO_KA="$(cat_key_args _msg_ko)"
-  assert_equal "$EN_KA" "$KO_KA" "tc1_en_ko_키집합_서식인자_동일"
   EN_KEYS="$(printf '%s\n' "$EN_KA" | cut -f1 | tr '\n' ' ' | sed 's/ *$//')"
   # shellcheck disable=SC2086: 키 목록은 공백 구분 식별자
   SORTED_MSG_KEYS="$(printf '%s\n' $MSG_KEYS | sort | tr '\n' ' ' | sed 's/ *$//')"
@@ -127,86 +114,60 @@ else
   assert_equal "$(printf '%s\n' "$EN_KA" | wc -l | tr -d ' ')" "$(printf '%s' "$MSG_KEYS" | wc -w | tr -d ' ')" "tc1_키수_일치"
 fi
 
-echo "== tc-2) 로케일 결정 규칙 =="
-LOC_SRC="$(mktemp)"
-sed -n '/^ht_detect_locale() {/,/^}/p' "$BIN" > "$LOC_SRC"
-if [[ -s "$LOC_SRC" ]]; then ok "tc2_ht_detect_locale_추출"; else bad "tc2_ht_detect_locale_추출"; fi
-loc_of() { # $@=NAME=VALUE (지정 안 한 변수는 unset)
-  ( unset HERDR_TEAM_LANG LC_ALL LANG
-    local a; for a in "$@"; do export "$a"; done
-    . "$LOC_SRC"; ht_detect_locale ) 2>/dev/null
-}
-assert_equal "$(loc_of)"                                   "en" "tc2_무설정_en"
-assert_equal "$(loc_of HERDR_TEAM_LANG=ko)"                "ko" "tc2_HERDR_TEAM_LANG_ko"
-assert_equal "$(loc_of LANG=ko_KR.UTF-8)"                  "ko" "tc2_LANG_ko"
-assert_equal "$(loc_of LC_ALL=ko_KR.UTF-8 LANG=en_US.UTF-8)" "ko" "tc2_LC_ALL_ko_우선"
-assert_equal "$(loc_of HERDR_TEAM_LANG=ko LANG=en_US.UTF-8)" "ko" "tc2_HERDR_TEAM_LANG_우선"
-assert_equal "$(loc_of HERDR_TEAM_LANG=fr)"                "en" "tc2_미지원_값_en폴백"
-assert_equal "$(loc_of LANG=en_US.UTF-8)"                  "en" "tc2_LANG_en"
+echo "== tc-2) 로케일 환경변수 무시 (English Only) =="
+BASE_OUT="$(printf '1\n1\n' | env -u HERDR_TEAM_LANG -u LC_ALL LANG=C timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
+KO_ENV_OUT="$(printf '1\n1\n' | HERDR_TEAM_LANG=ko LC_ALL=ko_KR.UTF-8 LANG=ko_KR.UTF-8 timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
+FR_ENV_OUT="$(printf '1\n1\n' | HERDR_TEAM_LANG=fr LANG=ko_KR.UTF-8 timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
+assert_equal "$KO_ENV_OUT" "$BASE_OUT" "tc2_ko환경_출력_en과_동일"
+assert_equal "$FR_ENV_OUT" "$BASE_OUT" "tc2_fr환경_출력_en과_동일"
+assert_not_contains "$KO_ENV_OUT" "WARN" "tc2_ko환경_WARN_0건"
+assert_not_contains "$FR_ENV_OUT" "WARN" "tc2_fr환경_WARN_0건"
+assert_not_contains "$KO_ENV_OUT" "HERDR_TEAM_LANG" "tc2_ko환경_env_언급_0건"
+VER_KO="$(HERDR_TEAM_LANG=ko LC_ALL=ko_KR.UTF-8 timeout 20 "$BIN" --version 2>&1)"
+assert_contains "$VER_KO" "herdr-team v" "tc2_ko환경_version_정상"
+assert_equal "$(printf '%s\n' "$VER_KO" | grep -c 'WARN')" "0" "tc2_ko환경_version_WARN_0건"
 
-echo "== tc-2b) 미지원 HERDR_TEAM_LANG → en 폴백 + WARN 1회 (e2e) =="
-FR_OUT="$(HERDR_TEAM_LANG=fr timeout 20 "$BIN" --version 2>&1)"; FR_RC=$?
-assert_exit "$FR_RC" 0 "tc2b_미지원로케일_exit0"
-assert_contains "$FR_OUT" "WARN" "tc2b_미지원로케일_WARN"
-assert_equal "$(printf '%s\n' "$FR_OUT" | grep -c 'WARN')" "1" "tc2b_WARN_1회"
-assert_contains "$FR_OUT" "herdr-team v" "tc2b_version_정상"
+echo "== tc-2c) preset/kind TUI·에러 (en) =="
+EN_TUI="$(printf '2\n1\n' | timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$EN_TUI" "Select AI team preset (1-6 or name, default: dev):" "tc2c_프리셋_제목"
+assert_contains "$EN_TUI" "Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):" "tc2c_프리셋_프롬프트_계약"
+assert_contains "$EN_TUI" "Select agent kind (1-4 or name, default: opencode):" "tc2c_kind_제목_계약"
+assert_contains "$EN_TUI" "preset=research" "tc2c_선택_동작_불변"
 
-echo "== tc-2c) preset/kind TUI·에러 i18n (§5.C/§5.D) =="
-EN_TUI="$(printf '2\n1\n' | HERDR_TEAM_LANG=en timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
-assert_contains "$EN_TUI" "Select AI team preset (1-6 or name, default: dev):" "tc2c_en_프리셋_제목"
-assert_contains "$EN_TUI" "Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):" "tc2c_en_프리셋_프롬프트_계약"
-assert_contains "$EN_TUI" "Select agent kind (1-4 or name, default: opencode):" "tc2c_en_kind_제목_계약"
-assert_contains "$EN_TUI" "preset=research" "tc2c_en_선택_동작_불변"
-KO_TUI="$(printf '2\n1\n' | HERDR_TEAM_LANG=ko timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
-assert_contains "$KO_TUI" "AI 팀 프리셋을 선택하세요 (1-6 또는 이름, 기본: dev):" "tc2c_ko_프리셋_제목"
-assert_contains "$KO_TUI" "Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):" "tc2c_ko_프리셋_프롬프트_en고정"
-assert_contains "$KO_TUI" "Select agent kind (1-4 or name, default: opencode):" "tc2c_ko_kind_제목_en고정_계약"
-assert_contains "$KO_TUI" "preset=research" "tc2c_ko_선택_동작_불변"
+EN_DEP="$("$BIN" test --preset app --dry-run --no-template --no-interactive 2>&1)"
+assert_contains "$EN_DEP" "WARN: preset 'app' is deprecated; use 'dev' instead. (app merged into dev)" "tc2c_deprecated_문구"
+assert_contains "$EN_DEP" "deprecated" "tc2c_deprecated_토큰"
 
-EN_DEP="$(HERDR_TEAM_LANG=en "$BIN" test --preset app --dry-run --no-template --no-interactive 2>&1)"
-assert_contains "$EN_DEP" "WARN: preset 'app' is deprecated; use 'dev' instead. (app merged into dev)" "tc2c_en_deprecated_문구"
-assert_contains "$EN_DEP" "deprecated" "tc2c_en_deprecated_토큰"
-KO_DEP="$(HERDR_TEAM_LANG=ko "$BIN" test --preset app --dry-run --no-template --no-interactive 2>&1)"
-assert_contains "$KO_DEP" "경고: preset 'app'는 deprecated입니다." "tc2c_ko_deprecated_문구"
-
-EN_BAD="$(HERDR_TEAM_LANG=en "$BIN" test --preset bogus --dry-run --no-template --no-interactive 2>&1 || true)"
-assert_contains "$EN_BAD" "error: unknown preset: bogus" "tc2c_en_미지원_preset_에러"
-assert_contains "$EN_BAD" "--list-presets" "tc2c_en_미지원_preset_목록안내"
-KO_BAD="$(HERDR_TEAM_LANG=ko "$BIN" test --preset bogus --dry-run --no-template --no-interactive 2>&1 || true)"
-assert_contains "$KO_BAD" "error: 알 수 없는 preset: bogus" "tc2c_ko_미지원_preset_에러"
+EN_BAD="$("$BIN" test --preset bogus --dry-run --no-template --no-interactive 2>&1 || true)"
+assert_contains "$EN_BAD" "error: unknown preset: bogus" "tc2c_미지원_preset_에러"
+assert_contains "$EN_BAD" "--list-presets" "tc2c_미지원_preset_목록안내"
 for p in dev research biz mkt creator; do
-  assert_contains "$EN_BAD" "$p" "tc2c_en_미지원_preset_가능목록($p)"
+  assert_contains "$EN_BAD" "$p" "tc2c_미지원_preset_가능목록($p)"
 done
-EN_KBAD="$(HERDR_TEAM_LANG=en "$BIN" test --kind invalid_kind --dry-run --no-template --no-interactive 2>&1 || true)"
-assert_contains "$EN_KBAD" "error: unknown agent kind: invalid_kind" "tc2c_en_미지원_kind_에러"
-assert_contains "$EN_KBAD" "supported: opencode" "tc2c_en_미지원_kind_지원목록"
+EN_KBAD="$("$BIN" test --kind invalid_kind --dry-run --no-template --no-interactive 2>&1 || true)"
+assert_contains "$EN_KBAD" "error: unknown agent kind: invalid_kind" "tc2c_미지원_kind_에러"
+assert_contains "$EN_KBAD" "supported: opencode" "tc2c_미지원_kind_지원목록"
 
 SIM="$(mktemp -d)"; EMPTY_TPL="$(mktemp -d)"
 mkdir -p "$SIM/bin"; cp "$BIN" "$SIM/bin/herdr-team"; chmod +x "$SIM/bin/herdr-team"
-EN_CONF="$(HERDR_TEAM_LANG=en HERDR_TEAM_TEMPLATE_DIR="$EMPTY_TPL" "$SIM/bin/herdr-team" test --dry-run --no-interactive 2>&1 || true)"
-assert_contains "$EN_CONF" "preset.conf for 'dev' not found" "tc2c_en_preset_conf_미발견"
-assert_contains "$EN_CONF" "templates/<preset>/preset.conf is required" "tc2c_en_preset_conf_경로안내"
-KO_CONF="$(HERDR_TEAM_LANG=ko HERDR_TEAM_TEMPLATE_DIR="$EMPTY_TPL" "$SIM/bin/herdr-team" test --dry-run --no-interactive 2>&1 || true)"
-assert_contains "$KO_CONF" "preset.conf를 찾을 수 없습니다" "tc2c_ko_preset_conf_미발견"
+EN_CONF="$(HERDR_TEAM_TEMPLATE_DIR="$EMPTY_TPL" "$SIM/bin/herdr-team" test --dry-run --no-interactive 2>&1 || true)"
+assert_contains "$EN_CONF" "preset.conf for 'dev' not found" "tc2c_preset_conf_미발견"
+assert_contains "$EN_CONF" "templates/<preset>/preset.conf is required" "tc2c_preset_conf_경로안내"
 rm -rf "$EMPTY_TPL" "$SIM"
 
-echo "== tc-2d) 인자 파싱·precheck i18n (§5.A/§5.B) =="
-EN_PARSE="$(HERDR_TEAM_LANG=en "$BIN" --kind 2>&1 || true)"
-assert_contains "$EN_PARSE" "error: --kind requires a value" "tc2d_en_kind_값누락"
-KO_PARSE="$(HERDR_TEAM_LANG=ko "$BIN" --kind 2>&1 || true)"
-assert_contains "$KO_PARSE" "error: --kind에 값이 필요합니다" "tc2d_ko_kind_값누락"
-MISS_RC="$(HERDR_TEAM_LANG=en "$BIN" --preset 2>/dev/null; echo $?)"
+echo "== tc-2d) 인자 파싱 (en) =="
+EN_PARSE="$("$BIN" --kind 2>&1 || true)"
+assert_contains "$EN_PARSE" "error: --kind requires a value" "tc2d_kind_값누락"
+MISS_RC="$("$BIN" --preset 2>/dev/null; echo $?)"
 assert_exit "$MISS_RC" 2 "tc2d_값누락_exit2"
-EN_UNK="$(HERDR_TEAM_LANG=en "$BIN" --bogus-option 2>&1 || true)"
-assert_contains "$EN_UNK" "error: unknown option: --bogus-option (--help)" "tc2d_en_미지원옵션"
-KO_UNK="$(HERDR_TEAM_LANG=ko "$BIN" --bogus-option 2>&1 || true)"
-assert_contains "$KO_UNK" "error: 알 수 없는 옵션: --bogus-option" "tc2d_ko_미지원옵션"
-EN_LAYOUT="$(HERDR_TEAM_LANG=en "$BIN" test --layout bogus_layout --no-interactive 2>&1 || true)"
-assert_contains "$EN_LAYOUT" "error: unknown layout: bogus_layout" "tc2d_en_layout"
-EN_MULTI="$(HERDR_TEAM_LANG=en "$BIN" aa bb 2>&1 || true)"
-assert_contains "$EN_MULTI" "error: prefix must be given once: bb" "tc2d_en_prefix_중복"
+EN_UNK="$("$BIN" --bogus-option 2>&1 || true)"
+assert_contains "$EN_UNK" "error: unknown option: --bogus-option (--help)" "tc2d_미지원옵션"
+EN_LAYOUT="$("$BIN" test --layout bogus_layout --no-interactive 2>&1 || true)"
+assert_contains "$EN_LAYOUT" "error: unknown layout: bogus_layout" "tc2d_layout"
+EN_MULTI="$("$BIN" aa bb 2>&1 || true)"
+assert_contains "$EN_MULTI" "error: prefix must be given once: bb" "tc2d_prefix_중복"
 
-echo "== tc-2e) precheck 로케일별 1세트 (§5.B) =="
+echo "== tc-2e) precheck (en) =="
 NO_HERDR="$(mktemp -d)"
 for d in /usr/local/bin /usr/bin /bin; do
   [[ -d "$d" ]] || continue
@@ -215,30 +176,23 @@ for d in /usr/local/bin /usr/bin /bin; do
     [[ -e "$NO_HERDR/$b" ]] || ln -s "$f" "$NO_HERDR/$b" 2>/dev/null || true
   done
 done
-EN_PRE="$(HERDR_TEAM_LANG=en PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; EN_PRE_RC=$?
-assert_exit "$EN_PRE_RC" 127 "tc2e_en_precheck_exit127"
-assert_contains "$EN_PRE" "ERROR herdr CLI not found" "tc2e_en_ERROR_문구"
-assert_contains "$EN_PRE" "https://herdr.dev/install.sh" "tc2e_en_설치URL"
-assert_contains "$EN_PRE" "https://herdr.dev/install.ps1" "tc2e_en_윈도우URL"
-assert_contains "$EN_PRE" "HERDR_TEAM_SKIP_CHECK=1" "tc2e_en_우회플래그"
-assert_not_contains "$EN_PRE" "찾을 수 없습니다" "tc2e_en_한국어_미출력"
-KO_PRE="$(HERDR_TEAM_LANG=ko PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; KO_PRE_RC=$?
-assert_exit "$KO_PRE_RC" 127 "tc2e_ko_precheck_exit127"
-assert_contains "$KO_PRE" "ERROR herdr CLI 를 찾을 수 없습니다." "tc2e_ko_ERROR_문구"
-assert_contains "$KO_PRE" "https://herdr.dev/install.sh" "tc2e_ko_설치URL"
-assert_not_contains "$KO_PRE" "Install:" "tc2e_ko_en라벨_미출력"
-SKIP_OUT="$(HERDR_TEAM_LANG=en HERDR_TEAM_SKIP_CHECK=1 PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; SKIP_RC=$?
+EN_PRE="$(PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; EN_PRE_RC=$?
+assert_exit "$EN_PRE_RC" 127 "tc2e_precheck_exit127"
+assert_contains "$EN_PRE" "ERROR herdr CLI not found" "tc2e_ERROR_문구"
+assert_contains "$EN_PRE" "https://herdr.dev/install.sh" "tc2e_설치URL"
+assert_contains "$EN_PRE" "https://herdr.dev/install.ps1" "tc2e_윈도우URL"
+assert_contains "$EN_PRE" "HERDR_TEAM_SKIP_CHECK=1" "tc2e_우회플래그"
+assert_not_contains "$EN_PRE" "찾을 수 없습니다" "tc2e_한국어_미출력"
+SKIP_OUT="$(HERDR_TEAM_SKIP_CHECK=1 PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; SKIP_RC=$?
 assert_exit "$SKIP_RC" 0 "tc2e_skip_exit0"
 assert_contains "$SKIP_OUT" "WARN: herdr CLI not found, continuing anyway" "tc2e_skip_WARN"
 rm -rf "$NO_HERDR"
 
-echo "== tc-2f) §5.E 카탈로그: en 기본 문안 / ko 회귀 =="
+echo "== tc-2f) §5.E 카탈로그 (en) =="
 GD="$(mktemp -d)"
 printf 'blocker\n' > "$GD/agents"
-EN_GD="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
-assert_contains "$EN_GD" "$GD/agents is not a directory" "tc2f_en_guard_not_a_dir"
-KO_GD="$(HERDR_TEAM_LANG=ko "$BIN" iso --cwd "$GD" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
-assert_contains "$KO_GD" "$GD/agents 가 디렉터리가 아닙니다" "tc2f_ko_guard_not_a_dir"
+EN_GD="$("$BIN" iso --cwd "$GD" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
+assert_contains "$EN_GD" "$GD/agents is not a directory" "tc2f_guard_not_a_dir"
 rm -rf "$GD"
 GD2="$(mktemp -d)"
 cat > "$GD2/AGENTS.md" <<'EOF'
@@ -249,35 +203,36 @@ A
 B
 <!-- herdr-team:managed END -->
 EOF
-EN_GD2="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD2" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
-assert_contains "$EN_GD2" "more than one managed-section marker pair" "tc2f_en_guard_marker"
-KO_GD2="$(HERDR_TEAM_LANG=ko "$BIN" iso --cwd "$GD2" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
-assert_contains "$KO_GD2" "마커" "tc2f_ko_guard_marker"
+EN_GD2="$("$BIN" iso --cwd "$GD2" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
+assert_contains "$EN_GD2" "more than one managed-section marker pair" "tc2f_guard_marker"
 rm -rf "$GD2"
 GD3="$(mktemp -d)"; git -C "$GD3" init -q; mkdir "$GD3/.gitignore"
-EN_GD3="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD3" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
-assert_contains "$EN_GD3" "is not a regular file" "tc2f_en_gitignore"
-KO_GD3="$(HERDR_TEAM_LANG=ko "$BIN" iso --cwd "$GD3" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
-assert_contains "$KO_GD3" "일반 파일이 아닙니다" "tc2f_ko_gitignore"
+EN_GD3="$("$BIN" iso --cwd "$GD3" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
+assert_contains "$EN_GD3" "is not a regular file" "tc2f_gitignore"
 rm -rf "$GD3"
-# 5.E 잔여 키 표본: en 문안이 영문인지 / ko 문안이 한국어인지 (접두어 계약 동시 확인)
-EN_GD4="$(HERDR_TEAM_LANG=en "$BIN" test --preset dev --dry-run --no-template --no-interactive --kind bogus_kind 2>&1 || true)"
-assert_contains "$EN_GD4" "error: unknown agent kind: bogus_kind" "tc2f_en_error_접두어"
-KO_GD4="$(HERDR_TEAM_LANG=ko "$BIN" test --preset dev --dry-run --no-template --no-interactive --kind bogus_kind 2>&1 || true)"
-assert_contains "$KO_GD4" "error: 알 수 없는 agent kind: bogus_kind" "tc2f_ko_error_접두어"
+EN_GD4="$("$BIN" test --preset dev --dry-run --no-template --no-interactive --kind bogus_kind 2>&1 || true)"
+assert_contains "$EN_GD4" "error: unknown agent kind: bogus_kind" "tc2f_error_접두어"
 EN_PANE="$(sed -n '/^_msg_en() {/,/^}/p' "$BIN")"
-KO_PANE="$(sed -n '/^_msg_ko() {/,/^}/p' "$BIN")"
-assert_contains "$EN_PANE" "error: pane %s ready wait exceeded (%ss)" "tc2f_en_pane_ready_timeout"
-assert_contains "$KO_PANE" "error: pane %s ready 대기 초과 (%ss)" "tc2f_ko_pane_ready_timeout"
-assert_contains "$EN_PANE" "error: command failed: %s" "tc2f_en_run_cmd_fail"
-assert_contains "$KO_PANE" "error: 명령 실패: %s" "tc2f_ko_run_cmd_fail"
-assert_contains "$EN_PANE" "error: session creation failed (%s)" "tc2f_en_agent_session_fail"
-assert_contains "$KO_PANE" "error: 세션 생성 실패 (%s)" "tc2f_ko_agent_session_fail"
+assert_contains "$EN_PANE" "error: pane %s ready wait exceeded (%ss)" "tc2f_pane_ready_timeout"
+assert_contains "$EN_PANE" "error: command failed: %s" "tc2f_run_cmd_fail"
+assert_contains "$EN_PANE" "error: session creation failed (%s)" "tc2f_agent_session_fail"
 
-echo "== Q2) usage 말미 한국어 힌트 1행 =="
+echo "== tc-2g) 사용자 지정 로케일 값도 완전 무시 (경고 0) =="
+for v in ko fr ja KO; do
+  OUT_V="$(HERDR_TEAM_LANG="$v" timeout 20 "$BIN" --list-presets 2>&1)"
+  RC_V=$?
+  assert_exit "$RC_V" 0 "tc2g_HERDR_TEAM_LANG_${v}_exit0"
+  assert_not_contains "$OUT_V" "WARN" "tc2g_HERDR_TEAM_LANG_${v}_WARN0"
+done
+LIST_BASE="$(env -u HERDR_TEAM_LANG -u LC_ALL LANG=C timeout 20 "$BIN" --list-presets 2>&1)"
+LIST_KO="$(HERDR_TEAM_LANG=ko LC_ALL=ko_KR.UTF-8 LANG=ko_KR.UTF-8 timeout 20 "$BIN" --list-presets 2>&1)"
+assert_equal "$LIST_KO" "$LIST_BASE" "tc2g_ko환경_목록출력_동일"
+
+echo "== Q2) usage 언어 정책 1행 (한국어 힌트 제거) =="
 HELP_TXT="$("$BIN" --help 2>&1)"
-assert_contains "$HELP_TXT" "HERDR_TEAM_LANG=ko" "q2_help_한국어_힌트"
-assert_contains "$HELP_TXT" "README.ko.md" "q2_help_한국어_가이드_링크"
+assert_contains "$HELP_TXT" "Language: English only" "q2_help_정책_1행"
+assert_not_contains "$HELP_TXT" "한국어 안내" "q2_help_한국어힌트_제거"
+assert_not_contains "$HELP_TXT" "HERDR_TEAM_LANG=ko" "q2_help_ko_env_미노출"
 assert_contains "$HELP_TXT" "Usage:" "q2_help_영문_유지"
 
 echo "== tc-4) NO_COLOR/TERM=dumb/--no-color (TTY 시뮬레이션: script) =="

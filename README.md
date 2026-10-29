@@ -20,6 +20,8 @@
 
 ## How it looks
 
+![herdr-team demo](docs/assets/demo.gif)
+
 ```
 +----------------+----------------+----------------+----------------+
 | ① PM           | ② Planner      | ③ Worker       | ④ Reviewer     |
