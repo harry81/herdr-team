@@ -41,6 +41,25 @@ assert_plain_bytes() { # $1=output $2=label — plain 모드: ESC(0x1b)·CR(0x0d
 
 [[ -x "$BIN" ]] || { printf 'FAIL: %s not executable\n' "$BIN"; exit 1; }
 
+hangul_count() { # $1=file — 한글 음절(U+AC00-U+D7A3) 개수 (grep -P -> perl -> python3)
+  if printf 'x' | grep -qP 'x' 2>/dev/null; then
+    LC_ALL=C.UTF-8 grep -oP '[\x{AC00}-\x{D7A3}]' "$1" 2>/dev/null | wc -l | tr -d ' '
+  elif command -v perl >/dev/null 2>&1; then
+    perl -CSD -ne 'while (/([\x{AC00}-\x{D7A3}])/g) { $c++ } END { printf "%d", $c+0 }' "$1"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import re,sys;d=open(sys.argv[1],encoding="utf-8",errors="replace").read();print(len(re.findall("[\uac00-\ud7a3]",d)))' "$1"
+  else
+    printf 'NA'
+  fi
+}
+assert_no_hangul() { # $1=file $2=label
+  local n
+  n="$(hangul_count "$1")"
+  if [[ "$n" == "NA" ]]; then echo "SKIP: 한글 검사 도구(grep -P/perl/python3) 없음 → $2";
+  elif [[ "$n" == "0" ]]; then ok "$2"
+  else bad "$2 (hangul=$n)"; fi
+}
+
 echo "== tc-3) 논TTY/파이프 회귀: ESC·CR 부재 + 계약 토큰 유지 =="
 TUI_PIPE="$(printf '1\n1\n' | timeout 20 "$BIN" test --dry-run --no-template 2>&1)"; PIPE_RC=$?
 assert_exit "$PIPE_RC" 0 "tc3_파이프_dryrun_exit0"
@@ -369,6 +388,38 @@ if command -v script >/dev/null 2>&1; then
   assert_contains "$TTY_BANNER" "herdr-team v" "tc7_TTY_배너_텍스트"
   assert_contains "$TTY_BANNER" "done" "tc7_TTY_step_done"
 fi
+
+echo "== H-1) 콘솔 출력 한글 음절 0건 (English Only) =="
+QA="$(mktemp -d)"
+printf '1\n1\n' | timeout 20 "$BIN" test --dry-run --no-template > "$QA/preset_tui.log" 2>&1
+printf '1\n2\n' | timeout 20 "$BIN" test --dry-run --no-template > "$QA/kind_tui.log" 2>&1
+timeout 20 "$BIN" --kind > "$QA/parse_err.log" 2>&1 || true
+timeout 20 "$BIN" --bogus-option > "$QA/parse_unknown.log" 2>&1 || true
+timeout 20 "$BIN" test --preset dev --dry-run --no-interactive > "$QA/dryrun.log" 2>&1
+timeout 20 "$BIN" --help > "$QA/help.log" 2>&1
+timeout 20 "$BIN" --list-presets > "$QA/list.log" 2>&1
+printf 'blocker\n' > "$QA/agents"
+timeout 20 "$BIN" iso --cwd "$QA" --template-dir "$REPO/templates" --no-interactive --templates-only > "$QA/guard.log" 2>&1 || true
+rm -rf "$QA/agents"
+NO_HERDR="$(mktemp -d)"
+for d in /usr/local/bin /usr/bin /bin; do
+  [[ -d "$d" ]] || continue
+  for f in "$d"/*; do
+    b="${f##*/}"; [[ "$b" == "herdr" ]] && continue
+    [[ -e "$NO_HERDR/$b" ]] || ln -s "$f" "$NO_HERDR/$b" 2>/dev/null || true
+  done
+done
+PATH="$NO_HERDR" timeout 20 "$BIN" --precheck > "$QA/precheck.log" 2>&1 || true
+rm -rf "$NO_HERDR"
+for f in preset_tui kind_tui parse_err parse_unknown dryrun help list guard precheck; do
+  assert_no_hangul "$QA/$f.log" "h1_한글0_$f"
+done
+rm -rf "$QA"
+
+echo "== H-2) templates preset.conf 한글 음절 0건 =="
+for c in "$REPO"/templates/*/preset.conf; do
+  assert_no_hangul "$c" "h2_한글0_$(basename "$(dirname "$c")")_preset_conf"
+done
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
