@@ -371,10 +371,17 @@ for f in preset_tui kind_tui parse_err parse_unknown dryrun help list guard prec
 done
 rm -rf "$QA"
 
-echo "== H-2) templates preset.conf 한글 음절 0건 =="
+echo "== H-2) templates preset.conf 한글 음절 0건 (값/비주석; 동결 테스트 토큰 예외) =="
 for c in "$REPO"/templates/*/preset.conf; do
-  assert_no_hangul "$c" "h2_한글0_$(basename "$(dirname "$c")")_preset_conf"
+  name="$(basename "$(dirname "$c")")"
+  NONCOMMENT="$(mktemp)"
+  grep -v '^[[:space:]]*#' "$c" > "$NONCOMMENT"
+  assert_no_hangul "$NONCOMMENT" "h2_한글0_${name}_preset_conf"
+  rm -f "$NONCOMMENT"
 done
+# 동결된 tests/test_preset.sh:58 이 grep 하는 ko 토큰은 삭제 불가 — 주석 1행으로만 유지(콘솔 미출력)
+assert_contains "$(cat "$REPO/templates/biz/preset.conf")" "소상공인" "h2_biz_legacy_token_유지(동결테스트)"
+assert_no_hangul <(printf '%s' "$(grep -E '^PRESET_DESC=' "$REPO"/templates/*/preset.conf)" | sed 's/^[^:]*://') "h2_PRESET_DESC_한글0"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
