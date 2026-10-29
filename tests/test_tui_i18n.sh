@@ -23,8 +23,10 @@ assert_equal() { # $1=actual $2=expected $3=label
 assert_exit() { # $1=actual $2=expected $3=label
   if [[ "$1" -eq "$2" ]]; then ok "$3"; else bad "$3 (exit=$1, want=$2)"; fi
 }
-has_byte() { # $1=text $2=hex byte (1b/0d) — od 사용 (macOS/GNU 공통)
-  printf '%s' "$1" | od -An -tx1 | tr ' ' '\n' | grep -qx -- "$2"
+has_byte() { # $1=text $2=hex byte (1b/0d) — od 사용 (macOS/GNU 공통, pipefail 안전)
+  local hex
+  hex="$(printf '%s' "$1" | od -An -tx1 | tr -s ' ' '\n')"
+  [[ $'\n'"$hex"$'\n' == *$'\n'"$2"$'\n'* ]]
 }
 assert_no_esc() { # $1=output $2=label — pty 환경(CR은 pty가 붙임)에서 ESC만 검사
   if has_byte "$1" 1b; then bad "$2 (ESC 0x1b found)"; else ok "$2"; fi
@@ -258,6 +260,46 @@ if command -v script >/dev/null 2>&1; then
   assert_equal "$(ps_count "$BIN")" "0" "tc5_TTY_고아프로세스_0건"
 else
   echo "SKIP: script 없음 → TTY 카운트다운 검증 생략"
+fi
+
+echo "== tc-7) 배너·진행 단계·최종 요약 (plain 계약 불변) =="
+BANNER_OUT="$(printf '1\n1\n' | "$BIN" test --dry-run --no-template 2>&1)"
+assert_contains "$BANNER_OUT" "herdr-team v" "tc7_plain_배너"
+assert_contains "$BANNER_OUT" "herdr-team v$(tr -d '[:space:]' < "$REPO/VERSION")" "tc7_plain_배너_버전"
+ISO_OUT="$(printf '1\n1\n' | "$BIN" test --preset dev --dry-run --template-dir "$REPO/templates" 2>&1)"
+assert_contains "$ISO_OUT" "(dry-run isolation)" "tc7_계약_dryrun_isolation"
+assert_plain_bytes "$ISO_OUT" "tc7_계약_dryrun_escape_CR_부재"
+assert_contains "$BANNER_OUT" "[1/4] templates" "tc7_진행단계_1"
+assert_contains "$BANNER_OUT" "[2/4] opencode-agents" "tc7_진행단계_2"
+assert_contains "$BANNER_OUT" "[3/4] permissions" "tc7_진행단계_3"
+assert_contains "$BANNER_OUT" "[4/4] panes" "tc7_진행단계_4"
+assert_contains "$BANNER_OUT" "[ok] templates" "tc7_plain_step_ok"
+assert_contains "$BANNER_OUT" "preset=dev" "tc7_계약_preset"
+assert_contains "$BANNER_OUT" "layout=2col" "tc7_계약_layout"
+
+if command -v jq >/dev/null 2>&1; then
+  S="$(mktemp -d)"; SC="$(mktemp -d)"
+  cat > "$S/herdr" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
+STUBEOF
+  chmod +x "$S/herdr"
+  SUM_OUT="$(PATH="$S:$PATH" HERDR_TEAM_LANG=en "$BIN" sm --preset dev --cwd "$SC" --template-dir "$REPO/templates" --no-interactive --no-start 2>&1)"; SUM_RC=$?
+  assert_exit "$SUM_RC" 0 "tc7_실행_exit0"
+  assert_contains "$SUM_OUT" "[done] prefix=sm preset=dev kind=opencode layout=2col agents=4" "tc7_요약_plain"
+  assert_contains "$SUM_OUT" "next: herdr agent list" "tc7_요약_다음단계힌트"
+  assert_contains "$SUM_OUT" "[4/4] panes" "tc7_실행_진행단계"
+  assert_contains "$SUM_OUT" "완료: prefix=sm preset=dev" "tc7_기존_완료로그_유지"
+  assert_plain_bytes "$SUM_OUT" "tc7_실행_escape_CR_부재"
+  rm -rf "$S" "$SC"
+fi
+
+if command -v script >/dev/null 2>&1; then
+  TTY_BANNER="$(env -u CI -u GITHUB_ACTIONS -u NO_COLOR script -qec "$BIN test --dry-run --no-template --no-interactive" /dev/null 2>&1)"
+  if has_byte "$TTY_BANNER" 1b; then ok "tc4_TTY_색상_활성"; else bad "tc4_TTY_색상_활성 (ESC 없음)"; fi
+  assert_contains "$TTY_BANNER" "+-------------------+" "tc7_TTY_배너_박스"
+  assert_contains "$TTY_BANNER" "herdr-team v" "tc7_TTY_배너_텍스트"
+  assert_contains "$TTY_BANNER" "done" "tc7_TTY_step_done"
 fi
 
 echo "-----------------------------"

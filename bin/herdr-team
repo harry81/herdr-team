@@ -432,6 +432,41 @@ ok()   { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[32mok:\033[0m %s\n'
 warn() { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[33mwarn:\033[0m %s\n' "$*"; else printf '[warn] %s\n' "$*"; fi; }
 err()  { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[31merror:\033[0m %s\n' "$*" >&2; else printf 'error: %s\n' "$*" >&2; fi; }
 
+# --- 시작 배너 / 진행 단계 / 최종 요약 (명세 §4.2/§4.4/§4.5) ---
+ht_banner() {
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
+    ht_box "herdr-team v$VERSION"
+  else
+    printf 'herdr-team v%s\n' "$VERSION"
+  fi
+}
+HT_STEP_N=0
+HT_STEP_TOTAL=4
+HT_STEP_CUR=""
+step_begin() { # $1=단계 이름
+  HT_STEP_N=$((HT_STEP_N+1)); HT_STEP_CUR="$1"
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
+    printf '\033[1m[%s/%s]\033[0m %s\n' "$HT_STEP_N" "$HT_STEP_TOTAL" "$1"
+  else
+    printf '[%s/%s] %s\n' "$HT_STEP_N" "$HT_STEP_TOTAL" "$1"
+  fi
+}
+step_end() {
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
+    printf '\033[32m[%s/%s] %s done ✔\033[0m\n' "$HT_STEP_N" "$HT_STEP_TOTAL" "$HT_STEP_CUR"
+  else
+    printf '[ok] %s\n' "$HT_STEP_CUR"
+  fi
+}
+ht_summary() { # 성공 종료 요약 — dry-run 제외 실 실행 전용
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
+    ht_box "prefix: $PREFIX" "preset: $PRESET" "kind: $KIND" "layout: $LAYOUT" "agents: ${#ROLES[@]}"
+  else
+    printf '[done] prefix=%s preset=%s kind=%s layout=%s agents=%s\n' "$PREFIX" "$PRESET" "$KIND" "$LAYOUT" "${#ROLES[@]}"
+    printf 'next: herdr agent list\n'
+  fi
+}
+
 # --- 카운트다운 렌더러 (명세 §4.3) ---
 # TTY 모드에서만 표시. plain 모드에서는 프로세스 0개·출력 0바이트(기존 read 동작 불변).
 HT_CNT_PID=""
@@ -1779,6 +1814,7 @@ setup_panes() {
   for role in "${ROLES[@]}"; do done_list+="$(role_agent "$role") / "; done
   done_list="${done_list% / }"
   log "완료: prefix=${PREFIX} preset=${PRESET} (${done_list})"
+  ht_summary
 }
 
 # --- 자동 herdr 사전 점검 (실제 쓰기 전 fail-fast; dry-run/templates-only 면제) ---
@@ -1786,16 +1822,24 @@ if [[ "$DRY_RUN" -eq 0 && "$TEMPLATES_ONLY" -eq 0 ]]; then
   precheck_herdr || exit $?
 fi
 
-printf 'herdr-team v%s\n' "$VERSION"
+ht_banner
 PREV_ACTIVE="$(active_preset)"
 if [[ "$NO_TEMPLATE" -eq 0 ]]; then guard_preconditions || exit $?; fi
+step_begin templates
 setup_templates
+step_end
+step_begin opencode-agents
 setup_opencode_agents
+step_end
+step_begin permissions
 setup_permissions
+step_end
 if [[ "$TEMPLATES_ONLY" -eq 1 ]]; then
   if [[ "$WATCHER" -eq 1 ]]; then start_watcher; fi
   log "templates-only: 템플릿 설치 완료 (pane 분할 생략)"
   exit 0
 fi
+step_begin panes
 setup_panes
+step_end
 if [[ "$WATCHER" -eq 1 ]]; then start_watcher; fi
