@@ -227,21 +227,33 @@ The banner is always the first thing printed, then (on a real terminal) boxed me
 countdown on its own status line:
 
 ```
-+---------------------------------+
-|  herdr-team v1.4.0              |
++----------------------------------+
+|  herdr-team v1.4.0               |
 |  One command. One AI agent team. |
-+---------------------------------+
-+---------------------------------------------+
-|  Select preset                              |
-|---------------------------------------------|
-|  1) dev      Software Development (MVP... * |
-|  2) research Deep Research & Knowledge...   |
-|  3) biz      Small Business Operations...   |
-|  ...                                        |
-|  default: dev                               |
-+---------------------------------------------+
++----------------------------------+
++----------------------------------------------+
+|  Select preset                               |
+|----------------------------------------------|
+|  1) dev      Software Development (MVP... *  |
+|  2) research Deep Research & Knowledge...    |
+|  3) biz      Small Business Operations...    |
+|  4) mkt      Local & SNS Marketing (ke...    |
+|  5) creator  Content Creation & Publis...    |
+|  6) pkm      PKM Vault Team (note/vaul...    |
+|  default: dev                                |
++----------------------------------------------+
 Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 10s [##########]
++----------------------------------------+
+|  Select agent kind                     |
+|----------------------------------------|
+|  1) opencode OpenCode Interpreter *    |
+|  2) claude   Anthropic Claude Code     |
+|  3) codex    OpenAI Codex / CLI        |
+|  4) agy      Google Antigravity Agent  |
+|  default: opencode                     |
++----------------------------------------+
+Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s):
 ```
 
 Non-interactive (pipe/CI/`--no-color`) output stays a plain one-line-per-item stream:

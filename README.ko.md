@@ -219,20 +219,33 @@ herdr-team/
 배너가 항상 첫 출력이고, 실제 터미널에서는 박스 메뉴와 카운트다운 상태 라인이 이어집니다:
 
 ```
-+---------------------------------+
-|  herdr-team v1.4.0              |
++----------------------------------+
+|  herdr-team v1.4.0               |
 |  One command. One AI agent team. |
-+---------------------------------+
-+---------------------------------------------+
-|  Select preset                              |
-|---------------------------------------------|
-|  1) dev      Software Development (MVP... * |
-|  2) research Deep Research & Knowledge...   |
-|  3) biz      Small Business Operations...   |
-|  default: dev                               |
-+---------------------------------------------+
++----------------------------------+
++----------------------------------------------+
+|  Select preset                               |
+|----------------------------------------------|
+|  1) dev      Software Development (MVP... *  |
+|  2) research Deep Research & Knowledge...    |
+|  3) biz      Small Business Operations...    |
+|  4) mkt      Local & SNS Marketing (ke...    |
+|  5) creator  Content Creation & Publis...    |
+|  6) pkm      PKM Vault Team (note/vaul...    |
+|  default: dev                                |
++----------------------------------------------+
 Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 10s [##########]
++----------------------------------------+
+|  Select agent kind                     |
+|----------------------------------------|
+|  1) opencode OpenCode Interpreter *    |
+|  2) claude   Anthropic Claude Code     |
+|  3) codex    OpenAI Codex / CLI        |
+|  4) agy      Google Antigravity Agent  |
+|  default: opencode                     |
++----------------------------------------+
+Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s):
 ```
 
 파이프/CI/`--no-color`(비TTY)에서는 박스 없이 기존 1행 스트리밍 그대로입니다:
