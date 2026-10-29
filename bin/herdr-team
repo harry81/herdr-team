@@ -32,6 +32,7 @@ NO_GITIGNORE=0
 NO_BACKUP=0
 WATCHER=0
 NO_AUTO_ALLOW=0
+NO_COLOR_MODE=0
 PRESET_ARG=""
 PRESET=""
 TEMPLATE_DIR="${HERDR_TEAM_TEMPLATE_DIR:-$HOME/templates/agent-team}"
@@ -315,6 +316,7 @@ Options:
   --precheck        check herdr CLI presence and exit
                     (0 present / 127 missing; HERDR_TEAM_SKIP_CHECK=1 bypasses)
   --no-interactive  never prompt; proceed with defaults (preset=dev, kind=opencode)
+  --no-color        disable colors/cursor control (same as NO_COLOR or TERM=dumb)
   --no-template     skip template copy/generate step
   --no-resize       split without --ratio equalization (no separate resize
                     step; flag kept for compatibility)
@@ -390,10 +392,45 @@ while [[ $# -gt 0 ]]; do
     --list-presets) LIST_PRESETS=1; shift ;;
     --precheck) if precheck_herdr; then exit 0; else exit 127; fi ;;
     --no-interactive) NO_INTERACTIVE=1; shift ;;
+    --no-color) NO_COLOR_MODE=1; shift ;;
     --*) msg parse.opt.unknown "$1" >&2; exit 2 ;;
     *) if [[ -z "$PREFIX_ARG" ]]; then PREFIX_ARG="$1"; else msg parse.prefix.multiple "$1" >&2; exit 2; fi; shift ;;
   esac
 done
+
+# --- 스타일 세션 (명세 §4.1) ---
+# plain 모드(파이프/CI/NO_COLOR/TERM=dumb/--no-color)에서는 escape·커서제어를 출력하지 않는다.
+HT_STYLE_COLOR=0
+ht_init_style() {
+  HT_STYLE_COLOR=0
+  if [[ "$NO_COLOR_MODE" -eq 1 ]]; then return 0; fi
+  if [[ ! -t 2 ]]; then return 0; fi
+  if [[ -z "${TERM:-}" || "${TERM:-}" == "dumb" ]]; then return 0; fi
+  if [[ -n "${NO_COLOR:-}" ]]; then return 0; fi
+  if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" ]]; then return 0; fi
+  HT_STYLE_COLOR=1
+}
+ht_init_style
+ht_rule() { # 구분선 1행
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
+    printf '\033[2m%s\033[0m\n' '------------------------------------------------------------'
+  else
+    printf '%s\n' '------------------------------------------------------------'
+  fi
+}
+ht_box() { # ht_box LINE... — ASCII 박스 (TTY에서만 dim 테두리)
+  local l w=0 border
+  for l in "$@"; do if [[ ${#l} -gt $w ]]; then w=${#l}; fi; done
+  border="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m%s\033[0m\n' "$border"; else printf '%s\n' "$border"; fi
+  for l in "$@"; do
+    if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m|\033[0m %s\n' "$l"; else printf '| %s\n' "$l"; fi
+  done
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m%s\033[0m\n' "$border"; else printf '%s\n' "$border"; fi
+}
+ok()   { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[32mok:\033[0m %s\n' "$*"; else printf '[ok] %s\n' "$*"; fi; }
+warn() { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[33mwarn:\033[0m %s\n' "$*"; else printf '[warn] %s\n' "$*"; fi; }
+err()  { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[31merror:\033[0m %s\n' "$*" >&2; else printf 'error: %s\n' "$*" >&2; fi; }
 
 # --- prefix 자동 추출 ---
 auto_prefix() {

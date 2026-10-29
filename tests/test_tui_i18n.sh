@@ -26,6 +26,9 @@ assert_exit() { # $1=actual $2=expected $3=label
 has_byte() { # $1=text $2=hex byte (1b/0d) — od 사용 (macOS/GNU 공통)
   printf '%s' "$1" | od -An -tx1 | tr ' ' '\n' | grep -qx -- "$2"
 }
+assert_no_esc() { # $1=output $2=label — pty 환경(CR은 pty가 붙임)에서 ESC만 검사
+  if has_byte "$1" 1b; then bad "$2 (ESC 0x1b found)"; else ok "$2"; fi
+}
 assert_plain_bytes() { # $1=output $2=label — plain 모드: ESC(0x1b)·CR(0x0d) 부재
   if has_byte "$1" 1b; then bad "$2 (ESC 0x1b found)";
   elif has_byte "$1" 0d; then bad "$2 (CR 0x0d found)";
@@ -202,6 +205,32 @@ GD3="$(mktemp -d)"; git -C "$GD3" init -q; mkdir "$GD3/.gitignore"
 GD3_OUT="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD3" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
 assert_contains "$GD3_OUT" "일반 파일이 아닙니다" "tc2f_gitignore_계약"
 rm -rf "$GD3"
+
+echo "== tc-4) NO_COLOR/TERM=dumb/--no-color (TTY 시뮬레이션: script) =="
+assert_contains "$("$BIN" --help 2>&1)" "--no-color" "tc4_help_no_color_문서화"
+if command -v script >/dev/null 2>&1; then
+  tty_run() { # $@=env prefix assignments / command extras
+    env -u CI -u GITHUB_ACTIONS -u NO_COLOR "$@" script -qec "$BIN test --preset dev --dry-run --no-template --no-interactive" /dev/null 2>&1
+  }
+  TTY_NOCOLOR="$(tty_run NO_COLOR=1)"
+  assert_no_esc "$TTY_NOCOLOR" "tc4_TTY_NO_COLOR_escape_부재"
+  TTY_DUMB="$(tty_run TERM=dumb)"
+  assert_no_esc "$TTY_DUMB" "tc4_TTY_TERM_dumb_escape_부재"
+  TTY_FLAG="$(env -u CI -u GITHUB_ACTIONS -u NO_COLOR script -qec "$BIN test --preset dev --dry-run --no-template --no-interactive --no-color" /dev/null 2>&1)"
+  assert_no_esc "$TTY_FLAG" "tc4_TTY_no_color_플래그_escape_부재"
+  TTY_CI="$(env -u NO_COLOR CI=1 script -qec "$BIN test --preset dev --dry-run --no-template --no-interactive" /dev/null 2>&1)"
+  assert_no_esc "$TTY_CI" "tc4_TTY_CI_escape_부재"
+else
+  echo "SKIP: script 명령 없음 → TTY 시뮬레이션 생략"
+fi
+
+echo "== tc-6) 결정성: 동일 입력 2회 실행 출력 동일 =="
+DET1="$(printf '1\n2\n' | "$BIN" test --dry-run --no-template 2>&1)"
+DET2="$(printf '1\n2\n' | "$BIN" test --dry-run --no-template 2>&1)"
+assert_equal "$DET1" "$DET2" "tc6_동일입력_출력동일"
+assert_plain_bytes "$DET1" "tc6_plain_escape_CR_부재"
+assert_contains "$DET1" "preset=dev" "tc6_plain_계약_preset"
+assert_contains "$DET1" "kind=claude" "tc6_plain_계약_kind"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
