@@ -208,6 +208,12 @@ GD3_OUT="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD3" --template-dir "$REPO/temp
 assert_contains "$GD3_OUT" "일반 파일이 아닙니다" "tc2f_gitignore_계약"
 rm -rf "$GD3"
 
+echo "== Q2) usage 말미 한국어 힌트 1행 =="
+HELP_TXT="$("$BIN" --help 2>&1)"
+assert_contains "$HELP_TXT" "HERDR_TEAM_LANG=ko" "q2_help_한국어_힌트"
+assert_contains "$HELP_TXT" "README.ko.md" "q2_help_한국어_가이드_링크"
+assert_contains "$HELP_TXT" "Usage:" "q2_help_영문_유지"
+
 echo "== tc-4) NO_COLOR/TERM=dumb/--no-color (TTY 시뮬레이션: script) =="
 assert_contains "$("$BIN" --help 2>&1)" "--no-color" "tc4_help_no_color_문서화"
 if command -v script >/dev/null 2>&1; then

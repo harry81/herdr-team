@@ -366,6 +366,7 @@ Labels:
   ① PM / ② <role 1 (orchestrator)> / ③ <role 2> / ④ <role 3> / ⑤ <role 4>
   (agents: {prefix}-<role>)
 EOF
+  printf '\n  한국어 안내: 메뉴·메시지는 HERDR_TEAM_LANG=ko 로 한국어 표시됩니다 (%s).\n' 'README.ko.md'
 }
 
 # --- 인자 파싱 ---
