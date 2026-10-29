@@ -132,7 +132,7 @@ _msg_en() {
     agent.err.session_json) printf 'error: session request JSON failed (%s)\n' "$2" ;;
     agent.err.session_fail) printf 'error: session creation failed (%s) - check opencode install/background service\n' "$2" ;;
     agent.err.session_parse) printf 'error: session id parse failed (%s): %s\n' "$2" "$3" ;;
-    agent.err.session_abort) printf 'error: %s session creation failed → start aborted (panes already created: %s)\n' "$2" "$3" ;;
+    agent.err.session_abort) printf 'error: %s session creation failed -> start aborted (panes already created: %s)\n' "$2" "$3" ;;
     agent.err.start_abort) printf 'error: %s start aborted (pane %s shell not ready)\n' "$2" "$3" ;;
     agent.log.exists) printf '[herdr-team] %s already exists - start skipped\n' "$2" ;;
     log.gitignore.skip_opt) printf 'skip: gitignore augmentation (--no-gitignore)\n' ;;
@@ -978,7 +978,7 @@ ensure_gitignore() {  # R1: 부족분만 1회 append (멱등·원자적·기존 
     return 0
   fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf '+ gitignore: append %s → %s\n' "${add[*]}" "$gi"
+    printf '+ gitignore: append %s -> %s\n' "${add[*]}" "$gi"
     return 0
   fi
   {
@@ -1018,7 +1018,7 @@ sync_root_agents() {
   # (4b) 인커밍 활성화: 백업 → 관리 섹션만 치환(사용자 본문 보존) → 원자적 쓰기. 정본은 순수 내용 유지
   if [[ ! -f "$root" ]]; then
     atomic_write "$root" < "$canon/AGENTS.md" || { rm -rf "$tmpd"; return 1; }
-    log "activate: agents/${PRESET}/AGENTS.md → AGENTS.md"
+    log "activate: agents/${PRESET}/AGENTS.md -> AGENTS.md"
   elif [[ "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
     managed_part "$root" preamble > "$tmpd/pre"
     if [[ "$(managed_state "$canon/AGENTS.md")" == "single" ]]; then
@@ -1067,7 +1067,7 @@ start_watcher() {
   if [[ -z "$wbin" && -x "$SCRIPT_DIR/../bin/herdr-watcher" ]]; then wbin="$SCRIPT_DIR/../bin/herdr-watcher"; fi
   if [[ -z "$wbin" ]]; then log "$(msg log.watcher.missing)"; return 0; fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf '+ watcher: start --prefix %s --cwd %s → .herdr-team/watcher.log (pidfile %s)\n' "${PREFIX}-" "$CWD" ".herdr-team/watcher.pid"
+    printf '+ watcher: start --prefix %s --cwd %s -> .herdr-team/watcher.log (pidfile %s)\n' "${PREFIX}-" "$CWD" ".herdr-team/watcher.pid"
     return 0
   fi
   if ! command -v python3 >/dev/null 2>&1; then log "$(msg log.watcher.skip_py)"; return 0; fi
@@ -1319,7 +1319,7 @@ setup_permissions() {  # 시딩: .opencode/opencode.jsonc(기존 사용자 파�
   local dest="$CWD/.opencode" global="$CWD/.opencode/opencode.jsonc" role
   if [[ "$DRY_RUN" -eq 1 ]]; then
     msg log.perm.merge_plan "$src" "$global"
-    printf '+ permissions: merge profile/%s/<role>.json → .opencode/agents/%s-<role>.md frontmatter (V2 permissions/policies)\n' "$PRESET" "$PREFIX"
+    printf '+ permissions: merge profile/%s/<role>.json -> .opencode/agents/%s-<role>.md frontmatter (V2 permissions/policies)\n' "$PRESET" "$PREFIX"
     return 0
   fi
   mkdir -p "$dest/agents"
@@ -1567,24 +1567,24 @@ setup_templates() {
     local role src
     for role in "${ROLES[@]}"; do
       if [[ "$FORCE" -eq 0 ]] && printf '%s\n' "$legacy_list" | grep -qx "${PREFIX}-${role}.md"; then
-        printf '+ import(legacy): agents/%s-%s.md → agents/%s/%s-%s.md\n' "$PREFIX" "$role" "$PRESET" "$PREFIX" "$role"
+        printf '+ import(legacy): agents/%s-%s.md -> agents/%s/%s-%s.md\n' "$PREFIX" "$role" "$PRESET" "$PREFIX" "$role"
       else
         src="$agents_src/ROLE-${role}.md"
         [[ -n "$src" && -f "$src" ]] || src="$preset_base/ROLE-${role}.md"
         if [[ -n "$src" && -f "$src" ]]; then
-          printf '+ seed: %s → agents/%s/%s-%s.md\n' "$src" "$PRESET" "$PREFIX" "$role"
+          printf '+ seed: %s -> agents/%s/%s-%s.md\n' "$src" "$PRESET" "$PREFIX" "$role"
         else
           printf '%s\n' "$(msg log.seed_preset "$PRESET" "$PREFIX" "$role")"
         fi
       fi
     done
     if [[ -n "$agents_md_src" && -f "$agents_md_src" ]]; then
-      printf '+ canonical: %s → agents/%s/AGENTS.md\n' "$agents_md_src" "$PRESET"
+      printf '+ canonical: %s -> agents/%s/AGENTS.md\n' "$agents_md_src" "$PRESET"
     else
       printf '%s\n' "$(msg log.canon_preset "$PRESET")"
     fi
     if [[ -f "$root" && -n "$active" && "$active" != "$PRESET" && "$FORCE" -eq 0 ]]; then
-      printf '+ write-back: AGENTS.md → agents/%s/AGENTS.md\n' "$active"
+      printf '+ write-back: AGENTS.md -> agents/%s/AGENTS.md\n' "$active"
     fi
     if [[ -f "$root" && "$NO_BACKUP" -eq 0 ]]; then
       if [[ "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
@@ -1592,7 +1592,7 @@ setup_templates() {
       fi
     fi
     if [[ ! -f "$root" || "$FORCE" -eq 1 || "$active" != "$PRESET" ]]; then
-      printf '+ activate: agents/%s/AGENTS.md → AGENTS.md\n' "$PRESET"
+      printf '+ activate: agents/%s/AGENTS.md -> AGENTS.md\n' "$PRESET"
     fi
     set_active_preset "$PRESET"
     return 0
@@ -1659,7 +1659,7 @@ setup_opencode_agents() {
   local prev="${PREV_ACTIVE:-}"
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    log "opencode agent sync(prune+gen): $oa_src → $dest_dir (prefix=${PREFIX})"
+    log "opencode agent sync(prune+gen): $oa_src -> $dest_dir (prefix=${PREFIX})"
     local r2 want=0
     for role in orchestrator planner worker researcher reviewer; do
       want=0
@@ -1673,7 +1673,7 @@ setup_opencode_agents() {
     if [[ ${#desired[@]} -gt 0 ]]; then
       for role in "${desired[@]}"; do
         [[ -f "$oa_src/ROLE-${role}.md" ]] || continue
-        printf '+ gen: %s/ROLE-%s.md → .opencode/agents/%s-%s.md\n' "$oa_src" "$role" "$PREFIX" "$role"
+        printf '+ gen: %s/ROLE-%s.md -> .opencode/agents/%s-%s.md\n' "$oa_src" "$role" "$PREFIX" "$role"
       done
     fi
     return 0
