@@ -411,13 +411,6 @@ ht_init_style() {
   HT_STYLE_COLOR=1
 }
 ht_init_style
-ht_rule() { # 구분선 1행
-  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
-    printf '\033[2m%s\033[0m\n' '------------------------------------------------------------'
-  else
-    printf '%s\n' '------------------------------------------------------------'
-  fi
-}
 ht_box() { # ht_box LINE... — ASCII 박스 (TTY에서만 dim 테두리)
   local l w=0 border
   for l in "$@"; do if [[ ${#l} -gt $w ]]; then w=${#l}; fi; done
@@ -428,10 +421,6 @@ ht_box() { # ht_box LINE... — ASCII 박스 (TTY에서만 dim 테두리)
   done
   if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m%s\033[0m\n' "$border"; else printf '%s\n' "$border"; fi
 }
-ok()   { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[32mok:\033[0m %s\n' "$*"; else printf '[ok] %s\n' "$*"; fi; }
-warn() { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[33mwarn:\033[0m %s\n' "$*"; else printf '[warn] %s\n' "$*"; fi; }
-err()  { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[31merror:\033[0m %s\n' "$*" >&2; else printf 'error: %s\n' "$*" >&2; fi; }
-
 # --- 시작 배너 / 진행 단계 / 최종 요약 (명세 §4.2/§4.4/§4.5) ---
 ht_banner() {
   if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
@@ -497,8 +486,7 @@ countdown_stop() {
   [[ -n "$pid" ]] || return 0
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
-  kill -9 "$pid" 2>/dev/null || true
-  wait "$pid" 2>/dev/null || true
+  if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\r\033[K' >&2 || true; fi
   return 0
 }
@@ -991,8 +979,7 @@ run() {
     # 실패 시 stdout 억제 + 종료코드 전파. 무음 소실 방지: 원인 명시 에러로 폐쇄.
     "$@" >/dev/null && return 0
     local __r=$?
-    # 함수 추출 단위 테스트(test_pane_ready/test_preset)는 카탈로그를 함께 싣지 않으므로 폴백 문구 유지
-    msg run.err.cmd_fail "$*" >&2 || printf 'error: 명령 실패: %s\n' "$*" >&2
+    msg run.err.cmd_fail "$*" >&2
     return "$__r"
   fi
 }
@@ -1056,8 +1043,8 @@ wait_pane_ready() {
   local _pane="$1" _start=$SECONDS _n=0 _limit="${HERDR_TEAM_READY_TIMEOUT_S:-$READY_TIMEOUT_S}"
   until pane_shell_foreground "$_pane"; do
     (( SECONDS - _start < _limit )) || {
-      msg pane.err.ready_timeout "$_pane" "$_limit" >&2 || printf 'error: pane %s ready 대기 초과 (%ss)\n' "$_pane" "$_limit" >&2
-      msg pane.err.foreground >&2 || printf 'error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다.\n' >&2
+      msg pane.err.ready_timeout "$_pane" "$_limit" >&2
+      msg pane.err.foreground >&2
       return 1
     }
     _n=$((_n+1))
@@ -1070,8 +1057,8 @@ wait_pane_ready() {
   until herdr pane run "$_pane" printf "$HT_READY_MARKER" >/dev/null 2>&1 \
         && herdr pane wait-output "$_pane" --regex "(?m)^[ \t]*${HT_READY_MARKER}" --timeout 1500 >/dev/null 2>&1; do
     (( SECONDS - _start < _limit )) || {
-      msg pane.err.ready_timeout "$_pane" "$_limit" >&2 || printf 'error: pane %s ready 대기 초과 (%ss)\n' "$_pane" "$_limit" >&2
-      msg pane.err.foreground >&2 || printf 'error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다.\n' >&2
+      msg pane.err.ready_timeout "$_pane" "$_limit" >&2
+      msg pane.err.foreground >&2
       return 1
     }
     _n=$((_n+1))
