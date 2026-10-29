@@ -20,8 +20,6 @@
 
 ## How it looks
 
-![herdr-team demo](docs/assets/demo.gif)
-
 ```
 +----------------+----------------+----------------+----------------+
 | ① PM           | ② Planner      | ③ Worker       | ④ Reviewer     |
@@ -264,7 +262,7 @@ Notes:
 - Non-blocking: EOF / timeout / piped input falls back to `dev` (automation-safe).
 - `--no-interactive` never prompts and defaults to `dev`.
 - `--list-presets` prints available presets and exits.
-- The countdown prints on its own line (`` + line clear only) and is cleared on
+- The countdown prints on its own line (`\r` + line clear only) and is cleared on
   input / EOF / timeout / Ctrl-C / exit; the prompt line is never rewritten.
 - Colors, box art and the countdown are used only on an interactive terminal.
   Piped, `CI`, `NO_COLOR`, `TERM=dumb` and `--no-color` output is plain ASCII with no
