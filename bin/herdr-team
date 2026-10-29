@@ -427,7 +427,7 @@ ht_box_titled() { # $1=title $2=footer; $3... = rows (TTY 전용 박스)
   bar="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
   printf '\033[34m%s\033[0m\n' "$bar"
   printf '\033[34m|\033[0m  \033[1m%s\033[0m%*s\033[34m|\033[0m\n' "$title" $((w-${#title})) ''
-  printf '\033[34m|\033[0m\033[2m%s\033[0m\033[34m|\033[0m\n' "$(printf '%*s' $((w+3)) '' | tr ' ' '-')"
+  printf '\033[34m|\033[0m\033[2m%s\033[0m\033[34m|\033[0m\n' "$(printf '%*s' $((w+2)) '' | tr ' ' '-')"
   for l in "$@"; do printf '\033[34m|\033[0m  \033[32m%s\033[0m%*s\033[34m|\033[0m\n' "$l" $((w-${#l})) ''; done
   printf '\033[34m|\033[0m  \033[2m%s\033[0m%*s\033[34m|\033[0m\n' "$footer" $((w-${#footer})) ''
   printf '\033[34m%s\033[0m\n' "$bar"

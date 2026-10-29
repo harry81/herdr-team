@@ -149,6 +149,18 @@ STUBEOF
   assert_contains "$SUM_LOG" "prefix : sm" "l8_TTY_요약_prefix"
   assert_contains "$SUM_LOG" "next: herdr agent list" "l8_TTY_요약_다음단계"
   assert_not_contains "$SUM_LOG" "완료:" "l8_TTY_요약_한국어_없음"
+  # 박스 정렬: ANSI 제거 후 Team ready 박스의 모든 라인 바이트 길이가 같아야 한다
+  SUM_BOX="$(printf '%s\n' "$SUM_LOG" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r' | awk '
+    /^[+|]/ { block = block $0 "\n"; if ($0 ~ /Team ready/) hit = 1; next }
+    { if (hit) { printf "%s", block; exit } block = "" }
+    END { if (hit) printf "%s", block }
+  ')"
+  if [[ -z "$SUM_BOX" ]]; then
+    bad "l8_TTY_요약_박스_정렬 (박스 미검출)"
+  else
+    WIDTHS="$(printf '%s\n' "$SUM_BOX" | awk 'NF{print length}' | sort -u | tr '\n' ' ')"
+    assert_equal "$(printf '%s' "$WIDTHS" | wc -w | tr -d ' ')" "1" "l8_TTY_요약_박스_정렬(폭=$WIDTHS)"
+  fi
   rm -rf "$S8" "$SC8"
 else
   echo "SKIP: script/jq 없음 → TTY 요약 검증 생략"
