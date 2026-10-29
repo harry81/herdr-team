@@ -79,6 +79,11 @@ else
       *) ok "tc1_서식_해소_$k" ;;
     esac
   done
+  # 미지 키는 조용히 사라지지 않고 stderr로 방어 메시지를 낸다 (양 로케일 공통)
+  UNK_EN="$(bash -c 'source "$1"; _msg_en no.such.key' _ "$CAT_SRC" 2>&1)"
+  UNK_KO="$(bash -c 'source "$1"; _msg_ko no.such.key' _ "$CAT_SRC" 2>&1)"
+  assert_contains "$UNK_EN" "error: missing message key: no.such.key" "tc1_미지키_en_방어"
+  assert_contains "$UNK_KO" "error: missing message key: no.such.key" "tc1_미지키_ko_방어"
   rm -f "$CAT_SRC"
   # 키 집합 동일성 + 키별 서식 인자 개수 일치 (카탈로그 컴파일 타임 검증)
   cat_key_args() { # $1=_msg_en|_msg_ko → "key<TAB>포맷인자수" 정렬 목록

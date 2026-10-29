@@ -153,6 +153,7 @@ _msg_en() {
     agent.err.session_abort) printf 'error: %s session creation failed → start aborted (panes already created: %s)\n' "$2" "$3" ;;
     agent.err.start_abort) printf 'error: %s start aborted (pane %s shell not ready)\n' "$2" "$3" ;;
     agent.log.exists) printf '[herdr-team] %s already exists — start skipped\n' "$2" ;;
+    *) printf 'error: missing message key: %s\n' "$1" >&2 ;;
   esac
 }
 _msg_ko() {
@@ -213,6 +214,7 @@ _msg_ko() {
     agent.err.session_abort) printf 'error: %s 세션 생성 실패 → 시작 중단 (이미 생성된 pane: %s개)\n' "$2" "$3" ;;
     agent.err.start_abort) printf 'error: %s 시작 중단 (pane %s shell 미준비)\n' "$2" "$3" ;;
     agent.log.exists) printf '[herdr-team] %s 이미 존재 → 시작 생략\n' "$2" ;;
+    *) printf 'error: missing message key: %s\n' "$1" >&2 ;;
   esac
 }
 
