@@ -400,6 +400,7 @@ ht_banner() { # 명세 §4.2 — TTY 박스 아트(축소 규칙), plain 1행 �
     printf '\033[34m|\033[0m  \033[36m%s\033[0m%*s \033[34m|\033[0m\n' "$t2" $((w-${#t2})) ''
   fi
   printf '\033[34m%s\033[0m\n' "$bar"
+  printf '\n'
 }
 HT_STEP_N=0
 HT_STEP_TOTAL=4
