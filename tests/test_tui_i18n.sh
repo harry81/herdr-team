@@ -232,6 +232,34 @@ assert_plain_bytes "$DET1" "tc6_plain_escape_CR_부재"
 assert_contains "$DET1" "preset=dev" "tc6_plain_계약_preset"
 assert_contains "$DET1" "kind=claude" "tc6_plain_계약_kind"
 
+echo "== tc-5) 카운트다운 라이프사이클 (지연 입력/EOF/고아 프로세스) =="
+ps_count() { # $1=pattern → 현재 매칭 프로세스 수 (자기 자신 제외)
+  ps -eo args= 2>/dev/null | grep -F -- "$1" | grep -v -F 'grep -F' | wc -l | tr -d ' '
+}
+T0=$SECONDS
+DELAYED_OUT="$(( sleep 2; printf '1\n1\n' ) | timeout 20 "$BIN" test --dry-run --no-template 2>&1)"; DELAYED_RC=$?
+ELAPSED=$((SECONDS-T0))
+assert_exit "$DELAYED_RC" 0 "tc5_지연입력_exit0"
+assert_contains "$DELAYED_OUT" "preset=dev" "tc5_지연입력_정상선택"
+if [[ "$ELAPSED" -lt 8 ]]; then ok "tc5_지연입력_8초미만(${ELAPSED}s)"; else bad "tc5_지연입력_8초미만(${ELAPSED}s)"; fi
+assert_equal "$(ps_count "$BIN")" "0" "tc5_고아프로세스_0건"
+T1=$SECONDS
+EOF_OUT="$(printf '' | timeout 20 "$BIN" test --dry-run --no-template 2>&1)"; EOF_RC=$?
+EOF_ELAPSED=$((SECONDS-T1))
+assert_exit "$EOF_RC" 0 "tc5_EOF_exit0"
+assert_contains "$EOF_OUT" "preset=dev" "tc5_EOF_dev기본"
+if [[ "$EOF_ELAPSED" -lt 8 ]]; then ok "tc5_EOF_즉시복귀(${EOF_ELAPSED}s)"; else bad "tc5_EOF_즉시복귀(${EOF_ELAPSED}s)"; fi
+assert_plain_bytes "$EOF_OUT" "tc5_EOF_escape_CR_부재"
+assert_equal "$(ps_count "$BIN")" "0" "tc5_EOF_고아프로세스_0건"
+if command -v script >/dev/null 2>&1; then
+  TTY_CNT="$( ( sleep 2; printf '1\n1\n' ) | env -u CI -u NO_COLOR timeout 20 script -qec "$BIN test --dry-run --no-template" /dev/null 2>&1)"
+  assert_contains "$TTY_CNT" "s remaining" "tc5_TTY_카운트다운_표시"
+  assert_contains "$TTY_CNT" "preset=dev" "tc5_TTY_선택_정상"
+  assert_equal "$(ps_count "$BIN")" "0" "tc5_TTY_고아프로세스_0건"
+else
+  echo "SKIP: script 없음 → TTY 카운트다운 검증 생략"
+fi
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

@@ -432,6 +432,42 @@ ok()   { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[32mok:\033[0m %s\n'
 warn() { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[33mwarn:\033[0m %s\n' "$*"; else printf '[warn] %s\n' "$*"; fi; }
 err()  { if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[31merror:\033[0m %s\n' "$*" >&2; else printf 'error: %s\n' "$*" >&2; fi; }
 
+# --- 카운트다운 렌더러 (명세 §4.3) ---
+# TTY 모드에서만 표시. plain 모드에서는 프로세스 0개·출력 0바이트(기존 read 동작 불변).
+HT_CNT_PID=""
+HT_CNT_FLAG=""
+countdown_start() { # $1=seconds
+  HT_CNT_PID=""
+  if [[ "$HT_STYLE_COLOR" -ne 1 ]]; then return 0; fi
+  local left="${1:-10}"
+  HT_CNT_FLAG="$(mktemp 2>/dev/null || true)"
+  (
+    while [[ "$left" -gt 0 ]]; do
+      [[ -n "$HT_CNT_FLAG" && -e "$HT_CNT_FLAG" ]] || exit 0
+      printf '\r  %ss remaining' "$left" >&2
+      sleep 1
+      left=$((left-1))
+    done
+  ) &
+  HT_CNT_PID=$!
+  trap 'countdown_stop' EXIT
+  trap 'countdown_stop; trap - INT; kill -INT $$' INT
+  trap 'countdown_stop; trap - TERM; kill -TERM $$' TERM
+}
+countdown_stop() {
+  local pid="${HT_CNT_PID:-}"
+  HT_CNT_PID=""
+  if [[ -n "${HT_CNT_FLAG:-}" ]]; then rm -f "$HT_CNT_FLAG" 2>/dev/null || true; fi
+  HT_CNT_FLAG=""
+  [[ -n "$pid" ]] || return 0
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  kill -9 "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\r\033[K' >&2 || true; fi
+  return 0
+}
+
 # --- prefix 자동 추출 ---
 auto_prefix() {
   local base=""
@@ -502,7 +538,9 @@ choose_preset_tui() {
     msg preset.menu.prompt "${#names[@]}" "$joined" "$default"
   } >&2
   local ans=""
+  countdown_start 10
   if IFS= read -r -t 10 ans <&0 2>/dev/null; then
+    countdown_stop
     ans="$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
     if [[ -z "$ans" ]]; then printf '%s' "$default"; return; fi
     case "$ans" in
@@ -526,6 +564,7 @@ choose_preset_tui() {
         ;;
     esac
   else
+    countdown_stop
     printf '%s' "$default"
   fi
 }
@@ -548,7 +587,9 @@ choose_kind_tui() {
     msg kind.menu.prompt
   } >&2
   local ans=""
+  countdown_start 10
   if IFS= read -r -t 10 ans <&0 2>/dev/null; then
+    countdown_stop
     ans="$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
     case "$ans" in
       ""|1|opencode) printf 'opencode' ;;
@@ -564,6 +605,7 @@ choose_kind_tui() {
         ;;
     esac
   else
+    countdown_stop
     printf 'opencode'
   fi
 }
