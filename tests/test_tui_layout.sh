@@ -122,6 +122,28 @@ else
   echo "SKIP: script 없음 → 폭 축소 검증 생략"
 fi
 
+echo "== L8) 최종 요약: TTY 박스 / plain 2행 계약 =="
+if command -v script >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  S8="$(mktemp -d)"; SC8="$(mktemp -d)"
+  cat > "$S8/herdr" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '{"result":{"pane":{"pane_id":"wT:p1"}}}\n'
+STUBEOF
+  chmod +x "$S8/herdr"
+  : > "$SC8/out"
+  PATH="$S8:$PATH" timeout 25 script -qec "stty cols 100; exec $BIN sm --preset dev --cwd $SC8 --template-dir $REPO/templates --no-interactive --no-start" "$SC8/out" >/dev/null 2>&1
+  SUM_LOG="$(cat "$SC8/out")"
+  assert_contains "$SUM_LOG" "Team ready" "l8_TTY_요약_헤더"
+  assert_contains "$SUM_LOG" "prefix : sm" "l8_TTY_요약_prefix"
+  assert_contains "$SUM_LOG" "next: herdr agent list" "l8_TTY_요약_다음단계"
+  assert_not_contains "$SUM_LOG" "완료:" "l8_TTY_요약_한국어_없음"
+  rm -rf "$S8" "$SC8"
+else
+  echo "SKIP: script/jq 없음 → TTY 요약 검증 생략"
+fi
+PLAIN_SUM="$(timeout 25 "$BIN" sm2 --preset dev --dry-run --no-template --no-interactive 2>&1)"
+assert_not_contains "$PLAIN_SUM" "Team ready" "l8_plain_요약_박스_없음"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

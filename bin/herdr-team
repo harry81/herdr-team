@@ -427,13 +427,29 @@ step_end() {
     printf '[ok] %s\n' "$HT_STEP_CUR"
   fi
 }
-ht_summary() { # 성공 종료 요약 — dry-run 제외 실 실행 전용
+ht_box_titled() { # $1=title $2=footer; $3... = rows (TTY 전용 박스)
+  local title="$1" footer="$2"; shift 2
+  local l w=${#title} bar
+  for l in "$@"; do if [[ ${#l} -gt $w ]]; then w=${#l}; fi; done
+  if [[ ${#footer} -gt $w ]]; then w=${#footer}; fi
+  bar="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
+  printf '\033[34m%s\033[0m\n' "$bar"
+  printf '\033[34m|\033[0m  \033[1m%s\033[0m%*s\033[34m|\033[0m\n' "$title" $((w-${#title})) ''
+  printf '\033[34m|\033[0m\033[2m%s\033[0m\033[34m|\033[0m\n' "$(printf '%*s' $((w+2)) '' | tr ' ' '-')"
+  for l in "$@"; do printf '\033[34m|\033[0m  \033[32m%s\033[0m%*s\033[34m|\033[0m\n' "$l" $((w-${#l})) ''; done
+  printf '\033[34m|\033[0m  \033[2m%s\033[0m%*s\033[34m|\033[0m\n' "$footer" $((w-${#footer})) ''
+  printf '\033[34m%s\033[0m\n' "$bar"
+}
+ht_summary() { # 성공 종료 요약 — dry-run 제외 실 실행 전용 (plain 2행 계약 불변)
   if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
-    ht_box "prefix: $PREFIX" "preset: $PRESET" "kind: $KIND" "layout: $LAYOUT" "agents: ${#ROLES[@]}"
-  else
-    printf '[done] prefix=%s preset=%s kind=%s layout=%s agents=%s\n' "$PREFIX" "$PRESET" "$KIND" "$LAYOUT" "${#ROLES[@]}"
-    printf 'next: herdr agent list\n'
+    local _rows=("prefix : $PREFIX" "preset : $PRESET" "kind   : $KIND" "layout : $LAYOUT" "agents : ${#ROLES[@]}")
+    if [[ "$(ht_cols)" -ge 40 ]] && ht_menu_rows_fit "$(ht_cols)" "Team ready" "next: herdr agent list" "${_rows[@]}"; then
+      ht_box_titled "Team ready" "next: herdr agent list" "${_rows[@]}"
+      return 0
+    fi
   fi
+  printf '[done] prefix=%s preset=%s kind=%s layout=%s agents=%s\n' "$PREFIX" "$PRESET" "$KIND" "$LAYOUT" "${#ROLES[@]}"
+  printf 'next: herdr agent list\n'
 }
 
 # --- 카운트다운 렌더러 (명세 §3: 2줄 레이아웃 / 상태 라인 전용 갱신) ---
