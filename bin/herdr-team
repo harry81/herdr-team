@@ -563,6 +563,53 @@ list_presets() {
     fi
   done
 }
+ht_trunc() { # $1=text $2=max chars → 초과 시 말줄임(ASCII)
+  if [[ ${#1} -le $2 ]]; then printf '%s' "$1"; else printf '%s...' "${1:0:$(( $2 - 3 ))}"; fi
+}
+ht_menu_rows_fit() { # $1=cols, $2...=row strings → 박스가 화면 폭에 들어가는가
+  local cols="$1"; shift
+  local l w=0
+  for l in "$@"; do if [[ ${#l} -gt $w ]]; then w=${#l}; fi; done
+  [[ $((w+4)) -le $((cols-1)) ]]
+}
+ht_menu_box() { # $1=title $2=footer; $3... = "num|name|desc|marker" 행
+  local title="$1" footer="$2"; shift 2
+  local rows=() spec n name desc mark row w=0 l
+  for spec in "$@"; do
+    n="${spec%%|*}"; spec="${spec#*|}"
+    name="${spec%%|*}"; spec="${spec#*|}"
+    desc="${spec%%|*}"; mark="${spec##*|}"
+    rows+=("$n|$name|$desc|$mark")
+    row=" $n) $name $desc$mark"
+    if [[ ${#row} -gt $w ]]; then w=${#row}; fi
+  done
+  if [[ ${#title} -gt $w ]]; then w=${#title}; fi
+  if [[ ${#footer} -gt $w ]]; then w=${#footer}; fi
+  local bar="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
+  printf '\033[36m%s\033[0m\n' "$bar"
+  printf '\033[36m|\033[0m  \033[1m%s\033[0m%*s\033[36m|\033[0m\n' "$title" $((w-${#title})) ''
+  printf '\033[36m|\033[0m\033[2m%s\033[0m\033[36m|\033[0m\n' "$(printf '%*s' $((w+2)) '' | tr ' ' '-')"
+  local used pad
+  for spec in "${rows[@]}"; do
+    n="${spec%%|*}"; spec="${spec#*|}"
+    name="${spec%%|*}"; spec="${spec#*|}"
+    desc="${spec%%|*}"; mark="${spec##*|}"
+    used=$(( ${#n} + 2 + ${#name} + 1 + ${#desc} + ${#mark} ))
+    pad=$(( w - used )); if [[ $pad -lt 0 ]]; then pad=0; fi
+    if [[ -n "$mark" ]]; then
+      printf '\033[36m|\033[0m  \033[35m%s\033[0m) %s %s\033[35m%s\033[0m%*s\033[36m|\033[0m\n' \
+        "$n" "$name" "$desc" "$mark" "$pad" ''
+    else
+      printf '\033[36m|\033[0m  \033[35m%s\033[0m) %s %s%*s\033[36m|\033[0m\n' \
+        "$n" "$name" "$desc" "$pad" ''
+    fi
+  done
+  if [[ -n "$footer" ]]; then
+    printf '\033[36m|\033[0m  \033[2m%s\033[0m%*s\033[36m|\033[0m\n' "$footer" $((w-${#footer})) ''
+  fi
+  printf '\033[36m%s\033[0m\n' "$bar"
+}
+
 choose_preset_tui() {
   # Interactive TUI preset menu (English primary + Korean), dinamically built
   # from discovered presets. Renders to stderr and reads one line from stdin.
@@ -572,12 +619,31 @@ choose_preset_tui() {
   [[ ${#names[@]} -eq 0 ]] && names=(dev)
   local default="${names[0]}"
   {
-    msg preset.menu.title "${#names[@]}" "$default"
+    local _rows=() _plain=() _cols=0 _maxname=0 _d="" _mark="" _padname=""
     for n in "${names[@]}"; do
-      printf '  %d) %s - %s\n' "$i" "$n" "$(preset_desc "$n")"
+      if [[ ${#n} -gt $_maxname ]]; then _maxname=${#n}; fi
       joined+="$n/"; i=$((i+1))
     done
     joined="${joined%/}"
+    i=1
+    for n in "${names[@]}"; do
+      _d="$(ht_trunc "$(preset_desc "$n")" 28)"
+      _padname="$n$(printf '%*s' $((_maxname-${#n})) '')"
+      if [[ "$n" == "$default" ]]; then _mark=" *"; else _mark=""; fi
+      _rows+=("$i|$_padname|$_d|$_mark")
+      _plain+=(" $i) $_padname $_d$_mark")
+      i=$((i+1))
+    done
+    if [[ "$HT_STYLE_COLOR" -eq 1 && "$(ht_cols)" -ge 40 ]] && ht_menu_rows_fit "$(ht_cols)" "Select preset" "${_plain[@]}"; then
+      ht_menu_box "Select preset" "default: $default" "${_rows[@]}"
+    else
+      msg preset.menu.title "${#names[@]}" "$default"
+      i=1
+      for n in "${names[@]}"; do
+        printf '  %d) %s - %s\n' "$i" "$n" "$(preset_desc "$n")"
+        i=$((i+1))
+      done
+    fi
     msg preset.menu.prompt "${#names[@]}" "$joined" "$default"
   } >&2
   local ans=""
@@ -622,11 +688,25 @@ choose_kind_tui() {
   # Renders to stderr and reads one line from stdin.
   # Falls back to kind=opencode on EOF/timeout/non-TTY so it never hangs.
   {
-    msg kind.menu.title
-    msg kind.menu.item1
-    printf '  2) claude   - Anthropic Claude Code\n'
-    printf '  3) codex    - OpenAI Codex / CLI\n'
-    printf '  4) agy      - Google Antigravity Agent\n'
+    if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
+      local _krows=("1|opencode|OpenCode Interpreter| *" "2|claude  |Anthropic Claude Code|" "3|codex   |OpenAI Codex / CLI|" "4|agy     |Google Antigravity Agent|")
+      local _kplain=(" 1) opencode OpenCode Interpreter *" " 2) claude   Anthropic Claude Code" " 3) codex    OpenAI Codex / CLI" " 4) agy      Google Antigravity Agent")
+      if ht_menu_rows_fit "$(ht_cols)" "Select agent kind" "${_kplain[@]}"; then
+        ht_menu_box "Select agent kind" "default: opencode" "${_krows[@]}"
+      else
+        msg kind.menu.title
+        msg kind.menu.item1
+        printf '  2) claude   - Anthropic Claude Code\n'
+        printf '  3) codex    - OpenAI Codex / CLI\n'
+        printf '  4) agy      - Google Antigravity Agent\n'
+      fi
+    else
+      msg kind.menu.title
+      msg kind.menu.item1
+      printf '  2) claude   - Anthropic Claude Code\n'
+      printf '  3) codex    - OpenAI Codex / CLI\n'
+      printf '  4) agy      - Google Antigravity Agent\n'
+    fi
     msg kind.menu.prompt
   } >&2
   local ans=""
