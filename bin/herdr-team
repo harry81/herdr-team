@@ -380,8 +380,6 @@ ht_init_style() {
   HT_STYLE_COLOR=1
 }
 ht_init_style
-# 카운트다운/정리 출력 전용 fd: read 의 `2>/dev/null` 같은 리다이렉트 문맥에서도 tty 로 내보낸다
-exec 9>&2
 # --- 시작 배너 / 진행 단계 / 최종 요약 (명세 §4.2/§4.4/§4.5) ---
 ht_banner() { # 명세 §4.2 — TTY 박스 아트(축소 규칙), plain 1행 계약 불변
   local cols t1 t2 w bar
@@ -482,6 +480,8 @@ countdown_start() { # $1=seconds
   HT_CNT_DONE=0
   if [[ "$HT_STYLE_COLOR" -ne 1 ]]; then return 0; fi
   local left="${1:-10}"
+  # 전용 fd: read 의 리다이렉트 문맥에서도 tty 로 clear 를 내보낸다 (종료 시 닫아 자식 누수 방지)
+  exec 9>&2
   HT_CNT_FLAG="$(mktemp "${TMPDIR:-/tmp}/ht-cnt.XXXXXX" 2>/dev/null || true)"  # BSD mktemp 는 템플릿 필수
   # Ctrl-C 에코(^C)가 상태 라인에 남지 않도록 tty echoctl 만 잠시 끈다 (stop에서 복원)
   HT_CNT_TTY="$(stty -g 2>/dev/null || true)"
@@ -511,11 +511,15 @@ countdown_stop() { # 상태 라인 clear + 개행 — 1회성 (INPUT/timeout/INT
     if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   fi
   if [[ -n "${HT_CNT_TTY:-}" ]]; then
-    if [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then printf '\r\033[2K\n' >&9 || true; fi
+    if [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then
+      printf '\r\033[2K\n' >&9 || true
+      exec 9>&-            # 자식/백그라운드 프로세스로 fd 누수 금지
+    fi
     stty "$HT_CNT_TTY" 2>/dev/null || true
     HT_CNT_TTY=""
   elif [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then
     if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\r\033[2K\n' >&9 || true; fi
+    exec 9>&-
   fi
   HT_CNT_DONE=1
   return 0
