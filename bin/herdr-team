@@ -73,7 +73,7 @@ VERSION="$(read_version)"
 # 결정 순서: HERDR_TEAM_LANG > LC_ALL > LANG > en. 시작 시 1회 확정(실행 중 불변).
 # 카탈로그는 스크립트 내부 함수(단일 파일 배포 무결성 — 명세 §3.2 A안).
 MSG_LOCALE=""
-MSG_KEYS="parse.opt.missing.kind parse.opt.missing.layout parse.opt.missing.cwd parse.opt.missing.template_dir parse.opt.missing.preset parse.opt.unknown parse.prefix.multiple parse.prefix.invalid layout.unknown precheck.warn.skip precheck.err.title precheck.install.cmd precheck.verify precheck.bypass preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli"
+MSG_KEYS="parse.opt.missing.kind parse.opt.missing.layout parse.opt.missing.cwd parse.opt.missing.template_dir parse.opt.missing.preset parse.opt.unknown parse.prefix.multiple parse.prefix.invalid layout.unknown precheck.warn.skip precheck.err.title precheck.install.cmd precheck.verify precheck.bypass preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli fs.err.symlink.resolve fs.err.is_directory fs.err.write_denied fs.err.write_fail fs.err.replace_fail fs.err.backup_mkdir fs.err.backup_cp guard.err.agentsmd_lower guard.err.agentsmd_lower.path guard.err.agentsmd_lower.hint guard.err.not_a_dir guard.err.marker.multi guard.err.marker.broken gitignore.err.not_file run.err.cmd_fail pane.err.ready_timeout pane.err.foreground bundle.err.missing roles.err.empty pane.err.no_base pane.err.parse agent.err.session_json agent.err.session_fail agent.err.session_parse agent.err.session_abort agent.err.start_abort agent.log.exists"
 ht_detect_locale() {
   local v="${HERDR_TEAM_LANG:-}"
   if [[ -n "$v" ]]; then
@@ -125,6 +125,34 @@ _msg_en() {
     kind.menu.prompt) printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s): ' ;;
     kind.err.unknown) printf 'error: unknown agent kind choice: %s\n' "$2" ;;
     kind.err.unknown.cli) printf 'error: unknown agent kind: %s (supported: opencode, claude, codex, agy, pi, gemini, cursor, ...)\n' "$2" ;;
+    # §5.E: en 문안은 리뷰 승인 대기(Q1). T2 계약(테스트가 ko 토큰 grep) 때문에 승인 전까지 ko 원문 유지.
+    fs.err.symlink.resolve) printf 'error: 심링크 대상 해석 실패: %s\n' "$2" ;;
+    fs.err.is_directory) printf 'error: %s 가 디렉터리입니다 — 파일로 교체할 수 없습니다.\n' "$2" ;;
+    fs.err.write_denied) printf 'error: 쓸 수 없습니다: %s (디렉터리 쓰기 권한 확인)\n' "$2" ;;
+    fs.err.write_fail) printf 'error: 쓰기 실패: %s\n' "$2" ;;
+    fs.err.replace_fail) printf 'error: 교체 실패: %s\n' "$2" ;;
+    fs.err.backup_mkdir) printf 'error: 백업 디렉터리 생성 실패: %s\n' "$2" ;;
+    fs.err.backup_cp) printf 'error: 백업 실패: %s\n' "$2" ;;
+    guard.err.agentsmd_lower) printf 'error: 소문자 agents.md 가 존재합니다 — 루트 팀 문서는 AGENTS.md 이며 별개 파일이 됩니다 (대소문자 충돌).\n' ;;
+    guard.err.agentsmd_lower.path) printf '  - %s\n' "$2" ;;
+    guard.err.agentsmd_lower.hint) printf '  agents.md 를 AGENTS.md 로 통합(이름 변경/삭제)한 뒤 재실행하세요 (루트 AGENTS.md 쓰기 중단).\n' ;;
+    guard.err.not_a_dir) printf 'error: %s 가 디렉터리가 아닙니다 — %s 시딩에 실패합니다. 파일을 정리 후 재실행하세요.\n' "$2" "$3" ;;
+    guard.err.marker.multi) printf 'error: %s 의 herdr-team 관리 섹션 마커가 2쌍 이상입니다 — 중복 마커를 1쌍만 남긴 뒤 재실행하세요.\n' "$2" ;;
+    guard.err.marker.broken) printf 'error: %s 의 herdr-team 관리 섹션 마커 쌍이 맞지 않습니다 (BEGIN/END 불일치) — 수동 편집을 확인한 뒤 재실행하세요.\n' "$2" ;;
+    gitignore.err.not_file) printf 'error: %s 가 일반 파일이 아닙니다 — .gitignore 무시 등록에 실패합니다. 파일을 정리 후 재실행하세요.\n' "$2" ;;
+    run.err.cmd_fail) printf 'error: 명령 실패: %s\n' "$2" ;;
+    pane.err.ready_timeout) printf 'error: pane %s ready 대기 초과 (%ss)\n' "$2" "$3" ;;
+    pane.err.foreground) printf 'error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다.\n' ;;
+    bundle.err.missing) printf 'error: bundle 없음: %s (%s)\n' "$2" "$3" ;;
+    roles.err.empty) printf "error: preset '%s'의 ROLES가 없거나 비어 있습니다 (%s/preset.conf 확인).\n" "$2" "$3" ;;
+    pane.err.no_base) printf 'error: 현재 Pane ID를 확인할 수 없습니다. Herdr 세션 안에서 실행하세요.\n' ;;
+    pane.err.parse) printf 'error: %s 분할 결과에서 pane_id 파싱 실패: %s\n' "$2" "$3" ;;
+    agent.err.session_json) printf 'error: 세션 요청 JSON 생성 실패 (%s)\n' "$2" ;;
+    agent.err.session_fail) printf 'error: 세션 생성 실패 (%s) — opencode 설치/백그라운드 서비스 상태를 확인하세요.\n' "$2" ;;
+    agent.err.session_parse) printf 'error: 세션 ID 파싱 실패 (%s): %s\n' "$2" "$3" ;;
+    agent.err.session_abort) printf 'error: %s 세션 생성 실패 → 시작 중단 (이미 생성된 pane: %s개)\n' "$2" "$3" ;;
+    agent.err.start_abort) printf 'error: %s 시작 중단 (pane %s shell 미준비)\n' "$2" "$3" ;;
+    agent.log.exists) printf '[herdr-team] %s 이미 존재 → 시작 생략\n' "$2" ;;
   esac
 }
 _msg_ko() {
@@ -158,6 +186,33 @@ _msg_ko() {
     kind.menu.prompt) printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s): ' ;;
     kind.err.unknown) printf 'error: 알 수 없는 agent kind 선택: %s\n' "$2" ;;
     kind.err.unknown.cli) printf 'error: 알 수 없는 agent kind: %s (지원 목록: opencode, claude, codex, agy, pi, gemini, cursor 등)\n' "$2" ;;
+    fs.err.symlink.resolve) printf 'error: 심링크 대상 해석 실패: %s\n' "$2" ;;
+    fs.err.is_directory) printf 'error: %s 가 디렉터리입니다 — 파일로 교체할 수 없습니다.\n' "$2" ;;
+    fs.err.write_denied) printf 'error: 쓸 수 없습니다: %s (디렉터리 쓰기 권한 확인)\n' "$2" ;;
+    fs.err.write_fail) printf 'error: 쓰기 실패: %s\n' "$2" ;;
+    fs.err.replace_fail) printf 'error: 교체 실패: %s\n' "$2" ;;
+    fs.err.backup_mkdir) printf 'error: 백업 디렉터리 생성 실패: %s\n' "$2" ;;
+    fs.err.backup_cp) printf 'error: 백업 실패: %s\n' "$2" ;;
+    guard.err.agentsmd_lower) printf 'error: 소문자 agents.md 가 존재합니다 — 루트 팀 문서는 AGENTS.md 이며 별개 파일이 됩니다 (대소문자 충돌).\n' ;;
+    guard.err.agentsmd_lower.path) printf '  - %s\n' "$2" ;;
+    guard.err.agentsmd_lower.hint) printf '  agents.md 를 AGENTS.md 로 통합(이름 변경/삭제)한 뒤 재실행하세요 (루트 AGENTS.md 쓰기 중단).\n' ;;
+    guard.err.not_a_dir) printf 'error: %s 가 디렉터리가 아닙니다 — %s 시딩에 실패합니다. 파일을 정리 후 재실행하세요.\n' "$2" "$3" ;;
+    guard.err.marker.multi) printf 'error: %s 의 herdr-team 관리 섹션 마커가 2쌍 이상입니다 — 중복 마커를 1쌍만 남긴 뒤 재실행하세요.\n' "$2" ;;
+    guard.err.marker.broken) printf 'error: %s 의 herdr-team 관리 섹션 마커 쌍이 맞지 않습니다 (BEGIN/END 불일치) — 수동 편집을 확인한 뒤 재실행하세요.\n' "$2" ;;
+    gitignore.err.not_file) printf 'error: %s 가 일반 파일이 아닙니다 — .gitignore 무시 등록에 실패합니다. 파일을 정리 후 재실행하세요.\n' "$2" ;;
+    run.err.cmd_fail) printf 'error: 명령 실패: %s\n' "$2" ;;
+    pane.err.ready_timeout) printf 'error: pane %s ready 대기 초과 (%ss)\n' "$2" "$3" ;;
+    pane.err.foreground) printf 'error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다.\n' ;;
+    bundle.err.missing) printf 'error: bundle 없음: %s (%s)\n' "$2" "$3" ;;
+    roles.err.empty) printf "error: preset '%s'의 ROLES가 없거나 비어 있습니다 (%s/preset.conf 확인).\n" "$2" "$3" ;;
+    pane.err.no_base) printf 'error: 현재 Pane ID를 확인할 수 없습니다. Herdr 세션 안에서 실행하세요.\n' ;;
+    pane.err.parse) printf 'error: %s 분할 결과에서 pane_id 파싱 실패: %s\n' "$2" "$3" ;;
+    agent.err.session_json) printf 'error: 세션 요청 JSON 생성 실패 (%s)\n' "$2" ;;
+    agent.err.session_fail) printf 'error: 세션 생성 실패 (%s) — opencode 설치/백그라운드 서비스 상태를 확인하세요.\n' "$2" ;;
+    agent.err.session_parse) printf 'error: 세션 ID 파싱 실패 (%s): %s\n' "$2" "$3" ;;
+    agent.err.session_abort) printf 'error: %s 세션 생성 실패 → 시작 중단 (이미 생성된 pane: %s개)\n' "$2" "$3" ;;
+    agent.err.start_abort) printf 'error: %s 시작 중단 (pane %s shell 미준비)\n' "$2" "$3" ;;
+    agent.log.exists) printf '[herdr-team] %s 이미 존재 → 시작 생략\n' "$2" ;;
   esac
 }
 
@@ -532,7 +587,7 @@ esac
 
 # --- 역할 일반화: preset.conf의 ROLES에서 에이전트명 도출 ---
 PRESET_ROLES="$(grep -E '^ROLES=' "$(preset_dir "$PRESET" 2>/dev/null)/preset.conf" 2>/dev/null | sed -e 's/^ROLES=//' -e 's/^"//' -e 's/"$//' | head -n1)"
-if [[ -z "$PRESET_ROLES" ]]; then echo "error: preset '$PRESET'의 ROLES가 없거나 비어 있습니다 ($(preset_dir "$PRESET" 2>/dev/null || printf '%s' "$PRESET")/preset.conf 확인)." >&2; exit 2; fi
+if [[ -z "$PRESET_ROLES" ]]; then msg roles.err.empty "$PRESET" "$(preset_dir "$PRESET" 2>/dev/null || printf '%s' "$PRESET")" >&2; exit 2; fi
 # shellcheck disable=SC2206: 의도적 워드 스플릿
 ROLES=($PRESET_ROLES)
 NUMERALS=(② ③ ④ ⑤ ⑥)
@@ -619,44 +674,44 @@ atomic_write() {  # $1=dest, stdin=내용 — 심링크는 링크 대상에 쓰�
   if [[ -L "$dest" ]]; then
     real="$(readlink -f -- "$dest" 2>/dev/null || true)"
     [[ -n "$real" ]] || real="$(realpath -- "$dest" 2>/dev/null || true)"
-    if [[ -z "$real" ]]; then echo "error: 심링크 대상 해석 실패: $dest" >&2; return 1; fi
+    if [[ -z "$real" ]]; then msg fs.err.symlink.resolve "$dest" >&2; return 1; fi
   fi
   if [[ -d "$real" ]]; then
-    echo "error: $real 가 디렉터리입니다 — 파일로 교체할 수 없습니다." >&2; return 1
+    msg fs.err.is_directory "$real" >&2; return 1
   fi
   if [[ -e "$real" ]]; then
     perm="$(stat -c '%a' "$real" 2>/dev/null || stat -f '%Lp' "$real" 2>/dev/null || true)"
   fi
   if ! tmp="$(mktemp "$(dirname "$real")/.herdr-team.tmp.XXXXXX" 2>/dev/null)"; then
-    echo "error: 쓸 수 없습니다: $real (디렉터리 쓰기 권한 확인)" >&2; return 1
+    msg fs.err.write_denied "$real" >&2; return 1
   fi
-  if ! cat > "$tmp"; then rm -f "$tmp"; echo "error: 쓰기 실패: $real" >&2; return 1; fi
+  if ! cat > "$tmp"; then rm -f "$tmp"; msg fs.err.write_fail "$real" >&2; return 1; fi
   chmod "${perm:-644}" "$tmp" 2>/dev/null || true
-  if ! mv "$tmp" "$real"; then rm -f "$tmp"; echo "error: 교체 실패: $real" >&2; return 1; fi
+  if ! mv "$tmp" "$real"; then rm -f "$tmp"; msg fs.err.replace_fail "$real" >&2; return 1; fi
 }
 backup_root_agents() {  # $1=루트 AGENTS.md → 백업 경로 stdout (타임스탬프 충돌 시 .N)
   local dir="$CWD/.herdr-team/backup" ts dest n=1
-  mkdir -p "$dir" || { echo "error: 백업 디렉터리 생성 실패: $dir" >&2; return 1; }
+  mkdir -p "$dir" || { msg fs.err.backup_mkdir "$dir" >&2; return 1; }
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
   dest="$dir/AGENTS.md.$ts.bak"
   while [[ -e "$dest" ]]; do n=$((n+1)); dest="$dir/AGENTS.md.$ts.bak.$n"; done
-  cp -p "$1" "$dest" || { echo "error: 백업 실패: $1" >&2; return 1; }
+  cp -p "$1" "$dest" || { msg fs.err.backup_cp "$1" >&2; return 1; }
   printf '%s' "$dest"
 }
 guard_preconditions() {  # G1~G5: 어떤 쓰기도 전에 fail-fast (종료코드 2)
   local root="$CWD/AGENTS.md" lower="$CWD/agents.md" entry path label
   # G1: 대소문자 충돌 — 소문자만 있어도 선제 차단(도구가 2회차 데드락을 만들지 않도록)
   if [[ -e "$lower" ]] && { [[ ! -e "$root" ]] || ! [[ "$root" -ef "$lower" ]]; }; then
-    echo "error: 소문자 agents.md 가 존재합니다 — 루트 팀 문서는 AGENTS.md 이며 별개 파일이 됩니다 (대소문자 충돌)." >&2
-    echo "  - $lower" >&2
-    if [[ -e "$root" ]]; then echo "  - $root" >&2; fi
-    echo "  agents.md 를 AGENTS.md 로 통합(이름 변경/삭제)한 뒤 재실행하세요 (루트 AGENTS.md 쓰기 중단)." >&2
+    msg guard.err.agentsmd_lower >&2
+    msg guard.err.agentsmd_lower.path "$lower" >&2
+    if [[ -e "$root" ]]; then msg guard.err.agentsmd_lower.path "$root" >&2; fi
+    msg guard.err.agentsmd_lower.hint >&2
     return 2
   fi
   for entry in "$CWD/agents|agents/<preset>/" "$CWD/agents/$PRESET|agents/$PRESET/" "$CWD/.herdr-team|.herdr-team/"; do
     path="${entry%%|*}"; label="${entry#*|}"
     if [[ -e "$path" && ! -d "$path" ]]; then
-      echo "error: $path 가 디렉터리가 아닙니다 — $label 시딩에 실패합니다. 파일을 정리 후 재실행하세요." >&2
+      msg guard.err.not_a_dir "$path" "$label" >&2
       return 2
     fi
   done
@@ -664,10 +719,10 @@ guard_preconditions() {  # G1~G5: 어떤 쓰기도 전에 fail-fast (종료코�
   if [[ -f "$root" ]]; then
     case "$(managed_state "$root")" in
       multi)
-        echo "error: $root 의 herdr-team 관리 섹션 마커가 2쌍 이상입니다 — 중복 마커를 1쌍만 남긴 뒤 재실행하세요." >&2
+        msg guard.err.marker.multi "$root" >&2
         return 2 ;;
       broken)
-        echo "error: $root 의 herdr-team 관리 섹션 마커 쌍이 맞지 않습니다 (BEGIN/END 불일치) — 수동 편집을 확인한 뒤 재실행하세요." >&2
+        msg guard.err.marker.broken "$root" >&2
         return 2 ;;
     esac
   fi
@@ -691,7 +746,7 @@ ensure_gitignore() {  # R1: 부족분만 1회 append (멱등·원자적·기존 
     log "git 저장소가 아니므로 .gitignore 보강 생략: $CWD"; return 0
   fi
   if [[ -e "$gi" && ! -f "$gi" ]]; then
-    echo "error: $gi 가 일반 파일이 아닙니다 — .gitignore 무시 등록에 실패합니다. 파일을 정리 후 재실행하세요." >&2
+    msg gitignore.err.not_file "$gi" >&2
     return 1
   fi
   for t in .herdr-team .opencode; do gitignore_has "$gi" "$t" || add+=("$t/"); done
@@ -822,7 +877,8 @@ run() {
     # 실패 시 stdout 억제 + 종료코드 전파. 무음 소실 방지: 원인 명시 에러로 폐쇄.
     "$@" >/dev/null && return 0
     local __r=$?
-    echo "error: 명령 실패: $*" >&2
+    # 함수 추출 단위 테스트(test_pane_ready/test_preset)는 카탈로그를 함께 싣지 않으므로 폴백 문구 유지
+    msg run.err.cmd_fail "$*" >&2 || printf 'error: 명령 실패: %s\n' "$*" >&2
     return "$__r"
   fi
 }
@@ -886,8 +942,8 @@ wait_pane_ready() {
   local _pane="$1" _start=$SECONDS _n=0 _limit="${HERDR_TEAM_READY_TIMEOUT_S:-$READY_TIMEOUT_S}"
   until pane_shell_foreground "$_pane"; do
     (( SECONDS - _start < _limit )) || {
-      echo "error: pane ${_pane} ready 대기 초과 (${_limit}s)" >&2
-      echo "error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다." >&2
+      msg pane.err.ready_timeout "$_pane" "$_limit" >&2 || printf 'error: pane %s ready 대기 초과 (%ss)\n' "$_pane" "$_limit" >&2
+      msg pane.err.foreground >&2 || printf 'error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다.\n' >&2
       return 1
     }
     _n=$((_n+1))
@@ -900,8 +956,8 @@ wait_pane_ready() {
   until herdr pane run "$_pane" printf "$HT_READY_MARKER" >/dev/null 2>&1 \
         && herdr pane wait-output "$_pane" --regex "(?m)^[ \t]*${HT_READY_MARKER}" --timeout 1500 >/dev/null 2>&1; do
     (( SECONDS - _start < _limit )) || {
-      echo "error: pane ${_pane} ready 대기 초과 (${_limit}s)" >&2
-      echo "error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다." >&2
+      msg pane.err.ready_timeout "$_pane" "$_limit" >&2 || printf 'error: pane %s ready 대기 초과 (%ss)\n' "$_pane" "$_limit" >&2
+      msg pane.err.foreground >&2 || printf 'error: 대상 pane에서 foreground 프로세스(vim 등)가 shell을 점유 중이면 종료 후 재실행해야 합니다.\n' >&2
       return 1
     }
     _n=$((_n+1))
@@ -933,7 +989,7 @@ permissions_merge_role() {  # $1=role → stdout: baseline+includes+profile 병�
   printf '[' > "$tmp"
   local first=1
   for b in $(jq -r '.includes[]' "$prof"); do
-    [[ -f "$src/bundle/$b.json" ]] || { rm -f "$tmp"; echo "error: bundle 없음: $b ($prof)" >&2; return 1; }
+    [[ -f "$src/bundle/$b.json" ]] || { rm -f "$tmp"; msg bundle.err.missing "$b" "$prof" >&2; return 1; }
     [[ "$first" -eq 1 ]] || printf ',' >> "$tmp"
     permissions_strip_jsonc "$src/baseline.json" >/dev/null
     cat "$src/bundle/$b.json" >> "$tmp"; first=0
@@ -1127,16 +1183,16 @@ opencode_session_for() {
   fi
   if ! payload="$(jq -nc --arg a "$agent" --arg d "$CWD" --arg m "$m" \
       '{agent:$a,title:$a,location:{directory:$d}} + (if $m=="" then {} else {model:($m|split("/")|{providerID:.[0],id:.[1]})} end)')"; then
-    echo "error: 세션 요청 JSON 생성 실패 ($agent)" >&2
+    msg agent.err.session_json "$agent" >&2
     return 1
   fi
   if ! out="$(run_capture opencode api post /api/session -d "$payload")"; then
-    echo "error: 세션 생성 실패 ($agent) — opencode 설치/백그라운드 서비스 상태를 확인하세요." >&2
+    msg agent.err.session_fail "$agent" >&2
     return 1
   fi
   sid="$(printf '%s' "$out" | jq -r '.data.id // empty' 2>/dev/null)"
   if [[ -z "$sid" ]]; then
-    echo "error: 세션 ID 파싱 실패 ($agent): ${out:-<empty>}" >&2
+    msg agent.err.session_parse "$agent" "${out:-<empty>}" >&2
     return 1
   fi
   printf '%s' "$sid"
@@ -1525,7 +1581,7 @@ setup_panes() {
   fi
 
   if [[ -z "$base_pane" ]]; then
-    echo "error: 현재 Pane ID를 확인할 수 없습니다. Herdr 세션 안에서 실행하세요." >&2
+    msg pane.err.no_base >&2
     exit 1
   fi
   log "BASE(PM) pane: $base_pane (preset=${PRESET}, layout=${LAYOUT})"
@@ -1543,7 +1599,7 @@ setup_panes() {
     split_out="$(herdr pane split "$base_pane" --direction right --cwd "$CWD" --no-focus)"
     local first_right_pane
     first_right_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
-    if [[ -z "$first_right_pane" ]]; then echo "error: ${first_right_role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+    if [[ -z "$first_right_pane" ]]; then msg pane.err.parse "$first_right_role" "$split_out" >&2; exit 1; fi
     log "${first_right_role} pane: $first_right_pane"
 
     # 2) PM 하단 orchestrator (PM에서 down 분할, ratio 0.5로 상하 50:50 균등)
@@ -1554,7 +1610,7 @@ setup_panes() {
     fi
     local orch_pane
     orch_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
-    if [[ -z "$orch_pane" ]]; then echo "error: orchestrator 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+    if [[ -z "$orch_pane" ]]; then msg pane.err.parse "orchestrator" "$split_out" >&2; exit 1; fi
     log "orchestrator pane: $orch_pane"
 
     # 3) 우측 나머지 pane들 (first_right_pane 하단으로 순차 down 분할)
@@ -1570,7 +1626,7 @@ setup_panes() {
         split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
       fi
       pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
-      if [[ -z "$pane_id" ]]; then echo "error: ${role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+      if [[ -z "$pane_id" ]]; then msg pane.err.parse "$role" "$split_out" >&2; exit 1; fi
       right_panes+=("$pane_id")
       prev_pane="$pane_id"
       log "${role} pane: $pane_id"
@@ -1602,7 +1658,7 @@ setup_panes() {
         split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
       fi
       pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
-      if [[ -z "$pane_id" ]]; then echo "error: ${role} 분할 결과에서 pane_id 파싱 실패: $split_out" >&2; exit 1; fi
+      if [[ -z "$pane_id" ]]; then msg pane.err.parse "$role" "$split_out" >&2; exit 1; fi
       PANE_IDS+=("$pane_id")
       prev_pane="$pane_id"
       log "${role} pane: $pane_id"
@@ -1626,17 +1682,17 @@ setup_panes() {
       agent="$(role_agent "$role")"
       if ! herdr agent list 2>/dev/null | grep -q -- "$agent"; then
         # shell 미준비 race(agent_pane_busy) 방지: start 직전에 pane ready 이벤트 확정.
-        wait_pane_ready "${PANE_IDS[$i]}" || { echo "error: ${agent} 시작 중단 (pane ${PANE_IDS[$i]} shell 미준비)" >&2; exit 1; }
+        wait_pane_ready "${PANE_IDS[$i]}" || { msg agent.err.start_abort "$agent" "${PANE_IDS[$i]}" >&2; exit 1; }
         if [[ "$KIND" == "opencode" ]]; then
           if ! sid="$(opencode_session_for "$agent")"; then
-            echo "error: ${agent} 세션 생성 실패 → 시작 중단 (이미 생성된 pane: ${#PANE_IDS[@]}개)" >&2
+            msg agent.err.session_abort "$agent" "${#PANE_IDS[@]}" >&2
             exit 1
           fi
           run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}" -- --session "$sid"
         else
           run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
         fi
-      else log "$agent 이미 존재 → 시작 생략"; fi
+      else msg agent.log.exists "$agent"; fi
       i=$((i+1))
     done
   fi

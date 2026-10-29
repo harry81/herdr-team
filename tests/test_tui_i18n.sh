@@ -180,6 +180,29 @@ assert_exit "$SKIP_RC" 0 "tc2e_skip_exit0"
 assert_contains "$SKIP_OUT" "WARN: herdr CLI not found, continuing anyway" "tc2e_skip_WARN"
 rm -rf "$NO_HERDR"
 
+echo "== tc-2f) §5.E 키화 후에도 계약 문구 유지 (en 기본) =="
+GD="$(mktemp -d)"
+printf 'blocker\n' > "$GD/agents"
+GD_OUT="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
+assert_contains "$GD_OUT" "$GD/agents 가 디렉터리가 아닙니다" "tc2f_guard_not_a_dir_계약"
+rm -rf "$GD"
+GD2="$(mktemp -d)"
+cat > "$GD2/AGENTS.md" <<'EOF'
+<!-- herdr-team:managed BEGIN (preset=dev) -->
+A
+<!-- herdr-team:managed END -->
+<!-- herdr-team:managed BEGIN (preset=mkt) -->
+B
+<!-- herdr-team:managed END -->
+EOF
+GD2_OUT="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD2" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
+assert_contains "$GD2_OUT" "마커" "tc2f_guard_marker_계약"
+rm -rf "$GD2"
+GD3="$(mktemp -d)"; git -C "$GD3" init -q; mkdir "$GD3/.gitignore"
+GD3_OUT="$(HERDR_TEAM_LANG=en "$BIN" iso --cwd "$GD3" --template-dir "$REPO/templates" --no-interactive --templates-only 2>&1 || true)"
+assert_contains "$GD3_OUT" "일반 파일이 아닙니다" "tc2f_gitignore_계약"
+rm -rf "$GD3"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
