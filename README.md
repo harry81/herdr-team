@@ -240,6 +240,38 @@ Notes:
 - Non-blocking: EOF / timeout / piped input falls back to `dev` (automation-safe).
 - `--no-interactive` never prompts and defaults to `dev`.
 - `--list-presets` prints available presets and exits.
+- The menu is localized: English is the default, Korean is selected automatically from
+  `LANG`/`LC_ALL` (`ko*`) or forced with `HERDR_TEAM_LANG=ko` (see [Language](#language)).
+- Colors, box banner and the countdown timer are used only on an interactive terminal.
+  Piped, `CI`, `NO_COLOR`, `TERM=dumb` and `--no-color` output is plain ASCII with no
+  escape or carriage-return bytes, so automation output stays stable.
+
+### Language (`HERDR_TEAM_LANG`)
+
+Console messages and the TUI menus are printed in English by default and in Korean when a
+Korean locale is detected. Resolution order (decided once at startup):
+
+1. `HERDR_TEAM_LANG` — `en` or `ko` (any other value falls back to `en` with a `WARN`)
+2. `LC_ALL` — `ko*` → Korean, anything else → English
+3. `LANG` — `ko*` → Korean, anything else → English
+4. unset → English
+
+```bash
+HERDR_TEAM_LANG=ko hts     # Korean menus/messages
+HERDR_TEAM_LANG=en hts     # English (default)
+```
+
+`usage()`/`--help` stays English for every locale; Korean users can read
+[README.ko.md](README.ko.md). Error prefixes (`error: `), option names, preset/kind
+identifiers and layout names are never translated.
+
+#### Adding a language
+
+1. Use the English strings in `_msg_en()` (inside `bin/herdr-team`) as the source text.
+2. Add `_msg_<lang>()` with the same key set and the same number of format arguments.
+3. Add the language prefix to `ht_detect_locale()`.
+4. Add the new locale to `tests/test_tui_i18n.sh` (catalog parity) and make it pass.
+5. Link the new `README.<lang>.md` here.
 
 ### Presets (dev, research, biz, mkt, creator, pkm)
 
@@ -298,6 +330,7 @@ Custom install dir: `HERDR_TEAM_BIN_DIR`. Missing `herdr`: `HERDR_TEAM_SKIP_CHEC
 | `--list-presets` | Print available presets and exit |
 | `--precheck` | Check `herdr` CLI presence and exit (`0` present / `127` missing; `HERDR_TEAM_SKIP_CHECK=1` bypasses) |
 | `--no-interactive` | Never prompt; default `preset=dev`, `kind=opencode` |
+| `--no-color` | Disable colors/cursor control (plain output); same as `NO_COLOR` / `TERM=dumb` / `CI` |
 | `--no-template` | Skip template copy/generate step |
 | `--no-resize` | Split without `--ratio` equalization (no separate resize step) |
 | `--no-start` | Skip agent start (split + label only) |
@@ -332,6 +365,7 @@ User → PM(agy) → task manager → planner → worker → reviewer ─[APPROV
 
 ```bash
 bash tests/test_preset.sh            # preset + TUI (canonical + legacy wrapper)
+bash tests/test_tui_i18n.sh          # i18n catalog, locale detection, TTY/plain rendering
 bash tests/test_install.sh           # installer + release zip
 bash tests/test_windows_launcher.sh  # launcher structure + forwarded-command simulation
 bash tests/test_herdr_precheck.sh    # herdr precheck (127 missing / 0 present / skip / dry-run)

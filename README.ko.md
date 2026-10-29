@@ -233,6 +233,37 @@ Select [1-6/dev/research/biz/mkt/creator/pkm] (default: dev, 10s):
 - 블로킹 없음: EOF·타임아웃·파이프 입력이면 `dev`로 진행 (자동화 안전).
 - `--no-interactive`는 묻지 않고 `dev`로 진행.
 - `--list-presets`는 프리셋 목록 출력 후 종료.
+- 메뉴는 국제화되어 있습니다: 기본은 영어, `LANG`/`LC_ALL`이 `ko*`이면 한국어,
+  `HERDR_TEAM_LANG=ko`로 강제할 수 있습니다 ([언어](#언어-herdr_team_lang) 참조).
+- 색상·박스 배너·카운트다운은 대화형 터미널에서만 사용합니다. 파이프, `CI`, `NO_COLOR`,
+  `TERM=dumb`, `--no-color` 환경에서는 escape·캐리지리턴 없이 순수 ASCII로 출력되어
+  자동화 출력이 안정적으로 유지됩니다.
+
+### 언어 (`HERDR_TEAM_LANG`)
+
+콘솔 메시지와 TUI 메뉴는 기본 영어이며, 한국어 로케일이 감지되면 한국어로 표시됩니다.
+판정 순서(시작 시 1회 결정):
+
+1. `HERDR_TEAM_LANG` — `en` 또는 `ko` (그 외 값은 `WARN` 1회 후 `en` 폴백)
+2. `LC_ALL` — `ko*` → 한국어, 그 외 → 영어
+3. `LANG` — `ko*` → 한국어, 그 외 → 영어
+4. 미설정 → 영어
+
+```bash
+HERDR_TEAM_LANG=ko hts     # 한국어 메뉴/메시지
+HERDR_TEAM_LANG=en hts     # 영어(기본값)
+```
+
+`usage()`/`--help`는 모든 로케일에서 영어로 유지됩니다. 에러 접두어(`error: `), 옵션 이름,
+preset/kind 식별자, layout 이름은 번역하지 않습니다.
+
+#### 언어 추가 절차
+
+1. `bin/herdr-team`의 `_msg_en()` 영문 문장을 기준 원문으로 사용합니다.
+2. 동일 키 집합·동일 서식 인자 개수로 `_msg_<lang>()`을 추가합니다.
+3. `ht_detect_locale()`의 로케일 prefix 목록에 새 언어를 추가합니다.
+4. `tests/test_tui_i18n.sh`의 카탈로그 패리티 테스트에 새 로케일을 포함해 PASS시킵니다.
+5. 이 문서에 `README.<lang>.md` 링크를 추가합니다.
 
 ### 프리셋 (dev, research, biz, mkt, creator, pkm)
 
@@ -288,6 +319,7 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 | `--list-presets` | 프리셋 목록 출력 후 종료 |
 | `--precheck` | `herdr` CLI 존재 여부만 점검 후 종료 (`0` 있음 / `127` 없음; `HERDR_TEAM_SKIP_CHECK=1` 우회) |
 | `--no-interactive` | 묻지 않고 기본값으로 진행 (`preset=dev`, `kind=opencode`) |
+| `--no-color` | 색상·커서제어 비활성(plain 출력). `NO_COLOR`/`TERM=dumb`/`CI`와 동등 |
 | `--no-template` | 템플릿 복사/생성 생략 |
 | `--no-resize` | `--ratio` 균등화 없이 분할 (별도 resize 단계 없음) |
 | `--no-start` | 에이전트 시작 생략 (분할+레이블만 수행) |
@@ -320,6 +352,7 @@ User → PM(agy) → task manager → planner → worker → reviewer ─[APPROV
 
 ```bash
 bash tests/test_preset.sh            # 프리셋 + TUI (정본 + 레거시 래퍼)
+bash tests/test_tui_i18n.sh          # i18n 카탈로그·로케일 판정·TTY/plain 렌더링
 bash tests/test_install.sh           # 설치 + 배포 zip
 bash tests/test_windows_launcher.sh  # 런처 구조 + 전달 명령 시뮬레이션
 bash tests/test_herdr_precheck.sh    # herdr 사전 점검 (127 없음 / 0 있음 / skip / dry-run)
