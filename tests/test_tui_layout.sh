@@ -96,6 +96,32 @@ else
   bad "l5_배너_최상단 (first=$FIRST_KIND second=$SECOND_KIND)"
 fi
 
+echo "== L6) Ctrl-C: 상태 라인 클리어 + 잔존 remaining/^C 0건 =="
+if command -v script >/dev/null 2>&1 && command -v stty >/dev/null 2>&1; then
+  CTRL_LOG="$(mktemp)"
+  ( sleep 3; printf '\003'; sleep 1 ) | timeout 25 script -qec "stty cols 100; exec $BIN test --dry-run --no-template" "$CTRL_LOG" >/dev/null 2>&1
+  CTRL_RC=$?
+  if [[ "$CTRL_RC" -ne 0 ]]; then ok "l6_INT_비정상종료(rc=$CTRL_RC)"; else bad "l6_INT_비정상종료(rc=$CTRL_RC)"; fi
+  assert_equal "$(grep -ac 'remaining' "$CTRL_LOG" || true)" "0" "l6_INT_remaining_잔존0"
+  assert_equal "$(grep -ac '\^C' "$CTRL_LOG" || true)" "0" "l6_INT_CTRLC_잔존0"
+  TAIL_BYTE="$(tail -c 1 "$CTRL_LOG" | od -An -c | tr -d ' ')"
+  if [[ "$TAIL_BYTE" == '\n' ]]; then ok "l6_INT_마지막바이트_개행"; else bad "l6_INT_마지막바이트_개행 ($TAIL_BYTE)"; fi
+  rm -f "$CTRL_LOG"
+else
+  echo "SKIP: script/stty 없음 → Ctrl-C 검증 생략"
+fi
+
+echo "== L7) 폭 축소 규칙 (cols<20 → bar 생략) =="
+if command -v script >/dev/null 2>&1; then
+  NARROW_LOG="$(mktemp)"
+  ( sleep 2; printf '1\n1\n' ) | timeout 25 script -qec "stty cols 15; exec $BIN test --dry-run --no-template" "$NARROW_LOG" >/dev/null 2>&1
+  assert_equal "$(grep -ac 's \[' "$NARROW_LOG" || true)" "0" "l7_좁은폭_bar_생략"
+  if grep -aq 's ' "$NARROW_LOG"; then ok "l7_좁은폭_초_표시"; else bad "l7_좁은폭_초_표시"; fi
+  rm -f "$NARROW_LOG"
+else
+  echo "SKIP: script 없음 → 폭 축소 검증 생략"
+fi
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

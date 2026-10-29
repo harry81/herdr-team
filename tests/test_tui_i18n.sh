@@ -282,7 +282,7 @@ assert_plain_bytes "$EOF_OUT" "tc5_EOF_escape_CR_부재"
 assert_equal "$(ps_count "$BIN")" "0" "tc5_EOF_고아프로세스_0건"
 if command -v script >/dev/null 2>&1; then
   TTY_CNT="$( ( sleep 2; printf '1\n1\n' ) | env -u CI -u NO_COLOR timeout 20 script -qec "$BIN test --dry-run --no-template" /dev/null 2>&1)"
-  assert_contains "$TTY_CNT" "s remaining" "tc5_TTY_카운트다운_표시"
+  assert_contains "$TTY_CNT" "s [" "tc5_TTY_카운트다운_표시"
   assert_contains "$TTY_CNT" "preset=dev" "tc5_TTY_선택_정상"
   assert_equal "$(ps_count "$BIN")" "0" "tc5_TTY_고아프로세스_0건"
   # BSD mktemp(템플릿 필수) 스텁: bare mktemp 호출이면 카운트다운이 조용히 0틱이 된다
@@ -297,7 +297,7 @@ esac
 STUBEOF
   chmod +x "$BSD_STUB/mktemp"
   TTY_CNT_BSD="$( ( sleep 2; printf '1\n1\n' ) | PATH="$BSD_STUB:$PATH" env -u CI -u NO_COLOR timeout 20 script -qec "$BIN test --dry-run --no-template" /dev/null 2>&1)"
-  assert_contains "$TTY_CNT_BSD" "s remaining" "tc5_BSD_mktemp_카운트다운_표시"
+  assert_contains "$TTY_CNT_BSD" "s [" "tc5_BSD_mktemp_카운트다운_표시"
   assert_contains "$TTY_CNT_BSD" "preset=dev" "tc5_BSD_mktemp_선택_정상"
   rm -rf "$BSD_STUB"
 else

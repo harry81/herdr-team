@@ -96,7 +96,7 @@ _msg_en() {
     preset.usage.none) printf '(none)' ;;
     preset.list.noconf) printf '(preset.conf missing)' ;;
     preset.menu.title) printf 'Select AI team preset (1-%s or name, default: %s):\n' "$2" "$3" ;;
-    preset.menu.prompt) printf 'Select [1-%s/%s] (default: %s, 10s): ' "$2" "$3" "$4" ;;
+    preset.menu.prompt) printf 'Select [1-%s/%s] (default: %s, 10s):\n' "$2" "$3" "$4" ;;
     preset.warn.deprecated) printf "[herdr-team] WARN: preset '%s' is deprecated; use '%s' instead. (app merged into dev)\n" "$2" "$3" ;;
     preset.err.unknown.name) printf 'error: unknown preset choice: %s (available: %s)\n' "$2" "$3" ;;
     preset.err.unknown.number) printf 'error: unknown preset choice: %s (1-%s or name)\n' "$2" "$3" ;;
@@ -105,7 +105,7 @@ _msg_en() {
     preset.err.conf.missing.found) printf "error: preset.conf for '%s' not found (discovered: %s; search: %s, %s).\n" "$2" "$3" "$4" "$5" ;;
     kind.menu.title) printf 'Select agent kind (1-4 or name, default: opencode):\n' ;;
     kind.menu.item1) printf '  1) opencode - OpenCode Interpreter\n' ;;
-    kind.menu.prompt) printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s): ' ;;
+    kind.menu.prompt) printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s):\n' ;;
     kind.err.unknown) printf 'error: unknown agent kind choice: %s\n' "$2" ;;
     kind.err.unknown.cli) printf 'error: unknown agent kind: %s (supported: opencode, claude, codex, agy, pi, gemini, cursor, ...)\n' "$2" ;;
     fs.err.symlink.resolve) printf 'error: cannot resolve symlink target: %s\n' "$2" ;;
@@ -425,19 +425,51 @@ ht_summary() { # 성공 종료 요약 — dry-run 제외 실 실행 전용
   fi
 }
 
-# --- 카운트다운 렌더러 (명세 §4.3) ---
-# TTY 모드에서만 표시. plain 모드에서는 프로세스 0개·출력 0바이트(기존 read 동작 불변).
+# --- 카운트다운 렌더러 (명세 §3: 2줄 레이아웃 / 상태 라인 전용 갱신) ---
+# 프롬프트 라인은 카탈로그에서 개행으로 확정 출력된다 → 커서는 항상 새 라인에서 시작.
+# 상태 라인은 라인 시작 \r + \033[2K 로만 갱신하고, 종료 시 정확히 1회 clear + 개행.
+# plain 모드에서는 프로세스 0개·출력 0바이트(기존 read 동작 불변).
 HT_CNT_PID=""
 HT_CNT_FLAG=""
+HT_CNT_DONE=0
+HT_CNT_TTY=""
+ht_cols() { # TTY 폭 (제어 터미널 조회; 비TTY/실패 → 80)
+  local size="" c=""
+  # stty size 는 stdin 의 터미널을 조회한다 — 명령 치환 파이프에 속지 않도록 /dev/tty 고정
+  size="$(stty size </dev/tty 2>/dev/null || true)"
+  case "$size" in *' '*) c="${size#* }" ;; esac
+  case "$c" in ''|*[!0-9]*) c="" ;; esac
+  if [[ -z "$c" ]]; then
+    c="$(tput cols </dev/tty 2>/dev/null || true)"
+    case "$c" in ''|*[!0-9]*) c=80 ;; esac
+  fi
+  if [[ "$c" -lt 1 ]]; then c=80; fi
+  printf '%s' "$c"
+}
+ht_cnt_render() { # $1=남은 초 → 상태 라인 텍스트 (폭 규칙 §3.3)
+  local left="$1" cols line hash="" dash="" k=0
+  cols="$(ht_cols)"
+  if [[ "$cols" -lt 20 ]]; then printf '%02ds' "$left"; return 0; fi
+  while [[ "$k" -lt 10 ]]; do
+    if [[ "$k" -lt "$left" ]]; then hash="$hash#"; else dash="$dash-"; fi
+    k=$((k+1))
+  done
+  line="$(printf '%02ds [%s%s]' "$left" "$hash" "$dash")"
+  if [[ ${#line} -gt $((cols-1)) ]]; then printf '%02ds' "$left"; else printf '%s' "$line"; fi
+}
 countdown_start() { # $1=seconds
   HT_CNT_PID=""
+  HT_CNT_DONE=0
   if [[ "$HT_STYLE_COLOR" -ne 1 ]]; then return 0; fi
   local left="${1:-10}"
   HT_CNT_FLAG="$(mktemp "${TMPDIR:-/tmp}/ht-cnt.XXXXXX" 2>/dev/null || true)"  # BSD mktemp 는 템플릿 필수
+  # Ctrl-C 에코(^C)가 상태 라인에 남지 않도록 tty echoctl 만 잠시 끈다 (stop에서 복원)
+  HT_CNT_TTY="$(stty -g 2>/dev/null || true)"
+  if [[ -n "$HT_CNT_TTY" ]]; then stty -echoctl 2>/dev/null || true; fi
   (
     while [[ "$left" -gt 0 ]]; do
       [[ -n "$HT_CNT_FLAG" && -e "$HT_CNT_FLAG" ]] || exit 0
-      printf '\r  %ss remaining' "$left" >&2
+      printf '\r\033[2K%s' "$(ht_cnt_render "$left")" >&2
       sleep 1
       left=$((left-1))
     done
@@ -447,16 +479,24 @@ countdown_start() { # $1=seconds
   trap 'countdown_stop; trap - INT; kill -INT $$' INT
   trap 'countdown_stop; trap - TERM; kill -TERM $$' TERM
 }
-countdown_stop() {
+countdown_stop() { # 상태 라인 clear + 개행 — 1회성 (INPUT/timeout/INT/TERM/EXIT 공통)
   local pid="${HT_CNT_PID:-}"
   HT_CNT_PID=""
   if [[ -n "${HT_CNT_FLAG:-}" ]]; then rm -f "$HT_CNT_FLAG" 2>/dev/null || true; fi
   HT_CNT_FLAG=""
-  [[ -n "$pid" ]] || return 0
-  kill "$pid" 2>/dev/null || true
-  wait "$pid" 2>/dev/null || true
-  if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
-  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\r\033[K' >&2 || true; fi
+  if [[ -n "$pid" ]]; then
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
+  fi
+  if [[ -n "${HT_CNT_TTY:-}" ]]; then
+    if [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then printf '\r\033[2K\n' >&2 || true; fi
+    stty "$HT_CNT_TTY" 2>/dev/null || true
+    HT_CNT_TTY=""
+  elif [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then
+    if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\r\033[2K\n' >&2 || true; fi
+  fi
+  HT_CNT_DONE=1
   return 0
 }
 
