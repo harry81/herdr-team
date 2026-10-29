@@ -78,6 +78,27 @@ else
     esac
   done
   rm -f "$CAT_SRC"
+  # 키 집합 동일성 + 키별 서식 인자 개수 일치 (카탈로그 컴파일 타임 검증)
+  cat_key_args() { # $1=_msg_en|_msg_ko → "key<TAB>포맷인자수" 정렬 목록
+    awk -v fn="$1" '
+      $0 ~ "^" fn "\\(\\) \\{" { inb = 1; next }
+      inb && /^}/ { inb = 0 }
+      inb && /^    [a-z][a-z0-9._]*\) printf/ {
+        k = $1; sub(/\)$/, "", k)
+        line = $0; n = 0
+        while (match(line, /%[sd]/)) { n++; line = substr(line, RSTART + 2) }
+        print k "\t" n
+      }
+    ' "$BIN" | sort
+  }
+  EN_KA="$(cat_key_args _msg_en)"
+  KO_KA="$(cat_key_args _msg_ko)"
+  assert_equal "$EN_KA" "$KO_KA" "tc1_en_ko_키집합_서식인자_동일"
+  EN_KEYS="$(printf '%s\n' "$EN_KA" | cut -f1 | tr '\n' ' ' | sed 's/ *$//')"
+  # shellcheck disable=SC2086: 키 목록은 공백 구분 식별자
+  SORTED_MSG_KEYS="$(printf '%s\n' $MSG_KEYS | sort | tr '\n' ' ' | sed 's/ *$//')"
+  assert_equal "$EN_KEYS" "$SORTED_MSG_KEYS" "tc1_키집합_MSG_KEYS_일치"
+  assert_equal "$(printf '%s\n' "$EN_KA" | wc -l | tr -d ' ')" "$(printf '%s' "$MSG_KEYS" | wc -w | tr -d ' ')" "tc1_키수_일치"
 fi
 
 echo "== tc-2) 로케일 결정 규칙 =="
