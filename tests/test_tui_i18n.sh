@@ -264,6 +264,21 @@ if command -v script >/dev/null 2>&1; then
   assert_contains "$TTY_CNT" "s remaining" "tc5_TTY_카운트다운_표시"
   assert_contains "$TTY_CNT" "preset=dev" "tc5_TTY_선택_정상"
   assert_equal "$(ps_count "$BIN")" "0" "tc5_TTY_고아프로세스_0건"
+  # BSD mktemp(템플릿 필수) 스텁: bare mktemp 호출이면 카운트다운이 조용히 0틱이 된다
+  BSD_STUB="$(mktemp -d)"
+  REAL_MKTEMP="$(command -v mktemp)"
+  cat > "$BSD_STUB/mktemp" <<STUBEOF
+#!/usr/bin/env bash
+case "\${1:-}" in
+  *XXXXXX*) exec "$REAL_MKTEMP" "\$@" ;;
+  *) echo "mktemp: too few arguments" >&2; exit 1 ;;
+esac
+STUBEOF
+  chmod +x "$BSD_STUB/mktemp"
+  TTY_CNT_BSD="$( ( sleep 2; printf '1\n1\n' ) | PATH="$BSD_STUB:$PATH" env -u CI -u NO_COLOR timeout 20 script -qec "$BIN test --dry-run --no-template" /dev/null 2>&1)"
+  assert_contains "$TTY_CNT_BSD" "s remaining" "tc5_BSD_mktemp_카운트다운_표시"
+  assert_contains "$TTY_CNT_BSD" "preset=dev" "tc5_BSD_mktemp_선택_정상"
+  rm -rf "$BSD_STUB"
 else
   echo "SKIP: script 없음 → TTY 카운트다운 검증 생략"
 fi

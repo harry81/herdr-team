@@ -476,7 +476,7 @@ countdown_start() { # $1=seconds
   HT_CNT_PID=""
   if [[ "$HT_STYLE_COLOR" -ne 1 ]]; then return 0; fi
   local left="${1:-10}"
-  HT_CNT_FLAG="$(mktemp 2>/dev/null || true)"
+  HT_CNT_FLAG="$(mktemp "${TMPDIR:-/tmp}/ht-cnt.XXXXXX" 2>/dev/null || true)"  # BSD mktemp 는 템플릿 필수
   (
     while [[ "$left" -gt 0 ]]; do
       [[ -n "$HT_CNT_FLAG" && -e "$HT_CNT_FLAG" ]] || exit 0
