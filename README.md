@@ -241,7 +241,7 @@ Notes:
 - `--no-interactive` never prompts and defaults to `dev`.
 - `--list-presets` prints available presets and exits.
 - The menu is localized: English is the default, Korean is selected automatically from
-  `LANG`/`LC_ALL` (`ko*`) or forced with `HERDR_TEAM_LANG=ko` (see [Language](#language)).
+  `LANG`/`LC_ALL` (`ko*`) or forced with `HERDR_TEAM_LANG=ko` (see [Language](#language-herdr_team_lang)).
 - Colors, box banner and the countdown timer are used only on an interactive terminal.
   Piped, `CI`, `NO_COLOR`, `TERM=dumb` and `--no-color` output is plain ASCII with no
   escape or carriage-return bytes, so automation output stays stable.

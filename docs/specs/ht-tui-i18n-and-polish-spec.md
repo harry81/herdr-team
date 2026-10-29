@@ -310,7 +310,7 @@ countdown_stop:  kill $HT_CNT_PID || true ; wait $HT_CNT_PID 또는 kill -9 후 
 ## 8. Task Breakdown (ht-worker TDD — 티어 규약은 test-tiering-spec §b–§d)
 
 공통 규칙:
-- blam radius → **blast radius: core** (`bin/herdr-team`는 test-tiering §c 코어 경로 필터 직항 — 근거: 단일 스크립트이며 모든 소비(consumer) 프로젝트가 참조하는 공유 정본 파일). 따라서 모든 태스크 `tier=T2`로 종료하고 push/CI 노드에서 T3 승격.
+- blast radius → **blast radius: core** (`bin/herdr-team`는 test-tiering §c 코어 경로 필터 직항 — 근거: 단일 스크립트이며 모든 소비(consumer) 프로젝트가 참조하는 공유 정본 파일). 따라서 모든 태스크 `tier=T2`로 종료하고 push/CI 노드에서 T3 승격.
 - T1 = `bash tests/test_tui_i18n.sh`(신규 파일, 태스크 0이 먼저 생성). T2 = `scripts/testmap.sh`가 출력한 스위트 전부 (예상: `bash tests/test_agent_session.sh && bash tests/test_pane_ready.sh && bash tests/test_preset.sh`).
 - 각 태스크는 **커밋 단위 롤백 가능**(§9)이도록 독립 커밋.
 
