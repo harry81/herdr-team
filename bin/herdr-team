@@ -391,12 +391,23 @@ ht_box() { # ht_box LINE... — ASCII 박스 (TTY에서만 dim 테두리)
   if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m%s\033[0m\n' "$border"; else printf '%s\n' "$border"; fi
 }
 # --- 시작 배너 / 진행 단계 / 최종 요약 (명세 §4.2/§4.4/§4.5) ---
-ht_banner() {
-  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then
-    ht_box "herdr-team v$VERSION"
-  else
-    printf 'herdr-team v%s\n' "$VERSION"
+ht_banner() { # 명세 §4.2 — TTY 박스 아트(축소 규칙), plain 1행 계약 불변
+  local cols t1 t2 w bar
+  if [[ "$HT_STYLE_COLOR" -ne 1 ]]; then printf 'herdr-team v%s\n' "$VERSION"; return 0; fi
+  cols="$(ht_cols)"
+  if [[ "$cols" -lt 40 ]]; then printf 'herdr-team v%s\n' "$VERSION"; return 0; fi
+  t1="herdr-team v$VERSION"
+  t2="One command. One AI agent team."
+  w=${#t1}; if [[ ${#t2} -gt $w ]]; then w=${#t2}; fi
+  if [[ $((w+4)) -gt $((cols-1)) ]]; then t2=""; w=${#t1}; fi
+  if [[ $((w+4)) -gt $((cols-1)) ]]; then printf 'herdr-team v%s\n' "$VERSION"; return 0; fi
+  bar="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
+  printf '\033[34m%s\033[0m\n' "$bar"
+  printf '\033[34m|\033[0m  \033[1m%s\033[0m%*s\033[34m|\033[0m\n' "$t1" $((w-${#t1})) ''
+  if [[ -n "$t2" ]]; then
+    printf '\033[34m|\033[0m  \033[36m%s\033[0m%*s\033[34m|\033[0m\n' "$t2" $((w-${#t2})) ''
   fi
+  printf '\033[34m%s\033[0m\n' "$bar"
 }
 HT_STEP_N=0
 HT_STEP_TOTAL=4
@@ -643,6 +654,12 @@ choose_kind_tui() {
 }
 
 if [[ "$LIST_PRESETS" -eq 1 ]]; then list_presets; exit 0; fi
+
+# --- 첫 화면 순서 고정 (명세 §4.1): 배너 -> precheck -> preset/kind TUI ---
+ht_banner
+if [[ "$DRY_RUN" -eq 0 && "$TEMPLATES_ONLY" -eq 0 ]]; then
+  precheck_herdr || exit $?
+fi
 # 환경변수 폴백 (명시적 --preset이 우선)
 if [[ -z "$PRESET_ARG" && -n "${HERDR_TEAM_PRESET:-}" ]]; then PRESET_ARG="$HERDR_TEAM_PRESET"; fi
 if [[ -n "$PRESET_ARG" ]]; then
@@ -1813,12 +1830,6 @@ setup_panes() {
   ht_summary
 }
 
-# --- 자동 herdr 사전 점검 (실제 쓰기 전 fail-fast; dry-run/templates-only 면제) ---
-if [[ "$DRY_RUN" -eq 0 && "$TEMPLATES_ONLY" -eq 0 ]]; then
-  precheck_herdr || exit $?
-fi
-
-ht_banner
 PREV_ACTIVE="$(active_preset)"
 if [[ "$NO_TEMPLATE" -eq 0 ]]; then guard_preconditions || exit $?; fi
 step_begin templates

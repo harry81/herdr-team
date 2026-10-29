@@ -339,8 +339,9 @@ fi
 if command -v script >/dev/null 2>&1; then
   TTY_BANNER="$(env -u CI -u GITHUB_ACTIONS -u NO_COLOR script -qec "$BIN test --dry-run --no-template --no-interactive" /dev/null 2>&1)"
   if has_byte "$TTY_BANNER" 1b; then ok "tc4_TTY_색상_활성"; else bad "tc4_TTY_색상_활성 (ESC 없음)"; fi
-  assert_contains "$TTY_BANNER" "+-------------------+" "tc7_TTY_배너_박스"
+  assert_contains "$TTY_BANNER" "+-------------------------------" "tc7_TTY_배너_박스"
   assert_contains "$TTY_BANNER" "herdr-team v" "tc7_TTY_배너_텍스트"
+  assert_contains "$TTY_BANNER" "One command. One AI agent team." "tc7_TTY_배너_tagline"
   assert_contains "$TTY_BANNER" "done" "tc7_TTY_step_done"
 fi
 
