@@ -380,6 +380,8 @@ ht_init_style() {
   HT_STYLE_COLOR=1
 }
 ht_init_style
+# 카운트다운/정리 출력 전용 fd: read 의 `2>/dev/null` 같은 리다이렉트 문맥에서도 tty 로 내보낸다
+exec 9>&2
 # --- 시작 배너 / 진행 단계 / 최종 요약 (명세 §4.2/§4.4/§4.5) ---
 ht_banner() { # 명세 §4.2 — TTY 박스 아트(축소 규칙), plain 1행 계약 불변
   local cols t1 t2 w bar
@@ -486,15 +488,16 @@ countdown_start() { # $1=seconds
   (
     while [[ "$left" -gt 0 ]]; do
       [[ -n "$HT_CNT_FLAG" && -e "$HT_CNT_FLAG" ]] || exit 0
-      printf '\r\033[2K%s' "$(ht_cnt_render "$left")" >&2
+      printf '\r\033[2K%s\r' "$(ht_cnt_render "$left")" >&9
       sleep 1
       left=$((left-1))
     done
   ) &
   HT_CNT_PID=$!
+  # 메인 셸에서 실행되는 trap (선택 함수가 커맨드 치환을 쓰지 않으므로 보장됨)
   trap 'countdown_stop' EXIT
-  trap 'countdown_stop; trap - INT; kill -INT $$' INT
-  trap 'countdown_stop; trap - TERM; kill -TERM $$' TERM
+  trap 'countdown_stop; trap - INT; exit 130' INT
+  trap 'countdown_stop; trap - TERM; exit 143' TERM
 }
 countdown_stop() { # 상태 라인 clear + 개행 — 1회성 (INPUT/timeout/INT/TERM/EXIT 공통)
   local pid="${HT_CNT_PID:-}"
@@ -507,11 +510,11 @@ countdown_stop() { # 상태 라인 clear + 개행 — 1회성 (INPUT/timeout/INT
     if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   fi
   if [[ -n "${HT_CNT_TTY:-}" ]]; then
-    if [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then printf '\r\033[2K\n' >&2 || true; fi
+    if [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then printf '\r\033[2K\n' >&9 || true; fi
     stty "$HT_CNT_TTY" 2>/dev/null || true
     HT_CNT_TTY=""
   elif [[ "${HT_CNT_DONE:-0}" -eq 0 ]]; then
-    if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\r\033[2K\n' >&2 || true; fi
+    if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\r\033[2K\n' >&9 || true; fi
   fi
   HT_CNT_DONE=1
   return 0
@@ -616,6 +619,7 @@ ht_menu_box() { # $1=title $2=footer; $3... = "num|name|desc|marker" 행
   printf '\033[36m%s\033[0m\n' "$bar"
 }
 
+HT_CHOICE=""  # 선택 함수의 답 (커맨드 치환 금지: trap/clear 가 메인 셸에서 실행되어야 함)
 choose_preset_tui() {
   # Interactive TUI preset menu (English primary + Korean), dinamically built
   # from discovered presets. Renders to stderr and reads one line from stdin.
@@ -657,7 +661,7 @@ choose_preset_tui() {
   if IFS= read -r -t 10 ans <&0 2>/dev/null; then
     countdown_stop
     ans="$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-    if [[ -z "$ans" ]]; then printf '%s' "$default"; return; fi
+    if [[ -z "$ans" ]]; then HT_CHOICE="$default"; return; fi
     case "$ans" in
       *[!0-9]*)
         if is_known_preset "$ans"; then
@@ -665,14 +669,14 @@ choose_preset_tui() {
           if [[ "$canon" != "$ans" ]]; then
             msg preset.warn.deprecated "$ans" "$canon" >&2
           fi
-          printf '%s' "$canon"
+          HT_CHOICE="$canon"
         else
           msg preset.err.unknown.name "$ans" "$(preset_usage_list)" >&2; exit 2
         fi
         ;;
       *)
         if [[ "$ans" -ge 1 && "$ans" -le "${#names[@]}" ]]; then
-          printf '%s' "${names[$((ans-1))]}"
+          HT_CHOICE="${names[$((ans-1))]}"
         else
           msg preset.err.unknown.number "$ans" "${#names[@]}" >&2; exit 2
         fi
@@ -680,7 +684,7 @@ choose_preset_tui() {
     esac
   else
     countdown_stop
-    printf '%s' "$default"
+    HT_CHOICE="$default"
   fi
 }
 
@@ -721,13 +725,13 @@ choose_kind_tui() {
     countdown_stop
     ans="$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
     case "$ans" in
-      ""|1|opencode) printf 'opencode' ;;
-      2|claude) printf 'claude' ;;
-      3|codex) printf 'codex' ;;
-      4|agy) printf 'agy' ;;
+      ""|1|opencode) HT_CHOICE="opencode" ;;
+      2|claude) HT_CHOICE="claude" ;;
+      3|codex) HT_CHOICE="codex" ;;
+      4|agy) HT_CHOICE="agy" ;;
       *)
         if is_known_kind "$ans"; then
-          printf '%s' "$ans"
+          HT_CHOICE="$ans"
         else
           msg kind.err.unknown "$ans" >&2; exit 2
         fi
@@ -735,7 +739,7 @@ choose_kind_tui() {
     esac
   else
     countdown_stop
-    printf 'opencode'
+    HT_CHOICE="opencode"
   fi
 }
 
@@ -760,7 +764,7 @@ else
   if [[ "$NO_INTERACTIVE" -eq 1 ]]; then
     PRESET="dev"
   else
-    PRESET="$(choose_preset_tui)"
+    HT_CHOICE=""; choose_preset_tui; PRESET="$HT_CHOICE"
   fi
 fi
 
@@ -786,7 +790,7 @@ else
   if [[ "$NO_INTERACTIVE" -eq 1 ]]; then
     KIND="opencode"
   else
-    KIND="$(choose_kind_tui)"
+    HT_CHOICE=""; choose_kind_tui; KIND="$HT_CHOICE"
   fi
 fi
 

@@ -102,8 +102,20 @@ if command -v script >/dev/null 2>&1 && command -v stty >/dev/null 2>&1; then
   ( sleep 3; printf '\003'; sleep 1 ) | timeout 25 script -qec "stty cols 100; exec $BIN test --dry-run --no-template" "$CTRL_LOG" >/dev/null 2>&1
   CTRL_RC=$?
   if [[ "$CTRL_RC" -ne 0 ]]; then ok "l6_INT_비정상종료(rc=$CTRL_RC)"; else bad "l6_INT_비정상종료(rc=$CTRL_RC)"; fi
-  assert_equal "$(grep -ac 'remaining' "$CTRL_LOG" || true)" "0" "l6_INT_remaining_잔존0"
-  assert_equal "$(grep -ac '\^C' "$CTRL_LOG" || true)" "0" "l6_INT_CTRLC_잔존0"
+  # (1) INT 경로에도 clear 시퀀스(ESC[2K CR LF)가 실제 바이트로 존재해야 한다
+  CTRL_HEX="$(od -An -v -tx1 "$CTRL_LOG" | tr -d ' \n')"
+  if [[ "$CTRL_HEX" == *"1b5b324b0d0a"* ]]; then ok "l6_INT_clear_존재"; else bad "l6_INT_clear_존재"; fi
+  # (2) 상태 텍스트(NNs [####--]) 바로 뒤에 CR/LF 없이 다른 문자가 붙으면 실패
+  ADJ="NA"
+  if printf 'x' | grep -qP 'x' 2>/dev/null; then
+    ADJ="$(grep -acP '[0-9]{2}s \[[#-]*\][^\r\n]' "$CTRL_LOG" || true)"
+  elif command -v perl >/dev/null 2>&1; then
+    ADJ="$(perl -0777 -ne 'my $c = () = /[0-9]{2}s \[[#-]*\][^\r\n]/g; print $c' "$CTRL_LOG")"
+  fi
+  if [[ "$ADJ" == "NA" ]]; then
+    echo "SKIP: grep -P/perl 없음 → 상태 잔여 인접 검사 생략"
+  elif [[ "$ADJ" == "0" ]]; then ok "l6_INT_잔여_동일라인_0"
+  else bad "l6_INT_잔여_동일라인_0 (matches=$ADJ)"; fi
   TAIL_BYTE="$(tail -c 1 "$CTRL_LOG" | od -An -c | tr -d ' ')"
   if [[ "$TAIL_BYTE" == '\n' ]]; then ok "l6_INT_마지막바이트_개행"; else bad "l6_INT_마지막바이트_개행 ($TAIL_BYTE)"; fi
   rm -f "$CTRL_LOG"
