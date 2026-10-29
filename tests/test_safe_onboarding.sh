@@ -3,6 +3,8 @@
 # 명세: docs/specs/safe-onboarding-spec.md §4 (TC-GI 1~10, TC-BA 11~18, TC-GD 19~25)
 #       + 리뷰 반송 수정 고정: E1 심링크, E2 CRLF, E8 마커 문구, 루트만 존재, 정본 순수성
 # 실행: bash tests/test_safe_onboarding.sh  (repo root에서)
+# 인프라 계약 스위트: 로케일 고정(en). 로케일 커버리지는 tests/test_tui_i18n.sh 담당.
+export HERDR_TEAM_LANG=en
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"

@@ -2,6 +2,8 @@
 # tests/test_tui_i18n.sh — ht 실행화면 i18n + TUI 시각 개선 검증
 # 명세: docs/specs/ht-tui-i18n-and-polish-spec.md (§7 tc-1..tc-7)
 # 실행: bash tests/test_tui_i18n.sh  (repo root에서)
+# 기본 로케일 고정(en) — 각 케이스는 필요 시 개별 override 한다.
+export HERDR_TEAM_LANG=en
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"

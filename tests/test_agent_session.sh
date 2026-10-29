@@ -2,6 +2,8 @@
 # tests/test_agent_session.sh — opencode 세션 사전생성 + `-- --session` 바인딩 / fail-fast 검증
 # 실행: bash tests/test_agent_session.sh  (repo root에서)
 # fake herdr/opencode 셤으로 세션 생성 실패 경로를 결정적으로 재현한다.
+# 로케일 고정(en) — 로케일 커버리지는 tests/test_tui_i18n.sh 담당.
+export HERDR_TEAM_LANG=en
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
