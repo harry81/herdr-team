@@ -73,7 +73,7 @@ VERSION="$(read_version)"
 # 결정 순서: HERDR_TEAM_LANG > LC_ALL > LANG > en. 시작 시 1회 확정(실행 중 불변).
 # 카탈로그는 스크립트 내부 함수(단일 파일 배포 무결성 — 명세 §3.2 A안).
 MSG_LOCALE=""
-MSG_KEYS="preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli"
+MSG_KEYS="parse.opt.missing.kind parse.opt.missing.layout parse.opt.missing.cwd parse.opt.missing.template_dir parse.opt.missing.preset parse.opt.unknown parse.prefix.multiple parse.prefix.invalid layout.unknown precheck.warn.skip precheck.err.title precheck.install.cmd precheck.verify precheck.bypass preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli"
 ht_detect_locale() {
   local v="${HERDR_TEAM_LANG:-}"
   if [[ -n "$v" ]]; then
@@ -96,6 +96,20 @@ msg() { # msg KEY [ARGS...] — 개행 포함 여부는 키 서식에 고정
 }
 _msg_en() {
   case "$1" in
+    parse.opt.missing.kind) printf 'error: --kind requires a value\n' ;;
+    parse.opt.missing.layout) printf 'error: --layout requires a value (2col|right-stack)\n' ;;
+    parse.opt.missing.cwd) printf 'error: --cwd requires a value\n' ;;
+    parse.opt.missing.template_dir) printf 'error: --template-dir requires a value\n' ;;
+    parse.opt.missing.preset) printf 'error: --preset requires a value (list: --list-presets)\n' ;;
+    parse.opt.unknown) printf 'error: unknown option: %s (--help)\n' "$2" ;;
+    parse.prefix.multiple) printf 'error: prefix must be given once: %s\n' "$2" ;;
+    parse.prefix.invalid) printf 'error: cannot determine a valid prefix\n' ;;
+    layout.unknown) printf 'error: unknown layout: %s (choose 2col or right-stack)\n' "$2" ;;
+    precheck.warn.skip) printf 'WARN: herdr CLI not found, continuing anyway (HERDR_TEAM_SKIP_CHECK=1)\n' ;;
+    precheck.err.title) printf 'ERROR herdr CLI not found — herdr-team runs on top of herdr.\n' ;;
+    precheck.install.cmd) printf '  Install:\n    curl -fsSL https://herdr.dev/install.sh | sh\n    Windows: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"\n' ;;
+    precheck.verify) printf '  Verify:  herdr --version\n' ;;
+    precheck.bypass) printf '  Bypass:  HERDR_TEAM_SKIP_CHECK=1\n' ;;
     preset.usage.none) printf '(none)' ;;
     preset.list.noconf) printf '(preset.conf missing)' ;;
     preset.menu.title) printf 'Select AI team preset (1-%s or name, default: %s):\n' "$2" "$3" ;;
@@ -115,6 +129,20 @@ _msg_en() {
 }
 _msg_ko() {
   case "$1" in
+    parse.opt.missing.kind) printf 'error: --kind에 값이 필요합니다\n' ;;
+    parse.opt.missing.layout) printf 'error: --layout에 값이 필요합니다 (2col|right-stack)\n' ;;
+    parse.opt.missing.cwd) printf 'error: --cwd에 값이 필요합니다\n' ;;
+    parse.opt.missing.template_dir) printf 'error: --template-dir에 값이 필요합니다\n' ;;
+    parse.opt.missing.preset) printf 'error: --preset에 값이 필요합니다 (목록: --list-presets)\n' ;;
+    parse.opt.unknown) printf 'error: 알 수 없는 옵션: %s (도움말: --help)\n' "$2" ;;
+    parse.prefix.multiple) printf 'error: prefix는 1개만 지정 가능합니다: %s\n' "$2" ;;
+    parse.prefix.invalid) printf 'error: 유효한 prefix를 결정할 수 없습니다.\n' ;;
+    layout.unknown) printf 'error: 알 수 없는 layout: %s (2col|right-stack 중 선택)\n' "$2" ;;
+    precheck.warn.skip) printf 'WARN: herdr CLI 를 찾을 수 없지만 HERDR_TEAM_SKIP_CHECK=1 로 계속 진행합니다.\n' ;;
+    precheck.err.title) printf 'ERROR herdr CLI 를 찾을 수 없습니다.\n' ;;
+    precheck.install.cmd) printf '  설치:\n    curl -fsSL https://herdr.dev/install.sh | sh\n    Windows: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"\n' ;;
+    precheck.verify) printf '  확인:  herdr --version\n' ;;
+    precheck.bypass) printf '  우회:  HERDR_TEAM_SKIP_CHECK=1\n' ;;
     preset.usage.none) printf '(없음)' ;;
     preset.list.noconf) printf '(preset.conf 없음)' ;;
     preset.menu.title) printf 'AI 팀 프리셋을 선택하세요 (1-%s 또는 이름, 기본: %s):\n' "$2" "$3" ;;
@@ -197,19 +225,15 @@ preset_usage_list() {
 precheck_herdr() {
   if command -v herdr >/dev/null 2>&1; then return 0; fi
   if [[ "${HERDR_TEAM_SKIP_CHECK:-}" == "1" ]]; then
-    printf 'WARN: herdr CLI not found, continuing anyway (HERDR_TEAM_SKIP_CHECK=1)\n' >&2
-    printf 'WARN: herdr CLI 를 찾을 수 없지만 HERDR_TEAM_SKIP_CHECK=1 로 계속 진행합니다.\n' >&2
+    msg precheck.warn.skip >&2
     return 0
   fi
-  cat >&2 <<'EOF'
-ERROR herdr CLI not found — herdr-team runs on top of herdr.
-ERROR herdr CLI 를 찾을 수 없습니다.
-  Install / 설치:
-    curl -fsSL https://herdr.dev/install.sh | sh
-    Windows: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
-  Verify / 확인:  herdr --version
-  Bypass / 우회:  HERDR_TEAM_SKIP_CHECK=1
-EOF
+  {
+    msg precheck.err.title
+    msg precheck.install.cmd
+    msg precheck.verify
+    msg precheck.bypass
+  } >&2
   return 127
 }
 
@@ -303,16 +327,16 @@ while [[ $# -gt 0 ]]; do
     --no-backup) NO_BACKUP=1; shift ;;
     --watcher) WATCHER=1; shift ;;
     --no-auto-allow) NO_AUTO_ALLOW=1; shift ;;
-    --kind) KIND_ARG="${2:?--kind에 값이 필요합니다}"; shift 2 ;;
-    --layout) LAYOUT_ARG="${2:?--layout에 값이 필요합니다 (2col|right-stack)}"; shift 2 ;;
-    --cwd) CWD="${2:?--cwd에 값이 필요합니다}"; shift 2 ;;
-    --template-dir) TEMPLATE_DIR="${2:?--template-dir에 값이 필요합니다}"; shift 2 ;;
-    --preset) PRESET_ARG="${2:?--preset에 값이 필요합니다 (목록: --list-presets)}"; shift 2 ;;
+    --kind) if [[ -z "${2:-}" ]]; then msg parse.opt.missing.kind >&2; exit 2; fi; KIND_ARG="$2"; shift 2 ;;
+    --layout) if [[ -z "${2:-}" ]]; then msg parse.opt.missing.layout >&2; exit 2; fi; LAYOUT_ARG="$2"; shift 2 ;;
+    --cwd) if [[ -z "${2:-}" ]]; then msg parse.opt.missing.cwd >&2; exit 2; fi; CWD="$2"; shift 2 ;;
+    --template-dir) if [[ -z "${2:-}" ]]; then msg parse.opt.missing.template_dir >&2; exit 2; fi; TEMPLATE_DIR="$2"; shift 2 ;;
+    --preset) if [[ -z "${2:-}" ]]; then msg parse.opt.missing.preset >&2; exit 2; fi; PRESET_ARG="$2"; shift 2 ;;
     --list-presets) LIST_PRESETS=1; shift ;;
     --precheck) if precheck_herdr; then exit 0; else exit 127; fi ;;
     --no-interactive) NO_INTERACTIVE=1; shift ;;
-    --*) echo "error: 알 수 없는 옵션: $1 (도움말: --help)" >&2; exit 2 ;;
-    *) if [[ -z "$PREFIX_ARG" ]]; then PREFIX_ARG="$1"; else echo "error: prefix는 1개만 지정 가능합니다: $1" >&2; exit 2; fi; shift ;;
+    --*) msg parse.opt.unknown "$1" >&2; exit 2 ;;
+    *) if [[ -z "$PREFIX_ARG" ]]; then PREFIX_ARG="$1"; else msg parse.prefix.multiple "$1" >&2; exit 2; fi; shift ;;
   esac
 done
 
@@ -350,7 +374,7 @@ auto_prefix() {
 PREFIX="${PREFIX_ARG:-$(auto_prefix)}"
 # prefix 위생 처리 (에이전트 이름에 안전 문자만)
 PREFIX="$(printf '%s' "$PREFIX" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-' | sed -e 's/^-*//;s/-*$//')"
-if [[ -z "$PREFIX" ]]; then echo "error: 유효한 prefix를 결정할 수 없습니다." >&2; exit 2; fi
+if [[ -z "$PREFIX" ]]; then msg parse.prefix.invalid >&2; exit 2; fi
 
 # --- preset 해결 (TUI 인터랙티브 메뉴 + 프리셋 지원) ---
 # 헬퍼(discover_presets/ordered_presets/alias_target/preset_dir/preset_desc)는
@@ -503,7 +527,7 @@ PRESET_LAYOUT="$(grep -E '^LAYOUT=' "$(preset_dir "$PRESET" 2>/dev/null)/preset.
 LAYOUT="${LAYOUT_ARG:-${PRESET_LAYOUT:-2col}}"
 case "$LAYOUT" in
   2col|right-stack) ;;
-  *) echo "error: 알 수 없는 layout: $LAYOUT (2col|right-stack 중 선택)" >&2; exit 2 ;;
+  *) msg layout.unknown "$LAYOUT" >&2; exit 2 ;;
 esac
 
 # --- 역할 일반화: preset.conf의 ROLES에서 에이전트명 도출 ---

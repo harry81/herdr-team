@@ -138,6 +138,48 @@ KO_CONF="$(HERDR_TEAM_LANG=ko HERDR_TEAM_TEMPLATE_DIR="$EMPTY_TPL" "$SIM/bin/her
 assert_contains "$KO_CONF" "preset.conf를 찾을 수 없습니다" "tc2c_ko_preset_conf_미발견"
 rm -rf "$EMPTY_TPL" "$SIM"
 
+echo "== tc-2d) 인자 파싱·precheck i18n (§5.A/§5.B) =="
+EN_PARSE="$(HERDR_TEAM_LANG=en "$BIN" --kind 2>&1 || true)"
+assert_contains "$EN_PARSE" "error: --kind requires a value" "tc2d_en_kind_값누락"
+KO_PARSE="$(HERDR_TEAM_LANG=ko "$BIN" --kind 2>&1 || true)"
+assert_contains "$KO_PARSE" "error: --kind에 값이 필요합니다" "tc2d_ko_kind_값누락"
+MISS_RC="$(HERDR_TEAM_LANG=en "$BIN" --preset 2>/dev/null; echo $?)"
+assert_exit "$MISS_RC" 2 "tc2d_값누락_exit2"
+EN_UNK="$(HERDR_TEAM_LANG=en "$BIN" --bogus-option 2>&1 || true)"
+assert_contains "$EN_UNK" "error: unknown option: --bogus-option (--help)" "tc2d_en_미지원옵션"
+KO_UNK="$(HERDR_TEAM_LANG=ko "$BIN" --bogus-option 2>&1 || true)"
+assert_contains "$KO_UNK" "error: 알 수 없는 옵션: --bogus-option" "tc2d_ko_미지원옵션"
+EN_LAYOUT="$(HERDR_TEAM_LANG=en "$BIN" test --layout bogus_layout --no-interactive 2>&1 || true)"
+assert_contains "$EN_LAYOUT" "error: unknown layout: bogus_layout" "tc2d_en_layout"
+EN_MULTI="$(HERDR_TEAM_LANG=en "$BIN" aa bb 2>&1 || true)"
+assert_contains "$EN_MULTI" "error: prefix must be given once: bb" "tc2d_en_prefix_중복"
+
+echo "== tc-2e) precheck 로케일별 1세트 (§5.B) =="
+NO_HERDR="$(mktemp -d)"
+for d in /usr/local/bin /usr/bin /bin; do
+  [[ -d "$d" ]] || continue
+  for f in "$d"/*; do
+    b="${f##*/}"; [[ "$b" == "herdr" ]] && continue
+    [[ -e "$NO_HERDR/$b" ]] || ln -s "$f" "$NO_HERDR/$b" 2>/dev/null || true
+  done
+done
+EN_PRE="$(HERDR_TEAM_LANG=en PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; EN_PRE_RC=$?
+assert_exit "$EN_PRE_RC" 127 "tc2e_en_precheck_exit127"
+assert_contains "$EN_PRE" "ERROR herdr CLI not found" "tc2e_en_ERROR_문구"
+assert_contains "$EN_PRE" "https://herdr.dev/install.sh" "tc2e_en_설치URL"
+assert_contains "$EN_PRE" "https://herdr.dev/install.ps1" "tc2e_en_윈도우URL"
+assert_contains "$EN_PRE" "HERDR_TEAM_SKIP_CHECK=1" "tc2e_en_우회플래그"
+assert_not_contains "$EN_PRE" "찾을 수 없습니다" "tc2e_en_한국어_미출력"
+KO_PRE="$(HERDR_TEAM_LANG=ko PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; KO_PRE_RC=$?
+assert_exit "$KO_PRE_RC" 127 "tc2e_ko_precheck_exit127"
+assert_contains "$KO_PRE" "ERROR herdr CLI 를 찾을 수 없습니다." "tc2e_ko_ERROR_문구"
+assert_contains "$KO_PRE" "https://herdr.dev/install.sh" "tc2e_ko_설치URL"
+assert_not_contains "$KO_PRE" "Install:" "tc2e_ko_en라벨_미출력"
+SKIP_OUT="$(HERDR_TEAM_LANG=en HERDR_TEAM_SKIP_CHECK=1 PATH="$NO_HERDR" timeout 20 "$BIN" --precheck 2>&1)"; SKIP_RC=$?
+assert_exit "$SKIP_RC" 0 "tc2e_skip_exit0"
+assert_contains "$SKIP_OUT" "WARN: herdr CLI not found, continuing anyway" "tc2e_skip_WARN"
+rm -rf "$NO_HERDR"
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
