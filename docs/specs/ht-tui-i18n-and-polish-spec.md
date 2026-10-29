@@ -264,6 +264,7 @@ countdown_stop:  kill $HT_CNT_PID || true ; wait $HT_CNT_PID 또는 kill -9 후 
 | `pane.err.no_base` (1439) | `error: cannot determine current pane id. Run inside a Herdr session` | 현행 |
 | `pane.err.parse` (1457/1468/1484/1516) | `error: failed to parse pane_id from %s split output: %s` | 현행 |
 | `agent.err.session_json` / `session_fail` / `session_parse` (1041/1045/1050) | `error: session request JSON failed (%s)` / `error: session creation failed (%s) — check opencode install/background service` / `error: session id parse failed (%s): %s` | 현행 |
+| `agent.err.session_abort` (1536) | `error: %s session creation failed → start aborted (panes already created: %s)` | `error: %s 세션 생성 실패 → 시작 중단 (이미 생성된 pane: %s개)` |
 | `agent.err.start_abort` (1540) | `error: %s start aborted (pane %s shell not ready)` | 현행 |
 | `agent.log.exists` (1550) | `[herdr-team] %s already exists — start skipped` | 현행 |
 
