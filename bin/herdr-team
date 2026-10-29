@@ -380,16 +380,6 @@ ht_init_style() {
   HT_STYLE_COLOR=1
 }
 ht_init_style
-ht_box() { # ht_box LINE... — ASCII 박스 (TTY에서만 dim 테두리)
-  local l w=0 border
-  for l in "$@"; do if [[ ${#l} -gt $w ]]; then w=${#l}; fi; done
-  border="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
-  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m%s\033[0m\n' "$border"; else printf '%s\n' "$border"; fi
-  for l in "$@"; do
-    if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m|\033[0m %s\n' "$l"; else printf '| %s\n' "$l"; fi
-  done
-  if [[ "$HT_STYLE_COLOR" -eq 1 ]]; then printf '\033[2m%s\033[0m\n' "$border"; else printf '%s\n' "$border"; fi
-}
 # --- 시작 배너 / 진행 단계 / 최종 요약 (명세 §4.2/§4.4/§4.5) ---
 ht_banner() { # 명세 §4.2 — TTY 박스 아트(축소 규칙), plain 1행 계약 불변
   local cols t1 t2 w bar
@@ -401,11 +391,11 @@ ht_banner() { # 명세 §4.2 — TTY 박스 아트(축소 규칙), plain 1행 �
   w=${#t1}; if [[ ${#t2} -gt $w ]]; then w=${#t2}; fi
   if [[ $((w+4)) -gt $((cols-1)) ]]; then t2=""; w=${#t1}; fi
   if [[ $((w+4)) -gt $((cols-1)) ]]; then printf 'herdr-team v%s\n' "$VERSION"; return 0; fi
-  bar="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
+  bar="+$(printf '%*s' $((w+3)) '' | tr ' ' '-')+"
   printf '\033[34m%s\033[0m\n' "$bar"
-  printf '\033[34m|\033[0m  \033[1m%s\033[0m%*s\033[34m|\033[0m\n' "$t1" $((w-${#t1})) ''
+  printf '\033[34m|\033[0m  \033[1m%s\033[0m%*s \033[34m|\033[0m\n' "$t1" $((w-${#t1})) ''
   if [[ -n "$t2" ]]; then
-    printf '\033[34m|\033[0m  \033[36m%s\033[0m%*s\033[34m|\033[0m\n' "$t2" $((w-${#t2})) ''
+    printf '\033[34m|\033[0m  \033[36m%s\033[0m%*s \033[34m|\033[0m\n' "$t2" $((w-${#t2})) ''
   fi
   printf '\033[34m%s\033[0m\n' "$bar"
 }
@@ -435,7 +425,7 @@ ht_box_titled() { # $1=title $2=footer; $3... = rows (TTY 전용 박스)
   bar="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
   printf '\033[34m%s\033[0m\n' "$bar"
   printf '\033[34m|\033[0m  \033[1m%s\033[0m%*s\033[34m|\033[0m\n' "$title" $((w-${#title})) ''
-  printf '\033[34m|\033[0m\033[2m%s\033[0m\033[34m|\033[0m\n' "$(printf '%*s' $((w+2)) '' | tr ' ' '-')"
+  printf '\033[34m|\033[0m\033[2m%s\033[0m\033[34m|\033[0m\n' "$(printf '%*s' $((w+3)) '' | tr ' ' '-')"
   for l in "$@"; do printf '\033[34m|\033[0m  \033[32m%s\033[0m%*s\033[34m|\033[0m\n' "$l" $((w-${#l})) ''; done
   printf '\033[34m|\033[0m  \033[2m%s\033[0m%*s\033[34m|\033[0m\n' "$footer" $((w-${#footer})) ''
   printf '\033[34m%s\033[0m\n' "$bar"
@@ -601,10 +591,10 @@ ht_menu_box() { # $1=title $2=footer; $3... = "num|name|desc|marker" 행
   done
   if [[ ${#title} -gt $w ]]; then w=${#title}; fi
   if [[ ${#footer} -gt $w ]]; then w=${#footer}; fi
-  local bar="+$(printf '%*s' $((w+2)) '' | tr ' ' '-')+"
+  local bar="+$(printf '%*s' $((w+3)) '' | tr ' ' '-')+"
   printf '\033[36m%s\033[0m\n' "$bar"
-  printf '\033[36m|\033[0m  \033[1m%s\033[0m%*s\033[36m|\033[0m\n' "$title" $((w-${#title})) ''
-  printf '\033[36m|\033[0m\033[2m%s\033[0m\033[36m|\033[0m\n' "$(printf '%*s' $((w+2)) '' | tr ' ' '-')"
+  printf '\033[36m|\033[0m  \033[1m%s\033[0m%*s \033[36m|\033[0m\n' "$title" $((w-${#title})) ''
+  printf '\033[36m|\033[0m\033[2m%s\033[0m\033[36m|\033[0m\n' "$(printf '%*s' $((w+3)) '' | tr ' ' '-')"
   local used pad
   for spec in "${rows[@]}"; do
     n="${spec%%|*}"; spec="${spec#*|}"
@@ -613,15 +603,15 @@ ht_menu_box() { # $1=title $2=footer; $3... = "num|name|desc|marker" 행
     used=$(( ${#n} + 2 + ${#name} + 1 + ${#desc} + ${#mark} ))
     pad=$(( w - used )); if [[ $pad -lt 0 ]]; then pad=0; fi
     if [[ -n "$mark" ]]; then
-      printf '\033[36m|\033[0m  \033[35m%s\033[0m) %s %s\033[35m%s\033[0m%*s\033[36m|\033[0m\n' \
+      printf '\033[36m|\033[0m  \033[35m%s\033[0m) %s %s\033[35m%s\033[0m%*s \033[36m|\033[0m\n' \
         "$n" "$name" "$desc" "$mark" "$pad" ''
     else
-      printf '\033[36m|\033[0m  \033[35m%s\033[0m) %s %s%*s\033[36m|\033[0m\n' \
+      printf '\033[36m|\033[0m  \033[35m%s\033[0m) %s %s%*s \033[36m|\033[0m\n' \
         "$n" "$name" "$desc" "$pad" ''
     fi
   done
   if [[ -n "$footer" ]]; then
-    printf '\033[36m|\033[0m  \033[2m%s\033[0m%*s\033[36m|\033[0m\n' "$footer" $((w-${#footer})) ''
+    printf '\033[36m|\033[0m  \033[2m%s\033[0m%*s \033[36m|\033[0m\n' "$footer" $((w-${#footer})) ''
   fi
   printf '\033[36m%s\033[0m\n' "$bar"
 }
