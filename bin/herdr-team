@@ -73,7 +73,7 @@ VERSION="$(read_version)"
 # 결정 순서: HERDR_TEAM_LANG > LC_ALL > LANG > en. 시작 시 1회 확정(실행 중 불변).
 # 카탈로그는 스크립트 내부 함수(단일 파일 배포 무결성 — 명세 §3.2 A안).
 MSG_LOCALE=""
-MSG_KEYS="preset.usage.none preset.list.noconf"
+MSG_KEYS="preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli"
 ht_detect_locale() {
   local v="${HERDR_TEAM_LANG:-}"
   if [[ -n "$v" ]]; then
@@ -98,12 +98,38 @@ _msg_en() {
   case "$1" in
     preset.usage.none) printf '(none)' ;;
     preset.list.noconf) printf '(preset.conf missing)' ;;
+    preset.menu.title) printf 'Select AI team preset (1-%s or name, default: %s):\n' "$2" "$3" ;;
+    preset.menu.prompt) printf 'Select [1-%s/%s] (default: %s, 10s): ' "$2" "$3" "$4" ;;
+    preset.warn.deprecated) printf "[herdr-team] WARN: preset '%s' is deprecated; use '%s' instead. (app merged into dev)\n" "$2" "$3" ;;
+    preset.err.unknown.name) printf 'error: unknown preset choice: %s (available: %s)\n' "$2" "$3" ;;
+    preset.err.unknown.number) printf 'error: unknown preset choice: %s (1-%s or name)\n' "$2" "$3" ;;
+    preset.err.cli.unknown) printf 'error: unknown preset: %s (available: %s. list: --list-presets)\n' "$2" "$3" ;;
+    preset.err.conf.missing) printf "error: preset.conf for '%s' not found. templates/<preset>/preset.conf is required (search: %s, %s).\n" "$2" "$3" "$4" ;;
+    preset.err.conf.missing.found) printf "error: preset.conf for '%s' not found (discovered: %s; search: %s, %s).\n" "$2" "$3" "$4" "$5" ;;
+    kind.menu.title) printf 'Select agent kind (1-4 or name, default: opencode):\n' ;;
+    kind.menu.item1) printf '  1) opencode - OpenCode Interpreter\n' ;;
+    kind.menu.prompt) printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s): ' ;;
+    kind.err.unknown) printf 'error: unknown agent kind choice: %s\n' "$2" ;;
+    kind.err.unknown.cli) printf 'error: unknown agent kind: %s (supported: opencode, claude, codex, agy, pi, gemini, cursor, ...)\n' "$2" ;;
   esac
 }
 _msg_ko() {
   case "$1" in
     preset.usage.none) printf '(없음)' ;;
     preset.list.noconf) printf '(preset.conf 없음)' ;;
+    preset.menu.title) printf 'AI 팀 프리셋을 선택하세요 (1-%s 또는 이름, 기본: %s):\n' "$2" "$3" ;;
+    preset.menu.prompt) printf 'Select [1-%s/%s] (default: %s, 10s): ' "$2" "$3" "$4" ;;
+    preset.warn.deprecated) printf "[herdr-team] 경고: preset '%s'는 deprecated입니다. '%s'로 대체합니다. (app은 dev에 통합되었습니다)\n" "$2" "$3" ;;
+    preset.err.unknown.name) printf 'error: 알 수 없는 preset 선택: %s (사용 가능: %s)\n' "$2" "$3" ;;
+    preset.err.unknown.number) printf 'error: 알 수 없는 preset 선택: %s (1-%s 또는 이름)\n' "$2" "$3" ;;
+    preset.err.cli.unknown) printf 'error: 알 수 없는 preset: %s (사용 가능: %s. 목록: --list-presets)\n' "$2" "$3" ;;
+    preset.err.conf.missing) printf "error: preset '%s'의 preset.conf를 찾을 수 없습니다. templates/<preset>/preset.conf가 필요합니다 (탐색 경로: %s, %s).\n" "$2" "$3" "$4" ;;
+    preset.err.conf.missing.found) printf "error: preset '%s'의 preset.conf를 찾을 수 없습니다 (발견된 preset: %s; 탐색 경로: %s, %s).\n" "$2" "$3" "$4" "$5" ;;
+    kind.menu.title) printf '에이전트 종류를 선택하세요 (1-4 또는 이름, 기본: opencode):\n' ;;
+    kind.menu.item1) printf '  1) opencode - OpenCode Interpreter (기본값)\n' ;;
+    kind.menu.prompt) printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s): ' ;;
+    kind.err.unknown) printf 'error: 알 수 없는 agent kind 선택: %s\n' "$2" ;;
+    kind.err.unknown.cli) printf 'error: 알 수 없는 agent kind: %s (지원 목록: opencode, claude, codex, agy, pi, gemini, cursor 등)\n' "$2" ;;
   esac
 }
 
@@ -351,13 +377,13 @@ choose_preset_tui() {
   [[ ${#names[@]} -eq 0 ]] && names=(dev)
   local default="${names[0]}"
   {
-    printf 'Select AI team preset (1-%d or name, default: %s):\n' "${#names[@]}" "$default"
+    msg preset.menu.title "${#names[@]}" "$default"
     for n in "${names[@]}"; do
       printf '  %d) %s - %s\n' "$i" "$n" "$(preset_desc "$n")"
       joined+="$n/"; i=$((i+1))
     done
     joined="${joined%/}"
-    printf 'Select [1-%d/%s] (default: %s, 10s): ' "${#names[@]}" "$joined" "$default"
+    msg preset.menu.prompt "${#names[@]}" "$joined" "$default"
   } >&2
   local ans=""
   if IFS= read -r -t 10 ans <&0 2>/dev/null; then
@@ -368,18 +394,18 @@ choose_preset_tui() {
         if is_known_preset "$ans"; then
           local canon; canon="$(alias_target "$ans")"
           if [[ "$canon" != "$ans" ]]; then
-            echo "[herdr-team] 경고: preset '$ans'는 deprecated입니다. '$canon'로 대체합니다. (app은 dev에 통합되었습니다)" >&2
+            msg preset.warn.deprecated "$ans" "$canon" >&2
           fi
           printf '%s' "$canon"
         else
-          echo "error: 알 수 없는 preset 선택: $ans (사용 가능: $(preset_usage_list))" >&2; exit 2
+          msg preset.err.unknown.name "$ans" "$(preset_usage_list)" >&2; exit 2
         fi
         ;;
       *)
         if [[ "$ans" -ge 1 && "$ans" -le "${#names[@]}" ]]; then
           printf '%s' "${names[$((ans-1))]}"
         else
-          echo "error: 알 수 없는 preset 선택: $ans (1-${#names[@]} 또는 이름)" >&2; exit 2
+          msg preset.err.unknown.number "$ans" "${#names[@]}" >&2; exit 2
         fi
         ;;
     esac
@@ -398,12 +424,12 @@ choose_kind_tui() {
   # Renders to stderr and reads one line from stdin.
   # Falls back to kind=opencode on EOF/timeout/non-TTY so it never hangs.
   {
-    printf 'Select agent kind (1-4 or name, default: opencode):\n'
-    printf '  1) opencode - OpenCode Interpreter (기본값)\n'
+    msg kind.menu.title
+    msg kind.menu.item1
     printf '  2) claude   - Anthropic Claude Code\n'
     printf '  3) codex    - OpenAI Codex / CLI\n'
     printf '  4) agy      - Google Antigravity Agent\n'
-    printf 'Select [1-4/opencode/claude/codex/agy] (default: opencode, 10s): '
+    msg kind.menu.prompt
   } >&2
   local ans=""
   if IFS= read -r -t 10 ans <&0 2>/dev/null; then
@@ -417,7 +443,7 @@ choose_kind_tui() {
         if is_known_kind "$ans"; then
           printf '%s' "$ans"
         else
-          echo "error: 알 수 없는 agent kind 선택: $ans" >&2; exit 2
+          msg kind.err.unknown "$ans" >&2; exit 2
         fi
         ;;
     esac
@@ -431,11 +457,11 @@ if [[ "$LIST_PRESETS" -eq 1 ]]; then list_presets; exit 0; fi
 if [[ -z "$PRESET_ARG" && -n "${HERDR_TEAM_PRESET:-}" ]]; then PRESET_ARG="$HERDR_TEAM_PRESET"; fi
 if [[ -n "$PRESET_ARG" ]]; then
   if ! is_known_preset "$PRESET_ARG"; then
-    echo "error: 알 수 없는 preset: $PRESET_ARG (사용 가능: $(preset_usage_list). 목록: --list-presets)" >&2; exit 2
+    msg preset.err.cli.unknown "$PRESET_ARG" "$(preset_usage_list)" >&2; exit 2
   fi
   PRESET="$(alias_target "$PRESET_ARG")"
   if [[ "$PRESET" != "$PRESET_ARG" ]]; then
-    echo "[herdr-team] 경고: preset '$PRESET_ARG'는 deprecated입니다. '$PRESET'로 대체합니다. (app은 dev에 통합되었습니다)" >&2
+    msg preset.warn.deprecated "$PRESET_ARG" "$PRESET" >&2
   fi
 else
   if [[ "$NO_INTERACTIVE" -eq 1 ]]; then
@@ -448,10 +474,10 @@ fi
 # preset.conf 존재 검증 (CLI/ENV/TUI 공통; discovery가 비어도 원시 grep 대신 명시 에러)
 if [[ -z "$(preset_dir "$PRESET" 2>/dev/null || true)" ]]; then
   _found="$(preset_usage_list)"
-  if [[ "$_found" == "(없음)" ]]; then
-    echo "error: preset '$PRESET'의 preset.conf를 찾을 수 없습니다. templates/<preset>/preset.conf가 필요합니다 (탐색 경로: $TEMPLATE_DIR, $SCRIPT_DIR/../templates)." >&2
+  if [[ "$_found" == "(none)" || "$_found" == "(없음)" ]]; then
+    msg preset.err.conf.missing "$PRESET" "$TEMPLATE_DIR" "$SCRIPT_DIR/../templates" >&2
   else
-    echo "error: preset '$PRESET'의 preset.conf를 찾을 수 없습니다 (발견된 preset: $_found; 탐색 경로: $TEMPLATE_DIR, $SCRIPT_DIR/../templates)." >&2
+    msg preset.err.conf.missing.found "$PRESET" "$_found" "$TEMPLATE_DIR" "$SCRIPT_DIR/../templates" >&2
   fi
   exit 2
 fi
@@ -460,7 +486,7 @@ fi
 if [[ -z "$KIND_ARG" && -n "${HERDR_TEAM_KIND:-}" ]]; then KIND_ARG="$HERDR_TEAM_KIND"; fi
 if [[ -n "$KIND_ARG" ]]; then
   if ! is_known_kind "$KIND_ARG"; then
-    echo "error: 알 수 없는 agent kind: $KIND_ARG (지원 목록: opencode, claude, codex, agy, pi, gemini, cursor 등)" >&2; exit 2
+    msg kind.err.unknown.cli "$KIND_ARG" >&2; exit 2
   fi
   KIND="$KIND_ARG"
 else
