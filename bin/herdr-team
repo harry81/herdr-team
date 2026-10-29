@@ -771,7 +771,7 @@ fi
 # preset.conf 존재 검증 (CLI/ENV/TUI 공통; discovery가 비어도 원시 grep 대신 명시 에러)
 if [[ -z "$(preset_dir "$PRESET" 2>/dev/null || true)" ]]; then
   _found="$(preset_usage_list)"
-  if [[ "$_found" == "(none)" || "$_found" == "(없음)" ]]; then
+  if [[ "$_found" == "(none)" ]]; then
     msg preset.err.conf.missing "$PRESET" "$TEMPLATE_DIR" "$SCRIPT_DIR/../templates" >&2
   else
     msg preset.err.conf.missing.found "$PRESET" "$_found" "$TEMPLATE_DIR" "$SCRIPT_DIR/../templates" >&2
