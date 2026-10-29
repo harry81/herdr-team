@@ -331,7 +331,7 @@ STUBEOF
   assert_contains "$SUM_OUT" "[done] prefix=sm preset=dev kind=opencode layout=2col agents=4" "tc7_요약_plain"
   assert_contains "$SUM_OUT" "next: herdr agent list" "tc7_요약_다음단계힌트"
   assert_contains "$SUM_OUT" "[4/4] panes" "tc7_실행_진행단계"
-  assert_contains "$SUM_OUT" "완료: prefix=sm preset=dev" "tc7_기존_완료로그_유지"
+  assert_contains "$SUM_OUT" "Done: prefix=sm preset=dev" "tc7_기존_완료로그_유지"
   assert_plain_bytes "$SUM_OUT" "tc7_실행_escape_CR_부재"
   rm -rf "$S" "$SC"
 fi

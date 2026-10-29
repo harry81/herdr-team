@@ -99,7 +99,7 @@ echo "== TC-GI 7) dry-run 계획 ↔ 실실행 일치 =="
 D="$(mk_git)"; printf '# herdr-team\n.herdr-team/\n.opencode/\n' > "$D/.gitignore"
 GI_BEFORE="$(cat "$D/.gitignore")"
 OUT="$(iso "$D" --dry-run)"
-assert_contains "$OUT" "이미 있음" "gi7_이미있음_표시"
+assert_contains "$OUT" "already present" "gi7_이미있음_표시"
 assert_not_contains "$OUT" "gitignore: append" "gi7_append_미출력"
 iso "$D" >/dev/null 2>&1
 assert_equal "$(cat "$D/.gitignore")" "$GI_BEFORE" "gi7_실실행_무변경"
@@ -113,7 +113,7 @@ echo "== TC-GI 8) 비 git 디렉터리 → 보강 생략 =="
 D="$(mk_tmp)"
 OUT="$(iso "$D")"; RC=$?
 assert_exit "$RC" 0 "gi8_exit_0"
-assert_contains "$OUT" "생략" "gi8_생략_log"
+assert_contains "$OUT" "skip: gitignore augmentation (not a git repo)" "gi8_생략_log"
 if [[ ! -e "$D/.gitignore" ]]; then ok "gi8_gitignore_미생성"; else bad "gi8_gitignore_미생성"; fi
 
 echo "== TC-GI 9) --no-gitignore =="
@@ -169,7 +169,7 @@ if [[ "$RC" -ne 0 ]]; then ok "gi15_디렉터리_exit≠0"; else bad "gi15_디�
 assert_contains "$OUT" "$D/.gitignore" "gi15_경로_명시"
 assert_contains "$OUT" "is not a regular file" "gi15_에러문구"
 assert_equal "$(ls -A "$D/.gitignore" | wc -l | tr -d ' ')" "0" "gi15_잔여물_없음"
-assert_not_contains "$OUT" "gitignore 보강:" "gi15_성공로그_없음"
+assert_not_contains "$OUT" "gitignore append:" "gi15_성공로그_없음"
 
 echo "== TC-BA 11) 신규 설치: 마커로 감싼 canon, 백업 없음 =="
 D="$(mk_tmp)"

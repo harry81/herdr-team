@@ -85,14 +85,14 @@ echo "== TC-WS 21) --watcher --no-start → 기동 생략 + rc 0 =="
 D="$(mk_work)"
 OUT="$(ht "$D" --watcher --no-start)"; RC=$?
 assert_exit "$RC" 0 "tc_ws_21_exit_0"
-assert_contains "$OUT" "watcher 생략" "tc_ws_21_생략_log"
+assert_contains "$OUT" "watcher skipped" "tc_ws_21_생략_log"
 if [[ ! -f "$D/.herdr-team/watcher.pid" ]]; then ok "tc_ws_21_pidfile_미생성"; else bad "tc_ws_21_pidfile_미생성"; fi
 assert_equal "$(watcher_count)" "0" "tc_ws_21_프로세스_0"
 # --templates-only 도 동일하게 생략
 D="$(mk_work)"
 OUT="$(ht "$D" --watcher --templates-only)"; RC=$?
 assert_exit "$RC" 0 "tc_ws_21b_templates_only_exit_0"
-assert_contains "$OUT" "watcher 생략" "tc_ws_21b_templates_only_생략"
+assert_contains "$OUT" "watcher skipped" "tc_ws_21b_templates_only_생략"
 
 echo "== TC-WS 22) --watcher 기동: pidfile + 프로세스 + log =="
 D="$(mk_work)"; : > "$ARGS"
@@ -114,7 +114,7 @@ OUT="$(ht "$D" --watcher)"; RC=$?
 assert_exit "$RC" 0 "tc_ws_23_exit_0"
 assert_equal "$(cat "$PIDFILE")" "$PID_BEFORE" "tc_ws_23_pidfile_동일"
 assert_equal "$(watcher_count)" "1" "tc_ws_23_프로세스_1개"
-assert_contains "$OUT" "이미 가동" "tc_ws_23_스킵_log"
+assert_contains "$OUT" "watcher already running" "tc_ws_23_스킵_log"
 
 echo "== TC-WS 24) stale pidfile → 갱신 후 정상 기동 =="
 D="$(mk_work)"
@@ -144,7 +144,7 @@ OUT="$(PATH="$NO_WATCH_STUB:/usr/local/bin:/usr/bin:/bin" "$ISO/bin/herdr-team" 
   --cwd "$D" --template-dir "$REPO/templates" --no-interactive --kind claude --watcher 2>&1)"; RC=$?
 assert_exit "$RC" 0 "tc_ws_26_비차단_rc0"
 assert_contains "$OUT" "watcher" "tc_ws_26_경고_출력"
-assert_contains "$OUT" "생략" "tc_ws_26_생략_문구"
+assert_contains "$OUT" "watcher not started" "tc_ws_26_생략_문구"
 if [[ ! -f "$D/.herdr-team/watcher.pid" ]]; then ok "tc_ws_26_pidfile_미생성"; else bad "tc_ws_26_pidfile_미생성"; fi
 
 echo "== TC-WS 26b) 즉시 종료 watcher → 경고 1행 + pidfile 미기록 + rc 불변 (F-04) =="
@@ -160,8 +160,8 @@ D="$(mk_work)"; : > "$ARGS"
 OUT="$(PATH="$XSTUB:$PATH" HT_WATCHER_ARGS="$ARGS" "$BIN" wtest --preset dev --cwd "$D" \
   --template-dir "$REPO/templates" --no-interactive --kind claude --watcher 2>&1)"; RC=$?
 assert_exit "$RC" 0 "tc_ws_26b_비차단_rc0"
-assert_contains "$OUT" "기동 실패" "tc_ws_26b_경고_출력"
-assert_not_contains "$OUT" "watcher 기동: pid=" "tc_ws_26b_성공로그_없음"
+assert_contains "$OUT" "watcher start failed" "tc_ws_26b_경고_출력"
+assert_not_contains "$OUT" "watcher started: pid=" "tc_ws_26b_성공로그_없음"
 if [[ ! -f "$D/.herdr-team/watcher.pid" ]]; then ok "tc_ws_26b_pidfile_미기록"; else bad "tc_ws_26b_pidfile_미기록"; fi
 
 echo "== TC-WS 27) pidfile 은 .herdr-team/ 내부 + gitignore 연동 =="
@@ -183,7 +183,7 @@ assert_contains "$HELP" "--watcher" "tc_ws_help_document"
 D="$(mk_work)"
 OUT="$(ht "$D")"; RC=$?
 assert_exit "$RC" 0 "tc_ws_default_off_exit_0"
-assert_not_contains "$OUT" "watcher 기동" "tc_ws_default_off"
+assert_not_contains "$OUT" "watcher started" "tc_ws_default_off"
 if [[ ! -f "$D/.herdr-team/watcher.pid" ]]; then ok "tc_ws_default_off_pidfile_없음"; else bad "tc_ws_default_off_pidfile_없음"; fi
 
 echo "-----------------------------"

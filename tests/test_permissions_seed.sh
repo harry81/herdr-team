@@ -116,11 +116,11 @@ echo "== 2d) R-03: 자기변조 경고는 worker 역할 병합 시에만 =="
 C6="$(mktemp -d)"
 OUT_WORKER="$(PATH="$STUB:$PATH" "$BIN" pfx --preset dev --cwd "$C6" --template-dir "$REPO/templates" \
   --no-interactive --no-start 2>&1)"
-assert_contains "$OUT_WORKER" "edit 도구 한정" "r03_worker_경고_출력"
+assert_contains "$OUT_WORKER" "edit deny-list covers the edit tool only" "r03_worker_경고_출력"
 C7="$(mktemp -d)"
 OUT_NOWORKER="$(PATH="$STUB:$PATH" "$BIN" pfx --preset research --cwd "$C7" --template-dir "$REPO/templates" \
   --no-interactive --no-start 2>&1)"
-if printf '%s' "$OUT_NOWORKER" | grep -qF "edit 도구 한정"; then
+if printf '%s' "$OUT_NOWORKER" | grep -qF "edit deny-list covers the edit tool only"; then
   bad "r03_비worker_경고_미출력"
 else
   ok "r03_비worker_경고_미출력"
