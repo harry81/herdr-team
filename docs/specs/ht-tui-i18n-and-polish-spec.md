@@ -1,5 +1,7 @@
 # Spec: ht 실행화면 오픈소스화 대응 — TUI i18n 및 시각 개선
 
+> **대체됨**: 2026-10-29 English Only 정책 전환으로 본 명세는 `docs/specs/ht-tui-english-fancy-spec.md` 가 대체. i18n/ko 카탈로그 절은 폐기, 시각 설계·티어 규약·롤백 방식은 계승됨.
+
 - 작성: ht-planner / 2026-10-29
 - 대상: `bin/herdr-team` (단일 Bash 스크립트, 1577행) + 문서(README)
 - 참조: `docs/specs/test-tiering-spec.md` (티어/T3 승격 규약)
