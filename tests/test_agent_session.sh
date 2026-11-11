@@ -53,6 +53,7 @@ chmod +x "$STUB/herdr"
 
 cat > "$STUB/opencode" <<'STUBEOF'
 #!/usr/bin/env bash
+printf 'ENV MSYS2_ARG_CONV_EXCL=%s MSYS_NO_PATHCONV=%s\n' "${MSYS2_ARG_CONV_EXCL-}" "${MSYS_NO_PATHCONV-}" >> "${OPENCODE_ENV_LOG:-/dev/null}"
 printf '%s\n' "$*" >> "${OPENCODE_CALL_LOG:?}"
 case "${OPENCODE_MODE:-ok}" in
   ok)      printf '{"data":{"id":"ses_fake"}}\n' ;;
@@ -72,6 +73,7 @@ run_case() {
   local mode="$1" dir="$2"; shift 2
   CWD_CASE="$(mktemp -d)"
   HERDR_START_LOG="$dir/herdr.log" OPENCODE_CALL_LOG="$dir/opencode.log" OPENCODE_MODE="$mode" \
+    OPENCODE_ENV_LOG="$dir/env.log" \
     HERDR_START_RC="${HERDR_START_RC:-0}" \
     HERDR_TEAM_AGENT_START_TIMEOUT_MS="${HERDR_TEAM_AGENT_START_TIMEOUT_MS:-}" \
     PATH="$STUB:$PATH" "$BIN" t --preset dev --cwd "$CWD_CASE" \
@@ -92,6 +94,7 @@ D2="$(mktemp -d)"; run_case fail "$D2"
 if [[ "$RC" -ne 0 ]]; then ok "session_fail: exit != 0"; else bad "session_fail: exit != 0 (rc=0)"; fi
 assert_contains "$(cat "$D2/out")" "session creation failed" "session_fail: 원인 메시지"
 assert_contains "$(cat "$D2/out")" "panes already created" "session_fail: 생성된 pane 정리 안내"
+assert_contains "$(cat "$D2/out")" "MSYS2_ARG_CONV_EXCL=/api" "session_fail: MSYS 변환 방어 힌트"
 assert_not_contains "$(cat "$D2/herdr.log" 2>/dev/null)" "agent start" "session_fail: agent start 미실행"
 assert_not_contains "$(cat "$D2/herdr.log" 2>/dev/null)" "--agent" "session_fail: --agent 미사용"
 assert_not_contains "$(cat "$D2/herdr.log" 2>/dev/null)" "--model" "session_fail: --model 미사용"
@@ -182,6 +185,31 @@ done
 VER_OUT="$(HERDR_TEAM_AGENT_START_TIMEOUT_MS=abc "$BIN" --version 2>&1)"; VER_RC=$?
 assert_exit "$VER_RC" 0 "timeout_env: --version exit 0 (비숫자)"
 assert_contains "$VER_OUT" "herdr-team v" "timeout_env: --version 정상 출력"
+
+echo "== m) MSYS 슬래시 변환 방어: 세션 호출에만 MSYS2_ARG_CONV_EXCL=/api =="
+D13="$(mktemp -d)"; run_case ok "$D13"
+ENV_M="$(cat "$D13/env.log" 2>/dev/null)"
+assert_contains "$ENV_M" "ENV MSYS2_ARG_CONV_EXCL=/api MSYS_NO_PATHCONV=" "msys_conv: 세션 호출에 방어 변수"
+assert_not_contains "$ENV_M" "MSYS2_ARG_CONV_EXCL=/api/" "msys_conv: 값은 정확히 /api(과잉값 불허)"
+assert_not_contains "$ENV_M" "MSYS_NO_PATHCONV=1" "msys_conv: MSYS_NO_PATHCONV 미사용"
+rm -rf "$D13" "$CWD_CASE"
+
+echo "== n) 스코핑 + Linux 비회귀 가드: 프루브 미노출 / argv 무손상 / 외부 누출 없음 =="
+D14="$(mktemp -d)"; run_case ok "$D14"
+PROBE_ENV="$(sed -n '1p' "$D14/env.log" 2>/dev/null)"
+assert_contains "$(sed -n '1p' "$D14/opencode.log" 2>/dev/null)" "api --help" "msys_scope: 1번째 호출은 api 프루브"
+assert_not_contains "$PROBE_ENV" "MSYS2_ARG_CONV_EXCL=/api" "msys_scope: 프루브 호출에 방어 변수 미노출"
+assert_contains "$(cat "$D14/opencode.log" 2>/dev/null)" "/api/session" "msys_scope: argv /api/session 리터럴 도달"
+if [[ -z "${MSYS2_ARG_CONV_EXCL-}" ]]; then ok "msys_scope: 테스트 프로세스로 변수 누출 없음"; else bad "msys_scope: 테스트 프로세스로 변수 누출 없음"; fi
+rm -rf "$D14" "$CWD_CASE"
+
+echo "== o) 값 불변식: 세션 호출 수만큼 모두 동일한 /api =="
+D15="$(mktemp -d)"; run_case ok "$D15"
+DEF_N="$(grep -c -F 'ENV MSYS2_ARG_CONV_EXCL=/api MSYS_NO_PATHCONV=' "$D15/env.log" 2>/dev/null || true)"
+SESS_N="$(grep -c -F 'api post /api/session' "$D15/opencode.log" 2>/dev/null || true)"
+assert_exit "$SESS_N" 4 "msys_value: 역할 수(4)만큼 세션 호출"
+assert_exit "$DEF_N" "$SESS_N" "msys_value: 세션 호출마다 동일한 /api"
+rm -rf "$D15" "$CWD_CASE"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

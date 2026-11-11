@@ -164,6 +164,19 @@ INST_ROOT_TXT="$(cat "$ROOT_INSTALL" 2>/dev/null)"
 assert_contains "$INST_ROOT_TXT" 'windows\install.bat' "루트 install.bat → windows/ 위임"
 assert_contains "$INST_ROOT_TXT" "%*" "루트 install.bat: 인자 패스스루"
 
+echo "== 11) MSYS 슬래시 경로 변환 방어 단일 소스 (bash 소유, bat 미중복) =="
+# 대용량 파일 전체를 assert_contains 에 넘기면 printf|grep 의 SIGPIPE+pipefail 거짓 음성이 나므로
+# 매칭 라인만 추출해 검사한다(기존 파일 텍스트 단언 방식 유지).
+MSYS_CALL_LN="$(grep -F 'run_capture opencode api post /api/session' "$BIN" 2>/dev/null)"
+assert_contains "$MSYS_CALL_LN" "MSYS2_ARG_CONV_EXCL='/api'" "msys_conv: bin 호출 단위 방어(단일 소스)"
+BIN_NOPATH="$(grep -F 'MSYS_NO_PATHCONV' "$BIN" 2>/dev/null)"
+assert_not_contains "$BIN_NOPATH" "MSYS_NO_PATHCONV" "msys_conv: MSYS_NO_PATHCONV 미사용(bin)"
+for f in "$CORE" "$WATCH_CORE" "$WIN_INSTALL" "$SHORTCUT"; do
+  F_TXT="$(cat "$f" 2>/dev/null)"
+  assert_not_contains "$F_TXT" "MSYS2_ARG_CONV_EXCL" "msys_conv: bat 미중복 (${f#$REPO/})"
+  assert_not_contains "$F_TXT" "MSYS_NO_PATHCONV" "msys_conv: MSYS_NO_PATHCONV 없음 (${f#$REPO/})"
+done
+
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

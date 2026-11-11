@@ -147,7 +147,7 @@ _msg_en() {
     pane.err.no_base) printf 'error: cannot determine current pane id. Run inside a Herdr session\n' ;;
     pane.err.parse) printf 'error: failed to parse pane_id from %s split output: %s\n' "$2" "$3" ;;
     agent.err.session_json) printf 'error: session request JSON failed (%s)\n' "$2" ;;
-    agent.err.session_fail) printf 'error: session creation failed (%s) - check opencode install/background service\n' "$2" ;;
+    agent.err.session_fail) printf 'error: session creation failed (%s) - check opencode install/background service (Git-Bash/MSYS: /api argument auto-conversion is blocked via MSYS2_ARG_CONV_EXCL=/api)\n' "$2" ;;
     agent.err.session_parse) printf 'error: session id parse failed (%s): %s\n' "$2" "$3" ;;
     agent.err.session_abort) printf 'error: %s session creation failed -> start aborted (panes already created: %s)\n' "$2" "$3" ;;
     agent.err.start_abort) printf 'error: %s start aborted (pane %s shell not ready)\n' "$2" "$3" ;;
@@ -1483,7 +1483,9 @@ opencode_session_for() {
     msg agent.err.session_json "$agent" >&2
     return 1
   fi
-  if ! out="$(run_capture opencode api post /api/session -d "$payload")"; then
+  # Git-Bash/MSYS2는 선행 '/' 인자를 Windows 경로로 자동 변환한다(/api/session → C:/Program Files/Git/api/session).
+  # 이 호출에만 접두 제외(MSYS2_ARG_CONV_EXCL, msys2.org filesystem-paths)를 적용한다 — 비MSYS는 무시하는 env일 뿐.
+  if ! out="$(MSYS2_ARG_CONV_EXCL='/api' run_capture opencode api post /api/session -d "$payload")"; then
     msg agent.err.session_fail "$agent" >&2
     return 1
   fi
