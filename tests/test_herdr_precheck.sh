@@ -22,9 +22,9 @@ assert_exit() { # $1=actual $2=expected $3=label
   if [[ "$1" -eq "$2" ]]; then ok "$3"; else bad "$3 (exit=$1, want=$2)"; fi
 }
 
-# herdr 부재 PATH shim: PATH상 모든 실행 파일을 심볼릭하되 herdr 이름은 제외.
-make_no_herdr_path() {
-  local d dir f base
+# 의존성 부재 PATH shim: PATH상 모든 실행 파일을 심볼릭하되 지정 이름($1)은 제외.
+make_path_without() {
+  local skip="$1" d dir f base
   d="$(mktemp -d)"
   local oldifs="$IFS"; IFS=':'
   for dir in $PATH; do
@@ -32,7 +32,7 @@ make_no_herdr_path() {
     for f in "$dir"/*; do
       [[ -e "$f" && -x "$f" ]] || continue
       base="${f##*/}"
-      [[ "$base" == "herdr" ]] && continue
+      [[ "$base" == "$skip" ]] && continue
       [[ -e "$d/$base" ]] || ln -s "$f" "$d/$base"
     done
   done
@@ -40,13 +40,16 @@ make_no_herdr_path() {
   printf '%s' "$d"
 }
 
-NO_HERDR="$(make_no_herdr_path)"
+NO_HERDR="$(make_path_without herdr)"
+NO_JQ="$(make_path_without jq)"
 STUB="$(mktemp -d)"
+JQ_STUB="$(mktemp -d)"
 CWD_A="$(mktemp -d)"
 CWD_B="$(mktemp -d)"
 CWD_C="$(mktemp -d)"
-trap 'rm -rf "$NO_HERDR" "$STUB" "$CWD_A" "$CWD_B" "$CWD_C"' EXIT
+trap 'rm -rf "$NO_HERDR" "$NO_JQ" "$STUB" "$JQ_STUB" "$CWD_A" "$CWD_B" "$CWD_C"' EXIT
 printf '#!/bin/sh\nexit 0\n' > "$STUB/herdr"; chmod +x "$STUB/herdr"
+printf '#!/bin/sh\nexit 0\n' > "$JQ_STUB/jq"; chmod +x "$JQ_STUB/jq"
 
 echo "== 1) herdr 부재 + --precheck → exit 127 + 안내(stderr) =="
 OUT="$(PATH="$NO_HERDR" "$BASH_BIN" "$BIN" --precheck 2>&1)"; RC=$?
@@ -56,10 +59,10 @@ assert_contains "$OUT" "https://herdr.dev/install.sh" "안내: Unix 설치 URL"
 assert_contains "$OUT" "https://herdr.dev/install.ps1" "안내: Windows 설치 URL"
 assert_contains "$OUT" "HERDR_TEAM_SKIP_CHECK" "안내: 우회 플래그"
 
-echo "== 2) herdr 스텁 PATH + --precheck → exit 0 (ERROR 없음) =="
-OUT2="$(PATH="$STUB:$PATH" "$BASH_BIN" "$BIN" --precheck 2>&1)"; RC2=$?
-assert_exit "$RC2" 0 "herdr 존재 precheck exit 0"
-assert_not_contains "$OUT2" "ERROR" "herdr 존재 시 ERROR 없음"
+echo "== 2) herdr/jq 스텁 PATH + --precheck → exit 0 (ERROR 없음) =="
+OUT2="$(PATH="$JQ_STUB:$STUB:$PATH" "$BASH_BIN" "$BIN" --precheck 2>&1)"; RC2=$?
+assert_exit "$RC2" 0 "herdr/jq 존재 precheck exit 0"
+assert_not_contains "$OUT2" "ERROR" "herdr/jq 존재 시 ERROR 없음"
 
 echo "== 3) HERDR_TEAM_SKIP_CHECK=1 + herdr 부재 → exit 0 + WARN =="
 OUT3="$(HERDR_TEAM_SKIP_CHECK=1 PATH="$NO_HERDR" "$BASH_BIN" "$BIN" --precheck 2>&1)"; RC3=$?
@@ -84,6 +87,20 @@ fi
 echo "== 6) --help 에 --precheck 문서화 =="
 OUT7="$("$BASH_BIN" "$BIN" --help 2>&1)"
 assert_contains "$OUT7" "--precheck" "help: --precheck 문서화"
+assert_contains "$OUT7" "jq" "help: jq 언급"
+
+echo "== 7) jq 부재(herdr 존재) + --precheck → exit 126 + 안내(stderr) =="
+OUT8="$(PATH="$STUB:$NO_JQ" "$BASH_BIN" "$BIN" --precheck 2>&1)"; RC8=$?
+assert_exit "$RC8" 126 "jq 부재 precheck exit 126"
+assert_contains "$OUT8" "jq" "안내: jq 언급"
+assert_contains "$OUT8" "jqlang.jq" "안내: winget 설치 id"
+assert_contains "$OUT8" "jq --version" "안내: jq 확인 명령"
+assert_contains "$OUT8" "HERDR_TEAM_SKIP_CHECK" "안내: jq 우회 플래그"
+
+echo "== 8) HERDR_TEAM_SKIP_CHECK=1 + jq 부재(herdr 존재) → exit 0 + WARN =="
+OUT9="$(HERDR_TEAM_SKIP_CHECK=1 PATH="$STUB:$NO_JQ" "$BASH_BIN" "$BIN" --precheck 2>&1)"; RC9=$?
+assert_exit "$RC9" 0 "jq 부재 SKIP_CHECK 우회 exit 0"
+assert_contains "$OUT9" "WARN" "jq 부재 SKIP_CHECK 우회 시 WARN"
 
 echo "-----------------------------"
 printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"

@@ -19,21 +19,19 @@ if defined HERDR_TEAM_REPO (
   set "REPO=%HERDR_TEAM_REPO%"
 ) else (
   for %%I in ("%~dp0..") do set "REPO=%%~fI"
-}
+)
 
 rem --- Backend: WSL first, Git-Bash fallback / 백엔드 선택: WSL 우선, 없으면 Git-Bash ---
 rem --- Set HERDR_TEAM_SKIP_CHECK=1 to bypass this check ---
 if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
-  echo [WARN] Skipping dependency check (HERDR_TEAM_SKIP_CHECK=1) / 의존성 점검 생략
+  echo [WARN] Skipping dependency check ^(HERDR_TEAM_SKIP_CHECK=1^) / 의존성 점검 생략
   set "BACKEND=wsl"
 ) else (
-where wsl >nul 2>nul
-if not errorlevel 1 (
-  set "BACKEND=wsl"
-) else (
-  if exist "%ProgramFiles%\Git\bin\bash.exe" (
-    set "BACKEND=gitbash"
-  ) else (
+  rem --- WSL is only usable if a distro can actually run bash; the wsl.exe stub exists even when WSL is not installed ---
+  set "BACKEND="
+  for /f "delims=" %%p in ('wsl bash -lc "echo wsl-ok" 2^>nul') do if /i "%%p"=="wsl-ok" set "BACKEND=wsl"
+  if not defined BACKEND if exist "%ProgramFiles%\Git\bin\bash.exe" set "BACKEND=gitbash"
+  if not defined BACKEND (
     echo [ERROR] Neither WSL nor Git-Bash was found.
     echo [오류] WSL 또는 Git-Bash를 찾을 수 없습니다.
     echo.
@@ -44,28 +42,27 @@ if not errorlevel 1 (
     echo Then restart Windows and double-click start-team.bat again.
     echo 설치 후 Windows를 다시 시작하고 start-team.bat을 다시 더블클릭하세요.
     echo.
-    echo To skip this check (advanced): set HERDR_TEAM_SKIP_CHECK=1
-    echo 점검 생략(고급): HERDR_TEAM_SKIP_CHECK=1 설정
+    echo To skip this check ^(advanced^): set HERDR_TEAM_SKIP_CHECK=1
+    echo 점검 생략^(고급^): HERDR_TEAM_SKIP_CHECK=1 설정
     pause
     exit /b 1
   )
-)
 )
 
 rem --- herdr precheck (herdr-team runs on top of herdr) / herdr 사전 점검 ---
 rem --- Fail fast when herdr is missing; set HERDR_TEAM_SKIP_CHECK=1 to bypass ---
 if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
-  echo [WARN] Skipping herdr precheck (HERDR_TEAM_SKIP_CHECK=1) / herdr 사전 점검 생략
+  echo [WARN] Skipping herdr precheck ^(HERDR_TEAM_SKIP_CHECK=1^) / herdr 사전 점검 생략
 ) else (
   if not "%HERDR_TEAM_DRYRUN%"=="1" (
     if "%BACKEND%"=="wsl" (
       for /f "delims=" %%p in ('wsl wslpath -u "%REPO%"') do set "WSL_REPO=%%p"
-      wsl bash "%WSL_REPO%/bin/herdr-team" --precheck
+      wsl bash "!WSL_REPO!/bin/herdr-team" --precheck
     ) else (
       set "MSYS_REPO=%REPO:\=/%"
-      "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --precheck
+      "%ProgramFiles%\Git\bin\bash.exe" "!MSYS_REPO!/bin/herdr-team" --precheck
     )
-    if errorlevel 1 (
+    if errorlevel 127 (
       echo [ERROR] herdr CLI not found - herdr-team runs on top of herdr.
       echo [오류] herdr CLI 를 찾을 수 없습니다. herdr-team는 herdr 위에서 동작합니다.
       echo   Install / 설치: curl -fsSL https://herdr.dev/install.sh ^| sh
@@ -74,6 +71,20 @@ if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
       echo   Bypass / 우회: set HERDR_TEAM_SKIP_CHECK=1
       pause
       exit /b 127
+    )
+    if errorlevel 126 (
+      echo [ERROR] jq not found - herdr-team uses jq to parse herdr JSON.
+      echo [오류] jq 를 찾을 수 없습니다. herdr-team는 herdr JSON 파싱에 jq를 사용합니다.
+      echo   Install / 설치: winget install --id jqlang.jq -e
+      echo   Verify / 확인: jq --version
+      echo   Bypass / 우회: set HERDR_TEAM_SKIP_CHECK=1
+      pause
+      exit /b 126
+    )
+    if errorlevel 1 (
+      echo [ERROR] dependency check failed / 의존성 점검 실패
+      pause
+      exit /b 1
     )
   )
 )
@@ -84,12 +95,12 @@ set "PRESET_ARG="
 if "%~1"=="" (
   if not defined HERDR_TEAM_PRESET (
     echo Select AI team preset / AI 팀 프리셋 선택:
-    echo   1^) dev     - Software Development (소프트웨어 개발·MVP, 기본값)
-    echo   2^) research - Deep Research ^& Knowledge Discovery (심층 조사·지식 탐색)
-    echo   3^) biz     - Small Business Operations (소상공인 사업 운영)
-    echo   4^) mkt     - Local ^& SNS Marketing (로컬·SNS 마케팅)
-    echo   5^) creator - Content Creation ^& Publishing (콘텐츠 창작·출판)
-    echo   6^) pkm     - PKM Vault Team (노트·볼트 페이지 생산/정리)
+    echo   1^) dev     - Software Development ^(소프트웨어 개발·MVP, 기본값^)
+    echo   2^) research - Deep Research ^& Knowledge Discovery ^(심층 조사·지식 탐색^)
+    echo   3^) biz     - Small Business Operations ^(소상공인 사업 운영^)
+    echo   4^) mkt     - Local ^& SNS Marketing ^(로컬·SNS 마케팅^)
+    echo   5^) creator - Content Creation ^& Publishing ^(콘텐츠 창작·출판^)
+    echo   6^) pkm     - PKM Vault Team ^(노트·볼트 페이지 생산/정리^)
     choice /c 123456 /t 10 /d 1 /n /m "Select [1-6] (default 1 after 10s / 10초 후 기본값 1): "
     if errorlevel 6 set "PRESET_ARG=--preset pkm"
     if errorlevel 5 set "PRESET_ARG=--preset creator"
@@ -108,7 +119,7 @@ set "KIND_ARG="
 if "%~1"=="" (
   if not defined HERDR_TEAM_KIND (
     echo Select agent kind / 에이전트 종류 선택:
-    echo   1^) opencode - OpenCode Interpreter (기본값)
+    echo   1^) opencode - OpenCode Interpreter ^(기본값^)
     echo   2^) claude   - Anthropic Claude Code
     echo   3^) codex    - OpenAI Codex / CLI
     echo   4^) agy      - Google Antigravity Agent
@@ -122,30 +133,33 @@ if "%~1"=="" (
   )
 )
 
-rem --- 실행 ---
+rem --- 실행 (대상 = 현재 디렉토리 %CD%; 저장소 경로가 아님) ---
 if "%BACKEND%"=="wsl" (
   for /f "delims=" %%p in ('wsl wslpath -u "%REPO%"') do set "WSL_REPO=%%p"
-  if not defined WSL_REPO (
+  for /f "delims=" %%p in ('wsl wslpath -u "%CD%"') do set "WSL_CWD=%%p"
+  if not "!WSL_REPO!"=="" (
+    if "%HERDR_TEAM_DRYRUN%"=="1" (
+      echo [dry-run] wsl bash "!WSL_REPO!/bin/herdr-team" --cwd "!WSL_CWD!" %PRESET_ARG% %KIND_ARG% %*
+    ) else (
+      wsl bash "!WSL_REPO!/bin/herdr-team" --cwd "!WSL_CWD!" %PRESET_ARG% %KIND_ARG% %*
+      if errorlevel 1 (
+        echo [FAILED] Team setup exited with an error / [실패] 팀 셋업이 오류로 종료되었습니다.
+        pause
+        exit /b 1
+      )
+    )
+  ) else (
     echo [ERROR] WSL path conversion failed / [오류] WSL 경로 변환 실패: "%REPO%"
     pause
     exit /b 1
   )
-  if "%HERDR_TEAM_DRYRUN%"=="1" (
-    echo [dry-run] wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %KIND_ARG% %*
-  ) else (
-    wsl bash "%WSL_REPO%/bin/herdr-team" --cwd "%WSL_REPO%" %PRESET_ARG% %KIND_ARG% %*
-    if errorlevel 1 (
-      echo [FAILED] Team setup exited with an error / [실패] 팀 셋업이 오류로 종료되었습니다.
-      pause
-      exit /b 1
-    )
-  )
 ) else (
   set "MSYS_REPO=%REPO:\=/%"
+  set "MSYS_CWD=%CD:\=/%"
   if "%HERDR_TEAM_DRYRUN%"=="1" (
-    echo [dry-run] "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %KIND_ARG% %*
+    echo [dry-run] "%ProgramFiles%\Git\bin\bash.exe" "!MSYS_REPO!/bin/herdr-team" --cwd "!MSYS_CWD!" %PRESET_ARG% %KIND_ARG% %*
   ) else (
-    "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --cwd "%MSYS_REPO%" %PRESET_ARG% %KIND_ARG% %*
+    "%ProgramFiles%\Git\bin\bash.exe" "!MSYS_REPO!/bin/herdr-team" --cwd "!MSYS_CWD!" %PRESET_ARG% %KIND_ARG% %*
     if errorlevel 1 (
       echo [FAILED] Team setup exited with an error / [실패] 팀 셋업이 오류로 종료되었습니다.
       pause

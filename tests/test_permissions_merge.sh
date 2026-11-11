@@ -26,6 +26,7 @@ FN="$(mktemp)"; trap 'rm -f "$FN"' EXIT
 {
   sed -n '/^log() {/,/^}/p' "$BIN"
   sed -n '/^preset_dir() {/,/^}/p' "$BIN"
+  sed -n '/^jq_text() {/,/^}/p' "$BIN"
   sed -n '/^permissions_strip_jsonc() {/,/^}/p' "$BIN"
   sed -n '/^permissions_src_dir() {/,/^}/p' "$BIN"
   sed -n "/^permissions_merge_role() {/,/^}/p" "$BIN"
