@@ -20,34 +20,31 @@ rem --- Backend: WSL first, Git-Bash fallback ---
 if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
   set "BACKEND=wsl"
 ) else (
-  where wsl >nul 2>nul
-  if not errorlevel 1 (
-    set "BACKEND=wsl"
-  ) else (
-    if exist "%ProgramFiles%\Git\bin\bash.exe" (
-      set "BACKEND=gitbash"
-    ) else (
-      echo [ERROR] Neither WSL nor Git-Bash was found.
-      echo [오류] WSL 또는 Git-Bash를 찾을 수 없습니다.
-      pause
-      exit /b 1
-    )
+  rem --- WSL is only usable if a distro can actually run bash; the wsl.exe stub exists even when WSL is not installed ---
+  set "BACKEND="
+  for /f "delims=" %%p in ('wsl bash -lc "echo wsl-ok" 2^>nul') do if /i "%%p"=="wsl-ok" set "BACKEND=wsl"
+  if not defined BACKEND if exist "%ProgramFiles%\Git\bin\bash.exe" set "BACKEND=gitbash"
+  if not defined BACKEND (
+    echo [ERROR] Neither WSL nor Git-Bash was found.
+    echo [오류] WSL 또는 Git-Bash를 찾을 수 없습니다.
+    pause
+    exit /b 1
   )
 )
 
 rem --- herdr precheck (herdr-team runs on top of herdr) / herdr 사전 점검 ---
 rem --- Fail fast when herdr is missing; set HERDR_TEAM_SKIP_CHECK=1 to bypass ---
 if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
-  echo [WARN] Skipping herdr precheck (HERDR_TEAM_SKIP_CHECK=1) / herdr 사전 점검 생략
+  echo [WARN] Skipping herdr precheck ^(HERDR_TEAM_SKIP_CHECK=1^) / herdr 사전 점검 생략
 ) else (
   if "%BACKEND%"=="wsl" (
     for /f "delims=" %%p in ('wsl wslpath -u "%REPO%"') do set "WSL_REPO=%%p"
-    wsl bash "%WSL_REPO%/bin/herdr-team" --precheck
+    wsl bash "!WSL_REPO!/bin/herdr-team" --precheck
   ) else (
     set "MSYS_REPO=%REPO:\=/%"
-    "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --precheck
+    "%ProgramFiles%\Git\bin\bash.exe" "!MSYS_REPO!/bin/herdr-team" --precheck
   )
-  if errorlevel 1 (
+  if errorlevel 127 (
     echo [ERROR] herdr CLI not found - herdr-team runs on top of herdr.
     echo [오류] herdr CLI 를 찾을 수 없습니다. herdr-team는 herdr 위에서 동작합니다.
     echo   Install / 설치: curl -fsSL https://herdr.dev/install.sh ^| sh
@@ -56,6 +53,20 @@ if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
     echo   Bypass / 우회: set HERDR_TEAM_SKIP_CHECK=1
     pause
     exit /b 127
+  )
+  if errorlevel 126 (
+    echo [ERROR] jq not found - herdr-team uses jq to parse herdr JSON.
+    echo [오류] jq 를 찾을 수 없습니다. herdr-team는 herdr JSON 파싱에 jq를 사용합니다.
+    echo   Install / 설치: winget install --id jqlang.jq -e
+    echo   Verify / 확인: jq --version
+    echo   Bypass / 우회: set HERDR_TEAM_SKIP_CHECK=1
+    pause
+    exit /b 126
+  )
+  if errorlevel 1 (
+    echo [ERROR] dependency check failed / 의존성 점검 실패
+    pause
+    exit /b 1
   )
 )
 
@@ -68,20 +79,21 @@ echo.
 rem --- 실행 ---
 if "%BACKEND%"=="wsl" (
   for /f "delims=" %%p in ('wsl wslpath -u "%REPO%"') do set "WSL_REPO=%%p"
-  if not defined WSL_REPO (
+  if not "!WSL_REPO!"=="" (
+    wsl python3 "!WSL_REPO!/bin/herdr-watcher" %*
+    if errorlevel 1 (
+      echo [FAILED] Watcher exited with an error.
+      pause
+      exit /b 1
+    )
+  ) else (
     echo [ERROR] WSL path conversion failed: "%REPO%"
-    pause
-    exit /b 1
-  )
-  wsl python3 "%WSL_REPO%/bin/herdr-watcher" %*
-  if errorlevel 1 (
-    echo [FAILED] Watcher exited with an error.
     pause
     exit /b 1
   )
 ) else (
   set "MSYS_REPO=%REPO:\=/%"
-  "%ProgramFiles%\Git\bin\bash.exe" -c "python3 '%MSYS_REPO%/bin/herdr-watcher' $* || python '%MSYS_REPO%/bin/herdr-watcher' $*" -- %*
+  "%ProgramFiles%\Git\bin\bash.exe" -c "python3 '!MSYS_REPO!/bin/herdr-watcher' $* || python '!MSYS_REPO!/bin/herdr-watcher' $*" -- %*
   if errorlevel 1 (
     echo [FAILED] Watcher exited with an error.
     pause

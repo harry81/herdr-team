@@ -39,6 +39,19 @@ TEMPLATE_DIR="${HERDR_TEAM_TEMPLATE_DIR:-$HOME/templates/agent-team}"
 CWD="$PWD"
 PREFIX_ARG=""
 
+# herdr agent start readiness 대기 상한(ms). herdr 기본 30000 은 실패 시 역할 수만큼 길게 매달린다.
+# env 값은 숫자만 채택(비숫자/소수는 기본값), 이후 1..300000 범위로 클램프한다.
+HT_AGENT_START_TIMEOUT_MS=15000
+_ht_tmo="${HERDR_TEAM_AGENT_START_TIMEOUT_MS:-}"
+if [[ "$_ht_tmo" == -* && -n "${_ht_tmo#-}" && "${_ht_tmo#-}" != *[!0-9]* ]]; then
+  HT_AGENT_START_TIMEOUT_MS=0  # 음수는 하한 클램프 대상
+elif [[ -n "$_ht_tmo" && "$_ht_tmo" != *[!0-9]* ]]; then
+  HT_AGENT_START_TIMEOUT_MS=$((10#$_ht_tmo))
+fi
+unset _ht_tmo
+if [[ "$HT_AGENT_START_TIMEOUT_MS" -lt 1 ]]; then HT_AGENT_START_TIMEOUT_MS=1; fi
+if [[ "$HT_AGENT_START_TIMEOUT_MS" -gt 300000 ]]; then HT_AGENT_START_TIMEOUT_MS=300000; fi
+
 # Herdr 지원 에이전트 종류 목록
 SUPPORTED_KINDS="opencode claude codex agy pi gemini cursor devin cline omp mastracode copilot kimi kiro droid amp grok hermes kilo qodercli maki"
 
@@ -73,7 +86,7 @@ VERSION="$(read_version)"
 # --- 문자열 카탈로그 (English Only) ---
 # 명세: docs/specs/ht-tui-english-fancy-spec.md §2 — 단일 로케일 확정.
 # HERDR_TEAM_LANG/LC_ALL/LANG 은 읽지 않는다(출력·경고 영향 0).
-MSG_KEYS="parse.opt.missing.kind parse.opt.missing.layout parse.opt.missing.cwd parse.opt.missing.template_dir parse.opt.missing.preset parse.opt.unknown parse.prefix.multiple parse.prefix.invalid layout.unknown precheck.warn.skip precheck.err.title precheck.install.cmd precheck.verify precheck.bypass preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli fs.err.symlink.resolve fs.err.is_directory fs.err.write_denied fs.err.write_fail fs.err.replace_fail fs.err.backup_mkdir fs.err.backup_cp guard.err.agentsmd_lower guard.err.agentsmd_lower.path guard.err.agentsmd_lower.hint guard.err.not_a_dir guard.err.marker.multi guard.err.marker.broken gitignore.err.not_file run.err.cmd_fail pane.err.ready_timeout pane.err.foreground bundle.err.missing roles.err.empty pane.err.no_base pane.err.parse agent.err.session_json agent.err.session_fail agent.err.session_parse agent.err.session_abort agent.err.start_abort agent.log.exists log.gitignore.skip_opt log.gitignore.skip_nonrepo log.gitignore.already log.gitignore.append log.active_preset.unknown log.writeback log.writeback.skip log.backup log.activate log.watcher.skip_start log.watcher.skip_split log.watcher.missing log.watcher.skip_py log.watcher.running log.watcher.logfail log.watcher.fail log.watcher.started log.pane.foreground_wait log.pane.ready_wait log.perm.skip_opt log.perm.no_tpl log.perm.merge_plan log.perm.backup log.perm.merge log.perm.parse_fail log.perm.create log.perm.deny_scope log.perm.no_profile perm.err.merge_fail log.perm.inject log.perm.no_agent err.need_cmd log.tpl.skip_step log.oa.skip_step log.transition log.seed_preset log.canon_preset log.backup_dryrun log.import_legacy log.oa.no_tpl log.oa.no_role log.oa.exists log.oa.created log.done log.templates_only_done"
+MSG_KEYS="parse.opt.missing.kind parse.opt.missing.layout parse.opt.missing.cwd parse.opt.missing.template_dir parse.opt.missing.preset parse.opt.unknown parse.prefix.multiple parse.prefix.invalid layout.unknown precheck.warn.skip precheck.err.title precheck.install.cmd precheck.verify precheck.bypass precheck.jq.warn.skip precheck.jq.title precheck.jq.install precheck.jq.verify preset.usage.none preset.list.noconf preset.menu.title preset.menu.prompt preset.warn.deprecated preset.err.unknown.name preset.err.unknown.number preset.err.cli.unknown preset.err.conf.missing preset.err.conf.missing.found kind.menu.title kind.menu.item1 kind.menu.prompt kind.err.unknown kind.err.unknown.cli fs.err.symlink.resolve fs.err.is_directory fs.err.write_denied fs.err.write_fail fs.err.replace_fail fs.err.backup_mkdir fs.err.backup_cp guard.err.agentsmd_lower guard.err.agentsmd_lower.path guard.err.agentsmd_lower.hint guard.err.not_a_dir guard.err.marker.multi guard.err.marker.broken gitignore.err.not_file run.err.cmd_fail pane.err.ready_timeout pane.err.foreground bundle.err.missing roles.err.empty pane.err.no_base pane.err.parse agent.err.session_json agent.err.session_fail agent.err.session_parse agent.err.session_abort agent.err.start_abort agent.err.start_fail agent.log.exists log.gitignore.skip_opt log.gitignore.skip_nonrepo log.gitignore.already log.gitignore.append log.active_preset.unknown log.writeback log.writeback.skip log.backup log.activate log.watcher.skip_start log.watcher.skip_split log.watcher.missing log.watcher.skip_py log.watcher.running log.watcher.logfail log.watcher.fail log.watcher.started log.pane.foreground_wait log.pane.ready_wait log.perm.skip_opt log.perm.no_tpl log.perm.merge_plan log.perm.backup log.perm.merge log.perm.parse_fail log.perm.v1_skip log.perm.create log.perm.deny_scope log.perm.no_profile perm.err.merge_fail log.perm.inject log.perm.no_agent err.need_cmd log.tpl.skip_step log.oa.skip_step log.transition log.seed_preset log.canon_preset log.backup_dryrun log.import_legacy log.oa.no_tpl log.oa.no_role log.oa.exists log.oa.created log.done log.templates_only_done"
 msg() { # msg KEY [ARGS...] — 개행 포함 여부는 키 서식에 고정
   _msg_en "$@"
 }
@@ -93,6 +106,10 @@ _msg_en() {
     precheck.install.cmd) printf '  Install:\n    curl -fsSL https://herdr.dev/install.sh | sh\n    Windows: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"\n' ;;
     precheck.verify) printf '  Verify:  herdr --version\n' ;;
     precheck.bypass) printf '  Bypass:  HERDR_TEAM_SKIP_CHECK=1\n' ;;
+    precheck.jq.warn.skip) printf 'WARN: jq not found, continuing anyway (HERDR_TEAM_SKIP_CHECK=1)\n' ;;
+    precheck.jq.title) printf 'ERROR jq not found - herdr-team uses jq to parse herdr JSON and merge permissions.\n' ;;
+    precheck.jq.install) printf '  Install:\n    Windows: winget install --id jqlang.jq -e\n    macOS:   brew install jq\n    Debian:  sudo apt-get install -y jq\n    RHEL:    sudo dnf install -y jq\n    Alpine:  sudo apk add jq\n' ;;
+    precheck.jq.verify) printf '  Verify:  jq --version\n' ;;
     preset.usage.none) printf '(none)' ;;
     preset.list.noconf) printf '(preset.conf missing)' ;;
     preset.menu.title) printf 'Select AI team preset (1-%s or name, default: %s):\n' "$2" "$3" ;;
@@ -130,10 +147,11 @@ _msg_en() {
     pane.err.no_base) printf 'error: cannot determine current pane id. Run inside a Herdr session\n' ;;
     pane.err.parse) printf 'error: failed to parse pane_id from %s split output: %s\n' "$2" "$3" ;;
     agent.err.session_json) printf 'error: session request JSON failed (%s)\n' "$2" ;;
-    agent.err.session_fail) printf 'error: session creation failed (%s) - check opencode install/background service\n' "$2" ;;
+    agent.err.session_fail) printf 'error: session creation failed (%s) - check opencode install/background service (Git-Bash/MSYS: /api argument auto-conversion is blocked via MSYS2_ARG_CONV_EXCL=/api)\n' "$2" ;;
     agent.err.session_parse) printf 'error: session id parse failed (%s): %s\n' "$2" "$3" ;;
     agent.err.session_abort) printf 'error: %s session creation failed -> start aborted (panes already created: %s)\n' "$2" "$3" ;;
     agent.err.start_abort) printf 'error: %s start aborted (pane %s shell not ready)\n' "$2" "$3" ;;
+    agent.err.start_fail) printf 'error: %s agent start failed/timed out (pane %s) - pane left at shell; re-run or start manually\n' "$2" "$3" ;;
     agent.log.exists) printf '[herdr-team] %s already exists - start skipped\n' "$2" ;;
     log.gitignore.skip_opt) printf 'skip: gitignore augmentation (--no-gitignore)\n' ;;
     log.gitignore.skip_nonrepo) printf 'skip: gitignore augmentation (not a git repo): %s\n' "$2" ;;
@@ -160,6 +178,7 @@ _msg_en() {
     log.perm.backup) printf 'existing .opencode/opencode.jsonc backed up: opencode.jsonc.bak\n' ;;
     log.perm.merge) printf 'permissions merge: .opencode/opencode.jsonc (user keys preserved + baseline L0/L2/L3)\n' ;;
     log.perm.parse_fail) printf 'WARN: existing .opencode/opencode.jsonc JSON parse failed -> keeping original (backup only)\n' ;;
+    log.perm.v1_skip) printf 'WARN: this opencode build does not support V2 permissions (OpenCode V1) - skipping V2 permission seeding; existing .opencode config left untouched\n' ;;
     log.perm.create) printf 'permissions created: .opencode/opencode.jsonc (baseline: L0/L2 + L3 hard-deny)\n' ;;
     log.perm.deny_scope) printf 'WARN: edit deny-list covers the edit tool only - shell bypasses (sed -i/cp/mv/echo >) are NOT blocked (best-effort)\n' ;;
     log.perm.no_profile) printf 'WARN: no permission profile -> skip: profile/%s/%s.json\n' "$2" "$3" ;;
@@ -229,6 +248,8 @@ ordered_presets() {
 alias_target() { case "$1" in app) printf 'dev' ;; *) printf '%s' "$1" ;; esac; }
 is_alias() { case "$1" in app) return 0 ;; *) return 1 ;; esac; }
 is_known_preset() { is_discovered "$1" || is_alias "$1"; }
+# jq -r 출력의 CR 제거: Windows 네이티브 jq.exe는 stdout을 텍스트 모드로 써서 CRLF를 출력한다.
+jq_text() { jq -r "$@" | tr -d '\r'; }
 print_preset_usage() {
   local name
   printf 'Presets (templates/<preset>/preset.conf):\n'
@@ -243,22 +264,37 @@ preset_usage_list() {
   if [[ -n "$list" ]]; then printf '%s' "$list"; else msg preset.usage.none; fi
 }
 
-# --- herdr 사전 점검 (herdr-team는 herdr 위에서 동작) ---
-# --precheck 및 정상 실행 자동 점검이 공용으로 사용. 있으면 0, 없으면 127,
-# HERDR_TEAM_SKIP_CHECK=1 이면 WARN 후 0(우회).
-precheck_herdr() {
-  if command -v herdr >/dev/null 2>&1; then return 0; fi
-  if [[ "${HERDR_TEAM_SKIP_CHECK:-}" == "1" ]]; then
-    msg precheck.warn.skip >&2
-    return 0
+# --- 의존성 사전 점검 (herdr, jq): herdr-team는 herdr/jq 위에서 동작 ---
+# --precheck 및 정상 실행 자동 점검이 공용으로 사용. 성공 0, herdr 없으면 127,
+# jq 없으면 126, HERDR_TEAM_SKIP_CHECK=1 이면 WARN 후 0(우회).
+precheck_deps() {
+  if ! command -v herdr >/dev/null 2>&1; then
+    if [[ "${HERDR_TEAM_SKIP_CHECK:-}" == "1" ]]; then
+      msg precheck.warn.skip >&2
+    else
+      {
+        msg precheck.err.title
+        msg precheck.install.cmd
+        msg precheck.verify
+        msg precheck.bypass
+      } >&2
+      return 127
+    fi
   fi
-  {
-    msg precheck.err.title
-    msg precheck.install.cmd
-    msg precheck.verify
-    msg precheck.bypass
-  } >&2
-  return 127
+  if ! command -v jq >/dev/null 2>&1; then
+    if [[ "${HERDR_TEAM_SKIP_CHECK:-}" == "1" ]]; then
+      msg precheck.jq.warn.skip >&2
+    else
+      {
+        msg precheck.jq.title
+        msg precheck.jq.install
+        msg precheck.jq.verify
+        msg precheck.bypass
+      } >&2
+      return 126
+    fi
+  fi
+  return 0
 }
 
 usage() {
@@ -281,8 +317,9 @@ Options:
   --layout LAYOUT   team pane layout: 2col | right-stack
                     (or HERDR_TEAM_LAYOUT; default: 2col)
   --list-presets    print available presets and exit
-  --precheck        check herdr CLI presence and exit
-                    (0 present / 127 missing; HERDR_TEAM_SKIP_CHECK=1 bypasses)
+  --precheck        check herdr CLI and jq presence and exit
+                    (0 present / 127 herdr missing / 126 jq missing;
+                     HERDR_TEAM_SKIP_CHECK=1 bypasses)
   --no-interactive  never prompt; proceed with defaults (preset=dev, kind=opencode)
   --no-color        disable colors/cursor control (same as NO_COLOR or TERM=dumb)
   --no-template     skip template copy/generate step
@@ -359,13 +396,20 @@ while [[ $# -gt 0 ]]; do
     --template-dir) if [[ -z "${2:-}" ]]; then msg parse.opt.missing.template_dir >&2; exit 2; fi; TEMPLATE_DIR="$2"; shift 2 ;;
     --preset) if [[ -z "${2:-}" ]]; then msg parse.opt.missing.preset >&2; exit 2; fi; PRESET_ARG="$2"; shift 2 ;;
     --list-presets) LIST_PRESETS=1; shift ;;
-    --precheck) if precheck_herdr; then exit 0; else exit 127; fi ;;
+    --precheck) precheck_deps; exit $? ;;
     --no-interactive) NO_INTERACTIVE=1; shift ;;
     --no-color) NO_COLOR_MODE=1; shift ;;
     --*) msg parse.opt.unknown "$1" >&2; exit 2 ;;
     *) if [[ -z "$PREFIX_ARG" ]]; then PREFIX_ARG="$1"; else msg parse.prefix.multiple "$1" >&2; exit 2; fi; shift ;;
   esac
 done
+
+# --- herdr(네이티브 CLI)에는 네이티브 경로를 넘긴다 ---
+# Git-Bash/Cygwin에서 $PWD(/c/Users/...)를 그대로 넘기면 Windows herdr가 오해석한다(실측: pane cwd 오지정).
+CWD_HERDR="$CWD"
+if command -v cygpath >/dev/null 2>&1; then
+  CWD_HERDR="$(cygpath -w "$CWD" 2>/dev/null || printf '%s' "$CWD")"
+fi
 
 # --- 스타일 세션 (명세 §4.1) ---
 # plain 모드(파이프/CI/NO_COLOR/TERM=dumb/--no-color)에서는 escape·커서제어를 출력하지 않는다.
@@ -753,7 +797,7 @@ if [[ "$LIST_PRESETS" -eq 1 ]]; then list_presets; exit 0; fi
 # --- 첫 화면 순서 고정 (명세 §4.1): 배너 -> precheck -> preset/kind TUI ---
 ht_banner
 if [[ "$DRY_RUN" -eq 0 && "$TEMPLATES_ONLY" -eq 0 ]]; then
-  precheck_herdr || exit $?
+  precheck_deps || exit $?
 fi
 # 환경변수 폴백 (명시적 --preset이 우선)
 if [[ -z "$PRESET_ARG" && -n "${HERDR_TEAM_PRESET:-}" ]]; then PRESET_ARG="$HERDR_TEAM_PRESET"; fi
@@ -1079,7 +1123,7 @@ start_watcher() {
   if [[ -d "$logfile" ]] || ! : >> "$logfile" 2>/dev/null; then
     log "$(msg log.watcher.logfail "$logfile")"; return 0
   fi
-  local -a wargs=(--prefix "${PREFIX}-" --cwd "$CWD")
+  local -a wargs=(--prefix "${PREFIX}-" --cwd "$CWD_HERDR")
   if [[ "$NO_AUTO_ALLOW" -eq 1 ]]; then wargs+=(--no-auto-allow); fi
   nohup "$wbin" "${wargs[@]}" >> "$logfile" 2>&1 &
   local wpid=$!
@@ -1117,7 +1161,7 @@ log() { printf '[herdr-team] %s\n' "$*"; }
 # split/current 응답은 {"result":{"pane":{"pane_id":"wD:p1F",...}}} 형태가 표준이며,
 # 구버전/변형 응답(.result.pane_id, .pane_id, bare ID)도 순서대로 시도한다.
 herdr_pane_id() {
-  jq -r '
+  jq_text '
     .result.pane.pane_id
     // .result.pane_id
     // .result.id
@@ -1156,8 +1200,8 @@ HT_READY_MARKER="__HT_READY_MARKER__"
 pane_shell_foreground() {
   local _out _spid _pgid
   _out="$(herdr pane process-info --pane "$1" 2>/dev/null)" || return 1
-  _spid="$(printf '%s' "$_out" | jq -r '.result.process_info.shell_pid // empty')"
-  _pgid="$(printf '%s' "$_out" | jq -r '.result.process_info.foreground_process_group_id // empty')"
+  _spid="$(printf '%s' "$_out" | jq_text '.result.process_info.shell_pid // empty')"
+  _pgid="$(printf '%s' "$_out" | jq_text '.result.process_info.foreground_process_group_id // empty')"
   [[ -n "$_spid" && -n "$_pgid" && "$_pgid" == "$_spid" ]]
 }
 wait_pane_ready() {
@@ -1173,9 +1217,11 @@ wait_pane_ready() {
     # 페이싱: wait-output 내장 폴링으로 재시도 간격 확보 (매칭 불가능 패턴, 0.5s 폐쇄)
     herdr pane wait-output "$_pane" --match "${HT_READY_MARKER}:no-op" --timeout 500 >/dev/null 2>&1 || true
   done
-  # shell이 프로브 명령을 실제 실행해 출력했음을 이벤트로 확정 — 타이핑 에코("printf ...")와
+  # shell이 프로브 명령을 실제 실행해 출력했음을 이벤트로 확정 — 타이핑 에코("echo ...")와
   # 구별 위해 라인 시작 앵커. 스냅샷 공백 패딩·프롬프트 평탄화 때문에 `$` 앵커는 미사용.
-  until herdr pane run "$_pane" printf "$HT_READY_MARKER" >/dev/null 2>&1 \
+  # 주의: Windows Herdr pane의 기본 셸은 PowerShell이다. `printf`는 PowerShell에 없으므로
+  # bash/PowerShell/cmd 모두에서 동작하는 `echo`를 프로브로 사용한다.
+  until herdr pane run "$_pane" echo "$HT_READY_MARKER" >/dev/null 2>&1 \
         && herdr pane wait-output "$_pane" --regex "(?m)^[ \t]*${HT_READY_MARKER}" --timeout 1500 >/dev/null 2>&1; do
     (( SECONDS - _start < _limit )) || {
       msg pane.err.ready_timeout "$_pane" "$_limit" >&2
@@ -1203,24 +1249,28 @@ permissions_src_dir() {  # preset-local > --template-dir > 번들 (기존 템플
   return 1
 }
 permissions_merge_role() {  # $1=role → stdout: baseline+includes+profile 병합 JSON (순수 함수형)
-  local role="$1" src prof b tmp out
+  local role="$1" src prof b tmp out tmp_base tmp_prof
   src="$(permissions_src_dir)" || return 1
   prof="$src/profile/$PRESET/$role.json"
   [[ -f "$prof" ]] || return 1
   tmp="$(mktemp)"; out=""
+  # Windows(Git-Bash)에서 네이티브 jq.exe는 <(...) 프로세스 치환 경로(/proc/.../fd/N)를 열 수 없다.
+  # 이식성을 위해 jq 입력은 항상 실제 임시 파일로 전달한다.
+  tmp_base="$(mktemp)"; tmp_prof="$(mktemp)"
+  permissions_strip_jsonc "$src/baseline.json" > "$tmp_base"
+  permissions_strip_jsonc "$prof" > "$tmp_prof"
   printf '[' > "$tmp"
   local first=1
-  for b in $(jq -r '.includes[]' "$prof"); do
-    [[ -f "$src/bundle/$b.json" ]] || { rm -f "$tmp"; msg bundle.err.missing "$b" "$prof" >&2; return 1; }
+  for b in $(jq_text '.includes[]' "$prof"); do
+    [[ -f "$src/bundle/$b.json" ]] || { rm -f "$tmp" "$tmp_base" "$tmp_prof"; msg bundle.err.missing "$b" "$prof" >&2; return 1; }
     [[ "$first" -eq 1 ]] || printf ',' >> "$tmp"
-    permissions_strip_jsonc "$src/baseline.json" >/dev/null
     cat "$src/bundle/$b.json" >> "$tmp"; first=0
   done
   printf ']' >> "$tmp"
   out="$(jq -n \
-      --slurpfile base <(permissions_strip_jsonc "$src/baseline.json") \
+      --slurpfile base "$tmp_base" \
       --slurpfile bundles "$tmp" \
-      --slurpfile prof <(permissions_strip_jsonc "$prof") '
+      --slurpfile prof "$tmp_prof" '
         ($bundles[0] // []) as $b
         | ($b | map(.permissions // []) | add // []) as $bp
         | ($b | map(.policies // []) | add // []) as $bpol
@@ -1228,8 +1278,8 @@ permissions_merge_role() {  # $1=role → stdout: baseline+includes+profile 병�
             baseline_note: ($base[0].note // ""),
             permissions: (($base[0].permissions // []) + $bp + ($prof[0].permissions // [])),
             policies: ((($base[0].policies // []) + $bpol + ($prof[0].policies // [])) | unique_by(.resource))
-          }')" || { rm -f "$tmp"; return 1; }
-  rm -f "$tmp"
+          }')" || { rm -f "$tmp" "$tmp_base" "$tmp_prof"; return 1; }
+  rm -f "$tmp" "$tmp_base" "$tmp_prof"
   printf '%s' "$out"
 }
 permissions_glob_to_regex() {  # glob → 정규식 (opencode v2.0.32 엔진 매처 의미론 복제)
@@ -1257,14 +1307,14 @@ permissions_judge() {  # $1=병합 json 파일 $2=action $3=resource → allow|a
     [[ -n "$pres" ]] || continue
     pat="$(permissions_glob_to_regex "$pres")"
     if [[ "$key" =~ $pat ]]; then printf 'deny'; return 0; fi
-  done < <(jq -r '(.policies // [])[] | select(.effect == "deny") | .resource' "$f")
+  done < <(jq_text '(.policies // [])[] | select(.effect == "deny") | .resource' "$f")
   # 2) permissions: 선언 순서대로 스캔, 마지막 매칭이 승리 (last-match-wins)
   e="ask"; res="${res//\\//}"
   while IFS=$'\t' read -r a r e2; do
     [[ "$a" == "$act" ]] || continue
     pat="$(permissions_glob_to_regex "$r")"
     if [[ "$res" =~ $pat ]]; then e="$e2"; fi
-  done < <(jq -r '(.permissions // [])[] | [.action, .resource, .effect] | @tsv' "$f")
+  done < <(jq_text '(.permissions // [])[] | [.action, .resource, .effect] | @tsv' "$f")
   printf '%s' "$e"
 }
 permissions_yaml_block() {  # $1=병합 json 파일 → stdout: frontmatter YAML (permissions만)
@@ -1273,7 +1323,7 @@ permissions_yaml_block() {  # $1=병합 json 파일 → stdout: frontmatter YAML
   # 따라서 L3 hard-deny policies는 프로젝트 .opencode/opencode.jsonc(top-level)에만 둔다.
   local f="$1"
   printf 'permissions:\n'
-  jq -r '(.permissions // [])[] | "  - action: \(.action)\n    resource: \"\(.resource | gsub("\\\\"; "\\\\") | gsub("\""; "\\\""))\"\n    effect: \(.effect)"' "$f"
+  jq_text '(.permissions // [])[] | "  - action: \(.action)\n    resource: \"\(.resource | gsub("\\\\"; "\\\\") | gsub("\""; "\\\""))\"\n    effect: \(.effect)"' "$f"
 }
 permissions_inject_frontmatter() {  # $1=agent md $2=yaml block 파일 — V1 permission 블록을 V2 permissions/policies로 교체
   local f="$1" block="$2" tmp
@@ -1317,22 +1367,36 @@ setup_permissions() {  # 시딩: .opencode/opencode.jsonc(기존 사용자 파�
   src="$(permissions_src_dir 2>/dev/null || true)"
   if [[ -z "$src" ]]; then log "$(msg log.perm.no_tpl)"; return; fi
   local dest="$CWD/.opencode" global="$CWD/.opencode/opencode.jsonc" role
+  # OpenCode V1(예: 1.x)은 V2 permissions 스키마를 거부한다
+  # ("V2 permissions are not supported by OpenCode V1 ... run opencode2").
+  # V2 미지원 빌드에서는 V2 주입을 생략하고 기존 사용자 config를 보존한다(경고 출력).
+  # shortcut: --no-start/--dry-run 에서는 V1 판별 생략(V2 시딩), V1 사용자가 --no-start 로 config 만들 때 문제 — 실시작 런에서 재시딩 또는 수동 점검으로 회수
+  if [[ "$KIND" == "opencode" && "$DRY_RUN" -eq 0 && "$NO_START" -eq 0 ]] && ! opencode_supports_api; then
+    log "$(msg log.perm.v1_skip)"
+    return 0
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     msg log.perm.merge_plan "$src" "$global"
     printf '+ permissions: merge profile/%s/<role>.json -> .opencode/agents/%s-<role>.md frontmatter (V2 permissions/policies)\n' "$PRESET" "$PREFIX"
     return 0
   fi
   mkdir -p "$dest/agents"
-  local base_json
-  base_json="$(jq -n --slurpfile base <(permissions_strip_jsonc "$src/baseline.json") '{
+  local base_json tmp_base tmp_ours
+  # Windows(Git-Bash) 네이티브 jq.exe 호환: <(...) 대신 실제 임시 파일 사용
+  tmp_base="$(mktemp)"
+  permissions_strip_jsonc "$src/baseline.json" > "$tmp_base"
+  base_json="$(jq -n --slurpfile base "$tmp_base" '{
       "$schema": "https://opencode.ai/config.json",
       permissions: ($base[0].permissions // []),
       policies: (($base[0].policies // []) | unique_by([.action, .resource]))
-    }')" || return 1
+    }')" || { rm -f "$tmp_base"; return 1; }
+  rm -f "$tmp_base"
   if [[ -f "$global" ]]; then
     cp -p "$global" "$global.bak"
     log "$(msg log.perm.backup)"
-    if merged="$(permissions_merge_project_file "$global" <(printf '%s' "$base_json"))"; then
+    tmp_ours="$(mktemp)"
+    printf '%s' "$base_json" > "$tmp_ours"
+    if merged="$(permissions_merge_project_file "$global" "$tmp_ours")"; then
       {
         printf '// AUTO-GENERATED by herdr-team (preset=%s) — 기존 사용자 설정 보존 병합\n' "$PRESET"
         printf '// 주의: shell "*": allow 를 수동 추가하면 L2 ask 방어가 꺼집니다(사용자 책임).\n'
@@ -1344,6 +1408,7 @@ setup_permissions() {  # 시딩: .opencode/opencode.jsonc(기존 사용자 파�
     else
       log "$(msg log.perm.parse_fail)"
     fi
+    rm -f "$tmp_ours"
   else
     {
       printf '// AUTO-GENERATED by herdr-team (preset=%s) — 수동 편집 금지\n' "$PRESET"
@@ -1392,6 +1457,16 @@ role_model() {
   esac
 }
 
+# opencode api 서브커맨드 지원 판별(1회 캐시). 문자열 grep 금지 — 실행 결과+종료코드 기반(I2).
+# 판별 불가/미지원 → 0 (안전 기본값: permissions는 v1_skip 보존, 시작은 세션 사전생성 fail-fast가 실질 게이트).
+OPENCODE_API_SUPPORTED=""
+opencode_supports_api() {
+  if [[ -z "$OPENCODE_API_SUPPORTED" ]]; then
+    opencode api --help >/dev/null 2>&1 && OPENCODE_API_SUPPORTED=1 || OPENCODE_API_SUPPORTED=0
+  fi
+  [[ "$OPENCODE_API_SUPPORTED" == "1" ]]
+}
+
 opencode_session_for() {
   local agent="$1" var payload out sid m mp
   var="SID_$(printf '%s' "${agent#"$PREFIX"-}" | tr '[:lower:]' '[:upper:]')"
@@ -1400,19 +1475,21 @@ opencode_session_for() {
   [[ -n "$m" ]] && mp=",model:{providerID:\"${m%%/*}\",id:\"${m#*/}\"}"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '+ %s=$(opencode api post /api/session -d "$(jq -nc --arg a %s --arg d %q %s)" | jq -r .data.id)\n' \
-      "$var" "$agent" "$CWD" "'{agent:\$a,title:\$a${mp},location:{directory:\$d}}'"
+      "$var" "$agent" "$CWD_HERDR" "'{agent:\$a,title:\$a${mp},location:{directory:\$d}}'"
     return 0
   fi
-  if ! payload="$(jq -nc --arg a "$agent" --arg d "$CWD" --arg m "$m" \
+  if ! payload="$(jq -nc --arg a "$agent" --arg d "$CWD_HERDR" --arg m "$m" \
       '{agent:$a,title:$a,location:{directory:$d}} + (if $m=="" then {} else {model:($m|split("/")|{providerID:.[0],id:.[1]})} end)')"; then
     msg agent.err.session_json "$agent" >&2
     return 1
   fi
-  if ! out="$(run_capture opencode api post /api/session -d "$payload")"; then
+  # Git-Bash/MSYS2는 선행 '/' 인자를 Windows 경로로 자동 변환한다(/api/session → C:/Program Files/Git/api/session).
+  # 이 호출에만 접두 제외(MSYS2_ARG_CONV_EXCL, msys2.org filesystem-paths)를 적용한다 — 비MSYS는 무시하는 env일 뿐.
+  if ! out="$(MSYS2_ARG_CONV_EXCL='/api' run_capture opencode api post /api/session -d "$payload")"; then
     msg agent.err.session_fail "$agent" >&2
     return 1
   fi
-  sid="$(printf '%s' "$out" | jq -r '.data.id // empty' 2>/dev/null)"
+  sid="$(printf '%s' "$out" | jq_text '.data.id // empty' 2>/dev/null)"
   if [[ -z "$sid" ]]; then
     msg agent.err.session_parse "$agent" "${out:-<empty>}" >&2
     return 1
@@ -1728,12 +1805,12 @@ setup_panes() {
       local _first_right="${_right_roles[0]}"
       local _first_var="P_$(printf '%s' "$_first_right" | tr '[:lower:]' '[:upper:]')"
       # 1) 우측 상단 첫 pane (right from BASE)
-      printf '+ %s=$(herdr pane split "$BASE" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_first_var" "$CWD"
+      printf '+ %s=$(herdr pane split "$BASE" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_first_var" "$CWD_HERDR"
       # 2) PM 하단 orchestrator (down from BASE with ratio 0.5)
       if [[ "$NO_RESIZE" -eq 0 ]]; then
-        printf '+ P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction down --ratio 0.5 --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
+        printf '+ P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction down --ratio 0.5 --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD_HERDR"
       else
-        printf '+ P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD"
+        printf '+ P_ORCHESTRATOR=$(herdr pane split "$BASE" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$CWD_HERDR"
       fi
       # 3) 우측 나머지 pane들 (down from _first_var)
       _prev="$_first_var"
@@ -1745,9 +1822,9 @@ setup_panes() {
         if [[ "$NO_RESIZE" -eq 0 ]]; then
           _k=$((_k+1))
           _ratio="$(down_split_ratio "$_n_right" "$_k")"
-          printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD"
+          printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD_HERDR"
         else
-          printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+          printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD_HERDR"
         fi
         _prev="$_var"
       done
@@ -1755,14 +1832,14 @@ setup_panes() {
       for _role in "${ROLES[@]}"; do
         _var="P_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
         if [[ "$_prev" == "BASE" ]]; then
-          printf '+ %s=$(herdr pane split "$%s" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+          printf '+ %s=$(herdr pane split "$%s" --direction right --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD_HERDR"
         elif [[ "$NO_RESIZE" -eq 0 ]]; then
           # k번째 down 분할 ratio = 1/(N-k+1) (N=우측 컬럼 역할수): 정확 1:1:1:1 균등
           _k=$((_k+1))
           _ratio="$(down_split_ratio "${#ROLES[@]}" "$_k")"
-          printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD"
+          printf '+ %s=$(herdr pane split "$%s" --direction down --ratio %s --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$_ratio" "$CWD_HERDR"
         else
-          printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD"
+          printf '+ %s=$(herdr pane split "$%s" --direction down --cwd "%s" --no-focus | jq -r .result.pane.pane_id)\n' "$_var" "$_prev" "$CWD_HERDR"
         fi
         _prev="$_var"
       done
@@ -1783,7 +1860,7 @@ setup_panes() {
           opencode_session_for "$_agent"
           _sid_var="SID_$(printf '%s' "$_role" | tr '[:lower:]' '[:upper:]')"
           printf '+ wait_pane_ready "$%s"\n' "$_var"
-          printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s" -- --session "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var" "$_sid_var"
+          printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --timeout "$HT_AGENT_START_TIMEOUT_MS" --pane "$%s" -- --session "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var" "$_sid_var"
         else
           printf '+ wait_pane_ready "$%s"\n' "$_var"
           printf '+ herdr agent list | grep -q %s || herdr agent start %s --kind %s --pane "$%s"\n' "$_agent" "$_agent" "$KIND" "$_var"
@@ -1818,7 +1895,7 @@ setup_panes() {
     local split_out pane_id
 
     # 1) 우측 상단 첫 pane (PM에서 right 분할)
-    split_out="$(herdr pane split "$base_pane" --direction right --cwd "$CWD" --no-focus)"
+    split_out="$(herdr pane split "$base_pane" --direction right --cwd "$CWD_HERDR" --no-focus)"
     local first_right_pane
     first_right_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
     if [[ -z "$first_right_pane" ]]; then msg pane.err.parse "$first_right_role" "$split_out" >&2; exit 1; fi
@@ -1826,9 +1903,9 @@ setup_panes() {
 
     # 2) PM 하단 orchestrator (PM에서 down 분할, ratio 0.5로 상하 50:50 균등)
     if [[ "$NO_RESIZE" -eq 0 ]]; then
-      split_out="$(herdr pane split "$base_pane" --direction down --ratio 0.5 --cwd "$CWD" --no-focus)"
+      split_out="$(herdr pane split "$base_pane" --direction down --ratio 0.5 --cwd "$CWD_HERDR" --no-focus)"
     else
-      split_out="$(herdr pane split "$base_pane" --direction down --cwd "$CWD" --no-focus)"
+      split_out="$(herdr pane split "$base_pane" --direction down --cwd "$CWD_HERDR" --no-focus)"
     fi
     local orch_pane
     orch_pane="$(printf '%s' "$split_out" | herdr_pane_id || true)"
@@ -1843,9 +1920,9 @@ setup_panes() {
       if [[ "$NO_RESIZE" -eq 0 ]]; then
         k=$((k+1))
         ratio="$(down_split_ratio "$n_right" "$k")"
-        split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD" --no-focus)"
+        split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD_HERDR" --no-focus)"
       else
-        split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
+        split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD_HERDR" --no-focus)"
       fi
       pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
       if [[ -z "$pane_id" ]]; then msg pane.err.parse "$role" "$split_out" >&2; exit 1; fi
@@ -1871,13 +1948,13 @@ setup_panes() {
     for role in "${ROLES[@]}"; do
       if [[ "$first" -eq 1 ]]; then
         direction="right"; first=0
-        split_out="$(herdr pane split "$prev_pane" --direction "$direction" --cwd "$CWD" --no-focus)"
+        split_out="$(herdr pane split "$prev_pane" --direction "$direction" --cwd "$CWD_HERDR" --no-focus)"
       elif [[ "$NO_RESIZE" -eq 0 ]]; then
         k=$((k+1))
         ratio="$(down_split_ratio "$n_roles" "$k")"
-        split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD" --no-focus)"
+        split_out="$(herdr pane split "$prev_pane" --direction down --ratio "$ratio" --cwd "$CWD_HERDR" --no-focus)"
       else
-        split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD" --no-focus)"
+        split_out="$(herdr pane split "$prev_pane" --direction down --cwd "$CWD_HERDR" --no-focus)"
       fi
       pane_id="$(printf '%s' "$split_out" | herdr_pane_id || true)"
       if [[ -z "$pane_id" ]]; then msg pane.err.parse "$role" "$split_out" >&2; exit 1; fi
@@ -1910,7 +1987,11 @@ setup_panes() {
             msg agent.err.session_abort "$agent" "${#PANE_IDS[@]}" >&2
             exit 1
           fi
-          run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}" -- --session "$sid"
+          if ! run herdr agent start "$agent" --kind "$KIND" --timeout "$HT_AGENT_START_TIMEOUT_MS" \
+              --pane "${PANE_IDS[$i]}" -- --session "$sid"; then
+            msg agent.err.start_fail "$agent" "${PANE_IDS[$i]}" >&2
+            exit 1
+          fi
         else
           run herdr agent start "$agent" --kind "$KIND" --pane "${PANE_IDS[$i]}"
         fi

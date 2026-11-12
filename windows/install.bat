@@ -36,51 +36,49 @@ if not defined BIN_DIR set "BIN_DIR=%USERPROFILE%\bin"
 
 rem --- Backend: WSL first, Git-Bash fallback / 백엔드 선택: WSL 우선, 없으면 Git-Bash ---
 if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
-  echo [WARN] Skipping dependency check (HERDR_TEAM_SKIP_CHECK=1) / 의존성 점검 생략
+  echo [WARN] Skipping dependency check ^(HERDR_TEAM_SKIP_CHECK=1^) / 의존성 점검 생략
   set "BACKEND=wsl"
 ) else (
-  where wsl >nul 2>nul
-  if not errorlevel 1 (
-    set "BACKEND=wsl"
-  ) else (
-    if exist "%ProgramFiles%\Git\bin\bash.exe" (
-      set "BACKEND=gitbash"
-    ) else (
-      echo [ERROR] Neither WSL nor Git-Bash was found.
-      echo [오류] WSL 또는 Git-Bash를 찾을 수 없습니다.
-      echo.
-      echo To install automatically on Windows 10/11, run these in PowerShell as admin:
-      echo Windows 10/11에서 자동 설치하려면 관리자 PowerShell에서 실행:
-      echo   winget install --id Git.Git -e --source winget
-      echo   wsl --install
-      echo Then restart Windows and run install.bat again.
-      echo 설치 후 Windows를 다시 시작하고 install.bat을 다시 실행하세요.
-      echo.
-      echo To skip this check (advanced): set HERDR_TEAM_SKIP_CHECK=1
-      echo 점검 생략(고급): HERDR_TEAM_SKIP_CHECK=1 설정
-      if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
-      exit /b 1
-    )
+  rem --- WSL is only usable if a distro can actually run bash; the wsl.exe stub exists even when WSL is not installed ---
+  set "BACKEND="
+  for /f "delims=" %%p in ('wsl bash -lc "echo wsl-ok" 2^>nul') do if /i "%%p"=="wsl-ok" set "BACKEND=wsl"
+  if not defined BACKEND if exist "%ProgramFiles%\Git\bin\bash.exe" set "BACKEND=gitbash"
+  if not defined BACKEND (
+    echo [ERROR] Neither WSL nor Git-Bash was found.
+    echo [오류] WSL 또는 Git-Bash를 찾을 수 없습니다.
+    echo.
+    echo To install automatically on Windows 10/11, run these in PowerShell as admin:
+    echo Windows 10/11에서 자동 설치하려면 관리자 PowerShell에서 실행:
+    echo   winget install --id Git.Git -e --source winget
+    echo   wsl --install
+    echo Then restart Windows and run install.bat again.
+    echo 설치 후 Windows를 다시 시작하고 install.bat을 다시 실행하세요.
+    echo.
+    echo To skip this check ^(advanced^): set HERDR_TEAM_SKIP_CHECK=1
+    echo 점검 생략^(고급^): HERDR_TEAM_SKIP_CHECK=1 설정
+    if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
+    exit /b 1
   )
 )
 
 rem --- herdr precheck via backend / herdr 사전 점검 ---
 if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
-  echo [WARN] Skipping herdr precheck (HERDR_TEAM_SKIP_CHECK=1) / herdr 사전 점검 생략
+  echo [WARN] Skipping herdr precheck ^(HERDR_TEAM_SKIP_CHECK=1^) / herdr 사전 점검 생략
 ) else (
   if "%BACKEND%"=="wsl" (
     for /f "delims=" %%p in ('wsl wslpath -u "%REPO%"') do set "WSL_REPO=%%p"
-    if not defined WSL_REPO (
+    if not "!WSL_REPO!"=="" (
+      wsl bash "!WSL_REPO!/bin/herdr-team" --precheck
+    ) else (
       echo [ERROR] WSL path conversion failed / WSL 경로 변환 실패: "%REPO%"
       if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
       exit /b 1
     )
-    wsl bash "%WSL_REPO%/bin/herdr-team" --precheck
   ) else (
     set "MSYS_REPO=%REPO:\=/%"
-    "%ProgramFiles%\Git\bin\bash.exe" "%MSYS_REPO%/bin/herdr-team" --precheck
+    "%ProgramFiles%\Git\bin\bash.exe" "!MSYS_REPO!/bin/herdr-team" --precheck
   )
-  if errorlevel 1 (
+  if errorlevel 127 (
     echo [ERROR] herdr CLI not found - herdr-team runs on top of herdr.
     echo [오류] herdr CLI 를 찾을 수 없습니다. herdr-team는 herdr 위에서 동작합니다.
     echo   Install / 설치: curl -fsSL https://herdr.dev/install.sh ^| sh
@@ -90,6 +88,20 @@ if "%HERDR_TEAM_SKIP_CHECK%"=="1" (
     if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
     exit /b 127
   )
+  if errorlevel 126 (
+    echo [ERROR] jq not found - herdr-team uses jq to parse herdr JSON.
+    echo [오류] jq 를 찾을 수 없습니다. herdr-team는 herdr JSON 파싱에 jq를 사용합니다.
+    echo   Install / 설치: winget install --id jqlang.jq -e
+    echo   Verify / 확인: jq --version
+    echo   Bypass / 우회: set HERDR_TEAM_SKIP_CHECK=1
+    if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
+    exit /b 126
+  )
+  if errorlevel 1 (
+    echo [ERROR] dependency check failed / 의존성 점검 실패
+    if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
+    exit /b 1
+  )
 )
 
 rem --- DRYRUN: 계획만 출력하고 쓰기 0 ---
@@ -97,7 +109,7 @@ if "%HERDR_TEAM_DRYRUN%"=="1" (
   echo [dry-run] install dir / 설치 경로: "%BIN_DIR%"
   echo [dry-run] create / 생성: hts.cmd htw.cmd ht.cmd herdr-team.cmd herdr-team-setup.cmd
   echo [dry-run] each cmd: call "%REPO%\windows\start-team.bat" %%* ^(htw: start-watcher.bat^)
-  echo [dry-run] PATH: [Environment]::SetEnvironmentVariable("Path", ..., "User") if missing
+  echo [dry-run] PATH: [Environment]::SetEnvironmentVariable^("Path", ..., "User"^) if missing
   if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
   exit /b 0
 )
@@ -128,7 +140,7 @@ if errorlevel 1 (
 if "%RC%"=="0" (
   echo [install] 완료. 새 터미널에서 `hts` 또는 `htw` 실행. / Done. Open a new terminal and run hts or htw.
 ) else (
-  echo [ERROR] One or more wrappers failed to install / 일부 래퍼 설치 실패 (사용 가능: hts, htw, ht, herdr-team, herdr-team-setup)
+  echo [ERROR] One or more wrappers failed to install / 일부 래퍼 설치 실패 ^(사용 가능: hts, htw, ht, herdr-team, herdr-team-setup^)
   echo [ERROR] Failed wrappers are logged above as "[ERROR] Failed to write: <path>" / 실패 래퍼는 위 로그 참조
 )
 if not "%HERDR_TEAM_NOPAUSE%"=="1" pause
@@ -161,7 +173,7 @@ exit /b 0
 :usage
 echo Usage: install.bat
 echo   Installs hts.cmd / htw.cmd / ht.cmd / herdr-team.cmd / herdr-team-setup.cmd
-echo   into %%HERDR_TEAM_BIN_DIR%% (default %%USERPROFILE%%\bin) and registers User PATH.
+echo   into %%HERDR_TEAM_BIN_DIR%% ^(default %%USERPROFILE%%\bin^) and registers User PATH.
 echo   Prereq / 전제: herdr CLI ^(https://herdr.dev^).
 echo   Env: HERDR_TEAM_REPO, HERDR_TEAM_BIN_DIR, HERDR_TEAM_SKIP_CHECK=1,
 echo        HERDR_TEAM_DRYRUN=1, HERDR_TEAM_NOPAUSE=1

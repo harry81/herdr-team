@@ -326,10 +326,12 @@ For non-technical users on Windows — double-click, no terminal knowledge requi
 4. Pick a preset from the menu (English primary + Korean, 10s default: dev).
 5. A desktop shortcut ("Start AI Team") can be created with `windows\create-shortcut.bat`.
 
-`herdr` is a prerequisite (herdr-team runs on top of it). The installer and launchers call
-`bin/herdr-team --precheck`; if `herdr` is missing they print install guidance
-(`curl -fsSL https://herdr.dev/install.sh | sh`, or on Windows
-`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`) and exit.
+`herdr` and `jq` are prerequisites (herdr-team runs on top of them). The installer and
+launchers call `bin/herdr-team --precheck`; if either is missing they print install guidance
+(`herdr`: `curl -fsSL https://herdr.dev/install.sh | sh`, or on Windows
+`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`;
+`jq`: `winget install --id jqlang.jq -e` on Windows, `brew install jq` / `apt-get install -y jq`
+elsewhere) and exit.
 
 The launcher runs the repo script via WSL (fallback: Git-Bash), converting paths with
 `wsl wslpath`, forwarding all args (`--preset`, `--dry-run`, ...).
@@ -337,7 +339,7 @@ Simulation without side effects: `HERDR_TEAM_DRYRUN=1` (installer prints the pla
 Skip the final pause (automation): `HERDR_TEAM_NOPAUSE=1`.
 Missing Git/WSL? The launcher guides you to `winget install --id Git.Git` and
 `wsl --install` (`HERDR_TEAM_SKIP_CHECK=1` bypasses the check).
-Custom install dir: `HERDR_TEAM_BIN_DIR`. Missing `herdr`: `HERDR_TEAM_SKIP_CHECK=1` bypasses the precheck.
+Custom install dir: `HERDR_TEAM_BIN_DIR`. Missing `herdr`/`jq`: `HERDR_TEAM_SKIP_CHECK=1` bypasses the precheck.
 
 ### CLI options reference
 
@@ -350,7 +352,7 @@ Custom install dir: `HERDR_TEAM_BIN_DIR`. Missing `herdr`: `HERDR_TEAM_SKIP_CHEC
 | `--template-dir D` | Template directory (default: `~/templates/agent-team`, or `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | Team preset: `dev` \| `research` \| `biz` \| `mkt` \| `creator` (`app` = deprecated alias of `dev`; or `HERDR_TEAM_PRESET`; default: `dev` / TUI) |
 | `--list-presets` | Print available presets and exit |
-| `--precheck` | Check `herdr` CLI presence and exit (`0` present / `127` missing; `HERDR_TEAM_SKIP_CHECK=1` bypasses) |
+| `--precheck` | Check `herdr` CLI and `jq` presence and exit (`0` present / `127` herdr missing / `126` jq missing; `HERDR_TEAM_SKIP_CHECK=1` bypasses) |
 | `--no-interactive` | Never prompt; default `preset=dev`, `kind=opencode` |
 | `--no-color` | Disable colors/cursor control (plain output); same as `NO_COLOR` / `TERM=dumb` / `CI` |
 | `--no-template` | Skip template copy/generate step |
@@ -365,8 +367,11 @@ Custom install dir: `HERDR_TEAM_BIN_DIR`. Missing `herdr`: `HERDR_TEAM_SKIP_CHEC
 
 - `herdr` CLI (run inside a Herdr session) — install: `curl -fsSL https://herdr.dev/install.sh | sh`
   (Windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`).
-  `herdr-team --precheck` exits `127` if missing; `HERDR_TEAM_SKIP_CHECK=1` bypasses.
-- `jq` (parses `herdr pane current/split` JSON responses)
+  `herdr-team --precheck` exits `127` if `herdr` is missing (`126` if `jq` is missing);
+  `HERDR_TEAM_SKIP_CHECK=1` bypasses.
+- `jq` (parses `herdr pane current/split` JSON responses and merges permission configs)
+  — install: `winget install --id jqlang.jq -e` (Windows), `brew install jq` (macOS),
+  `apt-get install -y jq` (Debian/Ubuntu), `dnf install -y jq` (RHEL), `apk add jq` (Alpine).
 - Windows launcher: WSL (preferred) or Git-Bash
 
 ### Team model (task manager + 3 roles)

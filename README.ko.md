@@ -309,10 +309,12 @@ Windows 일반 사용자용 — 더블클릭만으로 실행, 터미널 지식 �
 4. 메뉴에서 프리셋 선택 (영어 기본 + 한국어 병기, 10초 무입력 시 dev).
 5. `windows\create-shortcut.bat` 실행 시 바탕화면 바로가기("Start AI Team") 생성.
 
-`herdr`는 전제 조건입니다(herdr-team는 herdr 위에서 동작). 설치기와 런처는
-`bin/herdr-team --precheck`를 호출하며, `herdr`가 없으면 설치 안내
-(`curl -fsSL https://herdr.dev/install.sh | sh`, Windows는
-`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`)를 출력하고 종료합니다.
+`herdr`와 `jq`는 전제 조건입니다(herdr-team는 두 도구 위에서 동작). 설치기와 런처는
+`bin/herdr-team --precheck`를 호출하며, 둘 중 하나가 없으면 설치 안내를 출력하고 종료합니다
+(`herdr`: `curl -fsSL https://herdr.dev/install.sh | sh`, Windows는
+`powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`;
+`jq`: Windows는 `winget install --id jqlang.jq -e`, 그 외는 `brew install jq` /
+`apt-get install -y jq`).
 
 런처는 WSL(없으면 Git-Bash) 경유로 저장소 스크립트를 실행하며,
 `wsl wslpath`로 경로 변환, 모든 인자(`--preset`, `--dry-run` 등)를 그대로 전달합니다.
@@ -332,7 +334,7 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 | `--template-dir D` | 템플릿 디렉토리 (기본값: `~/templates/agent-team`, 또는 `HERDR_TEAM_TEMPLATE_DIR`) |
 | `--preset NAME` | 팀 프리셋: `dev` \| `research` \| `biz` \| `mkt` \| `creator` (`app` = `dev`의 deprecated alias, 또는 `HERDR_TEAM_PRESET`, 기본값: `dev` / TUI) |
 | `--list-presets` | 프리셋 목록 출력 후 종료 |
-| `--precheck` | `herdr` CLI 존재 여부만 점검 후 종료 (`0` 있음 / `127` 없음; `HERDR_TEAM_SKIP_CHECK=1` 우회) |
+| `--precheck` | `herdr` CLI·`jq` 존재 여부 점검 후 종료 (`0` 있음 / `127` herdr 없음 / `126` jq 없음; `HERDR_TEAM_SKIP_CHECK=1` 우회) |
 | `--no-interactive` | 묻지 않고 기본값으로 진행 (`preset=dev`, `kind=opencode`) |
 | `--no-color` | 색상·커서제어 비활성(plain 출력). `NO_COLOR`/`TERM=dumb`/`CI`와 동등 |
 | `--no-template` | 템플릿 복사/생성 생략 |
@@ -346,8 +348,11 @@ Git/WSL이 없으면 `winget install --id Git.Git`·`wsl --install` 안내가 �
 
 - `herdr` CLI (Herdr 세션 안에서 실행) — 설치: `curl -fsSL https://herdr.dev/install.sh | sh`
   (Windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"`).
-  없으면 `herdr-team --precheck`가 `127`로 종료, `HERDR_TEAM_SKIP_CHECK=1`로 우회.
-- `jq` (pane ID 파싱용 — `herdr pane current/split`의 JSON 응답 해석)
+  없으면 `herdr-team --precheck`가 `127`(herdr 부재) 또는 `126`(jq 부재)로 종료,
+  `HERDR_TEAM_SKIP_CHECK=1`로 우회.
+- `jq` (pane ID 파싱·권한 config 병합용 — `herdr pane current/split`의 JSON 응답 해석)
+  — 설치: Windows `winget install --id jqlang.jq -e`, macOS `brew install jq`,
+  Debian/Ubuntu `apt-get install -y jq`, RHEL `dnf install -y jq`, Alpine `apk add jq`.
 - Windows 런처: WSL (권장) 또는 Git-Bash
 
 ### 팀 모델 (task manager + 3역할)
