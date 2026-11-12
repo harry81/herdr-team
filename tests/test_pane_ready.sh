@@ -46,6 +46,7 @@ trap 'rm -f "$FN_SRC"' EXIT
 {
   extract_fn log
   extract_fn run
+  sed -n '/^jq_text() {/p' "$BIN"   # 한 줄 함수 — extract_fn 의 '/^}/' 범위가 닫히지 않아 단일 행 추출
   extract_fn pane_shell_foreground
   extract_fn wait_pane_ready
   # 에러 문구는 i18n 카탈로그(msg/_msg_en)에서 온다 — 추출 하네스에도 함께 싣는다
@@ -124,6 +125,7 @@ T0=$(date +%s)
 OUT="$(ready_run 999 "$S3" wT:pZ 2 0)"; R="$?"
 assert_exit "$R" 1 "ready_폐쇄-a: 영구 busy rc=1"
 assert_contains "$OUT" "ready wait exceeded" "ready_폐쇄-a: 원인 명시 에러"
+assert_equal "$(cat "$S3/log/calls")" "0" "ready_폐쇄-a: 게이트 루프만(프로브 0회)"
 T1=$(date +%s)
 ELAPSED=$((T1-T0))
 if [[ "$ELAPSED" -lt 12 ]]; then ok "ready_폐쇄-a: 폐쇄(${ELAPSED}s < 12s)"; else bad "ready_폐쇄-a: 폐쇄($ELAPSED s)"; fi
@@ -133,6 +135,7 @@ S3b="$(mktemp -d)"; mkdir -p "$S3b/log"; printf 0 > "$S3b/log/calls"
 OUT="$(ready_run 999 "$S3b" wT:pZ 2 1)"; R="$?"
 assert_exit "$R" 1 "ready_폐쇄-b: 영구 미매칭 rc=1"
 assert_contains "$OUT" "ready wait exceeded" "ready_폐쇄-b: 원인 명시 에러"
+if [[ "$(cat "$S3b/log/calls")" -gt 0 ]]; then ok "ready_폐쇄-b: 프로브 루프 진입(calls>0)"; else bad "ready_폐쇄-b: 프로브 루프 진입(calls>0: $(cat "$S3b/log/calls"))"; fi
 rm -rf "$S1" "$S2" "$S3" "$S3b"
 
 echo "== run() 개선: 실패 시 무음 소실 제거 =="
