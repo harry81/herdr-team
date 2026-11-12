@@ -8,10 +8,14 @@ set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$REPO/bin/herdr-team"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0; SKIP_LABELS=""
 
 ok()   { PASS=$((PASS+1)); printf 'PASS: %s\n' "$*"; }
 bad()  { FAIL=$((FAIL+1)); printf 'FAIL: %s\n' "$*"; }
+skip() { # $1=사유 — 도구/환경 부재에만 사용(단언 로직 회피 금지)
+  SKIP=$((SKIP+1)); SKIP_LABELS+="$1; "
+  printf 'SKIP: %s\n' "$1"
+}
 
 assert_contains() { # $1=output $2=needle $3=label
   if printf '%s' "$1" | grep -F -- "$2" >/dev/null; then ok "$3"; else bad "$3 (missing: $2)"; fi
@@ -38,6 +42,17 @@ assert_plain_bytes() { # $1=output $2=label — plain 모드: ESC(0x1b)·CR(0x0d
   elif has_byte "$1" 0d; then bad "$2 (CR 0x0d found)";
   else ok "$2"; fi
 }
+# 로케일 미설치 러너에서 자식 셸의 setlocale 경고 라인만 제거한다(제품 출력 계약은 불변).
+strip_locale_noise() { sed -E '/^(bash: )?warning: setlocale:/d'; }
+# pty 강제 + 스타일 판정 env 고정: CI/GITHUB_ACTIONS/NO_COLOR 누출과 러너 TERM 의존을 제거한다.
+# $1..$n-1 = 선택적 env 배정(뒤에 올수록 우선), $n = script -e 로 실행할 커맨드 문자열.
+ht_tty() {
+  local cmd="${!#}" wrap=() pre=()
+  command -v timeout >/dev/null 2>&1 && wrap=(timeout 20)
+  [[ "$#" -gt 1 ]] && pre=("${@:1:$#-1}")
+  env -u CI -u GITHUB_ACTIONS -u NO_COLOR TERM="${HERDR_TEST_TTY_TERM:-xterm-256color}" \
+    ${pre[@]+"${pre[@]}"} ${wrap[@]+"${wrap[@]}"} script -qec "$cmd" /dev/null 2>&1
+}
 
 [[ -x "$BIN" ]] || { printf 'FAIL: %s not executable\n' "$BIN"; exit 1; }
 
@@ -55,7 +70,7 @@ hangul_count() { # $1=file — 한글 음절(U+AC00-U+D7A3) 개수 (grep -P -> p
 assert_no_hangul() { # $1=file $2=label
   local n
   n="$(hangul_count "$1")"
-  if [[ "$n" == "NA" ]]; then echo "SKIP: 한글 검사 도구(grep -P/perl/python3) 없음 → $2";
+  if [[ "$n" == "NA" ]]; then skip "한글 검사 도구(grep -P/perl/python3) 없음 → $2";
   elif [[ "$n" == "0" ]]; then ok "$2"
   else bad "$2 (hangul=$n)"; fi
 }
@@ -115,9 +130,14 @@ else
 fi
 
 echo "== tc-2) 로케일 환경변수 무시 (English Only) =="
-BASE_OUT="$(printf '1\n1\n' | env -u HERDR_TEAM_LANG -u LC_ALL LANG=C timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
-KO_ENV_OUT="$(printf '1\n1\n' | HERDR_TEAM_LANG=ko LC_ALL=ko_KR.UTF-8 LANG=ko_KR.UTF-8 timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
-FR_ENV_OUT="$(printf '1\n1\n' | HERDR_TEAM_LANG=fr LANG=ko_KR.UTF-8 timeout 20 "$BIN" test --dry-run --no-template 2>&1)"
+if command -v locale >/dev/null 2>&1 && ! locale -a 2>/dev/null | grep -qi '^ko_kr'; then
+  printf 'NOTICE: ko_KR locale not installed - setlocale warning lines are normalized before comparisons\n'
+fi
+# 러너에 ko_KR 로케일이 없으면 자식 bash의 setlocale 경고가 캡처 출력에 섞인다 → 비교 전에 러너 인프라 노이즈만 제거.
+assert_equal "$(printf '%s\n' 'bash: warning: setlocale: LC_ALL: cannot change locale (ko_KR.UTF-8)' 'hi' | strip_locale_noise)" "hi" "tc2_locale_noise_정규화"
+BASE_OUT="$(printf '1\n1\n' | env -u HERDR_TEAM_LANG -u LC_ALL LANG=C timeout 20 "$BIN" test --dry-run --no-template 2>&1 | strip_locale_noise)"
+KO_ENV_OUT="$(printf '1\n1\n' | HERDR_TEAM_LANG=ko LC_ALL=ko_KR.UTF-8 LANG=ko_KR.UTF-8 timeout 20 "$BIN" test --dry-run --no-template 2>&1 | strip_locale_noise)"
+FR_ENV_OUT="$(printf '1\n1\n' | HERDR_TEAM_LANG=fr LANG=ko_KR.UTF-8 timeout 20 "$BIN" test --dry-run --no-template 2>&1 | strip_locale_noise)"
 assert_equal "$KO_ENV_OUT" "$BASE_OUT" "tc2_ko환경_출력_en과_동일"
 assert_equal "$FR_ENV_OUT" "$BASE_OUT" "tc2_fr환경_출력_en과_동일"
 assert_not_contains "$KO_ENV_OUT" "WARN" "tc2_ko환경_WARN_0건"
@@ -162,7 +182,7 @@ MISS_RC="$("$BIN" --preset 2>/dev/null; echo $?)"
 assert_exit "$MISS_RC" 2 "tc2d_값누락_exit2"
 EN_UNK="$("$BIN" --bogus-option 2>&1 || true)"
 assert_contains "$EN_UNK" "error: unknown option: --bogus-option (--help)" "tc2d_미지원옵션"
-EN_LAYOUT="$("$BIN" test --layout bogus_layout --no-interactive 2>&1 || true)"
+EN_LAYOUT="$("$BIN" test --layout bogus_layout --no-interactive --dry-run 2>&1 || true)"  # --dry-run: precheck(herdr 부재) 생략, 파싱 단계 검증
 assert_contains "$EN_LAYOUT" "error: unknown layout: bogus_layout" "tc2d_layout"
 EN_MULTI="$("$BIN" aa bb 2>&1 || true)"
 assert_contains "$EN_MULTI" "error: prefix must be given once: bb" "tc2d_prefix_중복"
@@ -224,8 +244,8 @@ for v in ko fr ja KO; do
   assert_exit "$RC_V" 0 "tc2g_HERDR_TEAM_LANG_${v}_exit0"
   assert_not_contains "$OUT_V" "WARN" "tc2g_HERDR_TEAM_LANG_${v}_WARN0"
 done
-LIST_BASE="$(env -u HERDR_TEAM_LANG -u LC_ALL LANG=C timeout 20 "$BIN" --list-presets 2>&1)"
-LIST_KO="$(HERDR_TEAM_LANG=ko LC_ALL=ko_KR.UTF-8 LANG=ko_KR.UTF-8 timeout 20 "$BIN" --list-presets 2>&1)"
+LIST_BASE="$(env -u HERDR_TEAM_LANG -u LC_ALL LANG=C timeout 20 "$BIN" --list-presets 2>&1 | strip_locale_noise)"
+LIST_KO="$(HERDR_TEAM_LANG=ko LC_ALL=ko_KR.UTF-8 LANG=ko_KR.UTF-8 timeout 20 "$BIN" --list-presets 2>&1 | strip_locale_noise)"
 assert_equal "$LIST_KO" "$LIST_BASE" "tc2g_ko환경_목록출력_동일"
 
 echo "== Q2) usage 언어 정책 1행 (한국어 힌트 제거) =="
@@ -238,19 +258,17 @@ assert_contains "$HELP_TXT" "Usage:" "q2_help_영문_유지"
 echo "== tc-4) NO_COLOR/TERM=dumb/--no-color (TTY 시뮬레이션: script) =="
 assert_contains "$("$BIN" --help 2>&1)" "--no-color" "tc4_help_no_color_문서화"
 if command -v script >/dev/null 2>&1; then
-  tty_run() { # $@=env prefix assignments / command extras
-    env -u CI -u GITHUB_ACTIONS -u NO_COLOR "$@" script -qec "$BIN test --preset dev --dry-run --no-template --no-interactive" /dev/null 2>&1
-  }
-  TTY_NOCOLOR="$(tty_run NO_COLOR=1)"
+  TTY_CMD="$BIN test --preset dev --dry-run --no-template --no-interactive"
+  TTY_NOCOLOR="$(ht_tty NO_COLOR=1 "$TTY_CMD")"
   assert_no_esc "$TTY_NOCOLOR" "tc4_TTY_NO_COLOR_escape_부재"
-  TTY_DUMB="$(tty_run TERM=dumb)"
+  TTY_DUMB="$(ht_tty TERM=dumb "$TTY_CMD")"
   assert_no_esc "$TTY_DUMB" "tc4_TTY_TERM_dumb_escape_부재"
-  TTY_FLAG="$(env -u CI -u GITHUB_ACTIONS -u NO_COLOR script -qec "$BIN test --preset dev --dry-run --no-template --no-interactive --no-color" /dev/null 2>&1)"
+  TTY_FLAG="$(ht_tty "$TTY_CMD --no-color")"
   assert_no_esc "$TTY_FLAG" "tc4_TTY_no_color_플래그_escape_부재"
-  TTY_CI="$(env -u NO_COLOR CI=1 script -qec "$BIN test --preset dev --dry-run --no-template --no-interactive" /dev/null 2>&1)"
+  TTY_CI="$(ht_tty CI=1 "$TTY_CMD")"
   assert_no_esc "$TTY_CI" "tc4_TTY_CI_escape_부재"
 else
-  echo "SKIP: script 명령 없음 → TTY 시뮬레이션 생략"
+  skip "script 명령 없음 → TTY 시뮬레이션 생략"
 fi
 
 echo "== tc-6) 결정성: 동일 입력 2회 실행 출력 동일 =="
@@ -281,7 +299,7 @@ if [[ "$EOF_ELAPSED" -lt 8 ]]; then ok "tc5_EOF_즉시복귀(${EOF_ELAPSED}s)"; 
 assert_plain_bytes "$EOF_OUT" "tc5_EOF_escape_CR_부재"
 assert_equal "$(ps_count "$BIN")" "0" "tc5_EOF_고아프로세스_0건"
 if command -v script >/dev/null 2>&1; then
-  TTY_CNT="$( ( sleep 2; printf '1\n1\n' ) | env -u CI -u NO_COLOR timeout 20 script -qec "$BIN test --dry-run --no-template" /dev/null 2>&1)"
+  TTY_CNT="$( ( sleep 2; printf '1\n1\n' ) | ht_tty "$BIN test --dry-run --no-template")"
   assert_contains "$TTY_CNT" "s [" "tc5_TTY_카운트다운_표시"
   assert_contains "$TTY_CNT" "preset=dev" "tc5_TTY_선택_정상"
   assert_equal "$(ps_count "$BIN")" "0" "tc5_TTY_고아프로세스_0건"
@@ -296,19 +314,23 @@ case "\${1:-}" in
 esac
 STUBEOF
   chmod +x "$BSD_STUB/mktemp"
-  TTY_CNT_BSD="$( ( sleep 2; printf '1\n1\n' ) | PATH="$BSD_STUB:$PATH" env -u CI -u NO_COLOR timeout 20 script -qec "$BIN test --dry-run --no-template" /dev/null 2>&1)"
+  TTY_CNT_BSD="$( ( sleep 2; printf '1\n1\n' ) | PATH="$BSD_STUB:$PATH" ht_tty "$BIN test --dry-run --no-template")"
   assert_contains "$TTY_CNT_BSD" "s [" "tc5_BSD_mktemp_카운트다운_표시"
   assert_contains "$TTY_CNT_BSD" "preset=dev" "tc5_BSD_mktemp_선택_정상"
   rm -rf "$BSD_STUB"
 else
-  echo "SKIP: script 없음 → TTY 카운트다운 검증 생략"
+  skip "script 없음 → TTY 카운트다운 검증 생략"
 fi
 
 echo "== tc-7) 배너·진행 단계·최종 요약 (plain 계약 불변) =="
 BANNER_OUT="$(printf '1\n1\n' | "$BIN" test --dry-run --no-template 2>&1)"
 assert_contains "$BANNER_OUT" "herdr-team v" "tc7_plain_배너"
 assert_contains "$BANNER_OUT" "herdr-team v$(tr -d '[:space:]' < "$REPO/VERSION")" "tc7_plain_배너_버전"
-ISO_OUT="$(printf '1\n1\n' | "$BIN" test --preset dev --dry-run --template-dir "$REPO/templates" 2>&1)"
+ISO_TMP="$(mktemp -d)"; trap 'rm -rf "$ISO_TMP"' EXIT
+mkdir -p "$ISO_TMP/.herdr-team"
+printf 'dev\n' > "$ISO_TMP/.herdr-team/preset"   # 저장소 로컬 아티팩트 상태 의존 제거: 프레시/개발 머신 모두 결정론적
+ISO_OUT="$(printf '1\n1\n' | "$BIN" test --preset dev --dry-run --template-dir "$REPO/templates" --cwd "$ISO_TMP" 2>&1)"
+rm -rf "$ISO_TMP"; trap - EXIT
 assert_contains "$ISO_OUT" "(dry-run isolation)" "tc7_계약_dryrun_isolation"
 assert_plain_bytes "$ISO_OUT" "tc7_계약_dryrun_escape_CR_부재"
 assert_contains "$BANNER_OUT" "[1/4] templates" "tc7_진행단계_1"
@@ -337,7 +359,7 @@ STUBEOF
 fi
 
 if command -v script >/dev/null 2>&1; then
-  TTY_BANNER="$(env -u CI -u GITHUB_ACTIONS -u NO_COLOR script -qec "$BIN test --dry-run --no-template --no-interactive" /dev/null 2>&1)"
+  TTY_BANNER="$(ht_tty "$BIN test --dry-run --no-template --no-interactive")"
   if has_byte "$TTY_BANNER" 1b; then ok "tc4_TTY_색상_활성"; else bad "tc4_TTY_색상_활성 (ESC 없음)"; fi
   assert_contains "$TTY_BANNER" "+-------------------------------" "tc7_TTY_배너_박스"
   assert_contains "$TTY_BANNER" "herdr-team v" "tc7_TTY_배너_텍스트"
@@ -378,5 +400,8 @@ for c in "$REPO"/templates/*/preset.conf; do
 done
 
 echo "-----------------------------"
-printf 'RESULT: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
+if [[ "$SKIP" -gt 0 && "$FAIL" -eq 0 ]]; then
+  printf 'NOTICE: %d assertion(s) skipped (coverage gap): %s\n' "$SKIP" "${SKIP_LABELS%; }"
+fi
+printf 'RESULT: PASS=%d FAIL=%d SKIP=%d\n' "$PASS" "$FAIL" "$SKIP"
 [[ "$FAIL" -eq 0 ]]
